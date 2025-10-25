@@ -1,0 +1,244 @@
+{% extends "pdfimport/base.html" %}
+{% block section_title %}View PDF: {{ uploaded_file.filename }}{% endblock %}
+{% block content %}
+<h5>{{ uploaded_file.filename }}</h5>
+<div class="mb-2">
+    <input type="text" id="search-term" class="form-control d-inline-block" style="width: 200px;" placeholder="Search text">
+    <button id="search-btn" class="btn btn-info btn-sm">Search</button>
+    <button id="prev-match" class="btn btn-outline-info btn-sm" style="display:none;">Prev Match</button>
+    <button id="next-match" class="btn btn-outline-info btn-sm" style="display:none;">Next Match</button>
+    <span id="search-result" class="ms-2"></span>
+</div>
+<div class="mb-2">
+    <button id="prev-page" class="btn btn-secondary btn-sm">Previous</button>
+    <button id="next-page" class="btn btn-secondary btn-sm">Next</button>
+    <span>Page <span id="page-num"></span> of <span id="page-count"></span></span>
+    <input type="number" id="jump-page" min="1" style="width: 60px;" class="form-control d-inline-block" placeholder="Page">
+    <button id="go-page" class="btn btn-primary btn-sm">Go</button>
+</div>
+<div class="row">
+    <div class="col-md-9">
+        <div id="pdf-viewer" style="border:1px solid #ccc; height: 80vh; position: relative;"></div>
+    </div>
+    <div class="col-md-3">
+        <div id="search-results-list" style="max-height: 80vh; overflow-y: auto; display:none;">
+            <h6>Search Results</h6>
+            <ul class="list-group" id="search-results-ul"></ul>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js?v={{ uploaded_file.uploaded_at.timestamp }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const url = "{{ pdf_url }}";
+    console.log('PDF URL from template:', url);
+    console.log('PDF.js library available:', typeof window['pdfjsLib'] !== 'undefined');
+    
+    const pdfjsLib = window['pdfjsLib'];
+    if (!pdfjsLib) {
+        console.error("PDF.js library not loaded or 'pdfjsLib' is undefined.");
+        alert("PDF.js library not loaded or 'pdfjsLib' is undefined.");
+        return;
+    }
+    
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js?v={{ uploaded_file.uploaded_at.timestamp }}';
+    const container = document.getElementById('pdf-viewer');
+    let pdfDoc = null;
+    let pageNum = parseInt("{{ page|default:'1' }}") || 1;
+    let pageCount = 1;
+    let matches = [];
+    let currentMatchIdx = 0;
+    let currentSearchTerm = "";
+    let searchResults = [];
+
+    function renderPage(num, highlightTerm) {
+        console.log('Rendering page:', num);
+        pdfDoc.getPage(num).then(function(page) {
+            console.log('Page loaded successfully');
+            const viewport = page.getViewport({scale: 1.5});
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            container.innerHTML = '';
+            container.appendChild(canvas);
+            page.render({canvasContext: context, viewport: viewport}).promise.then(function() {
+                console.log('Page rendered successfully');
+                if (highlightTerm) {
+                    page.getTextContent().then(function(textContent) {
+                        const textLayerDiv = document.createElement('div');
+                        textLayerDiv.style.position = 'absolute';
+                        textLayerDiv.style.top = 0;
+                        textLayerDiv.style.left = 0;
+                        textLayerDiv.style.height = canvas.height + 'px';
+                        textLayerDiv.style.width = canvas.width + 'px';
+                        textLayerDiv.style.pointerEvents = 'none';
+                        textLayerDiv.style.zIndex = 10;
+                        container.appendChild(textLayerDiv);
+
+                        // Find all matches and highlight them
+                        matches = [];
+                        textContent.items.forEach(function(item, idx) {
+                            const text = item.str;
+                            const lowerText = text.toLowerCase();
+                            const lowerTerm = highlightTerm.toLowerCase();
+                            let startIdx = 0;
+                            while (true) {
+                                const matchIdx = lowerText.indexOf(lowerTerm, startIdx);
+                                if (matchIdx === -1) break;
+                                matches.push({item, idx, matchIdx});
+                                startIdx = matchIdx + lowerTerm.length;
+                            }
+                        });
+
+                        // Highlight all matches
+                        matches.forEach(function(match, i) {
+                            const span = document.createElement('span');
+                            span.textContent = match.item.str;
+                            span.style.position = 'absolute';
+                            span.style.left = (match.item.transform[4] * 1.5) + 'px';
+                            span.style.top = (canvas.height - match.item.transform[5] * 1.5) + 'px';
+                            span.style.background = (i === currentMatchIdx) ? 'orange' : 'yellow';
+                            span.style.fontWeight = (i === currentMatchIdx) ? 'bold' : '';
+                            textLayerDiv.appendChild(span);
+                        });
+
+                        // Show navigation if multiple matches
+                        document.getElementById('prev-match').style.display = matches.length > 1 ? '' : 'none';
+                        document.getElementById('next-match').style.display = matches.length > 1 ? '' : 'none';
+                        document.getElementById('search-result').textContent = matches.length
+                            ? `Match ${currentMatchIdx + 1} of ${matches.length} on page ${num}`
+                            : 'No matches on this page';
+                    });
+                } else {
+                    document.getElementById('prev-match').style.display = 'none';
+                    document.getElementById('next-match').style.display = 'none';
+                    document.getElementById('search-result').textContent = '';
+                }
+            });
+            document.getElementById('page-num').textContent = num;
+            document.getElementById('page-count').textContent = pageCount;
+        }).catch(function(error) {
+            console.error('Error rendering page:', error);
+        });
+    }
+
+    console.log('Loading PDF document from URL:', url);
+    pdfjsLib.getDocument(url).promise.then(function(pdf) {
+        console.log('PDF document loaded successfully');
+        pdfDoc = pdf;
+        pageCount = pdf.numPages;
+        console.log('Total pages:', pageCount);
+        renderPage(pageNum);
+
+        document.getElementById('prev-page').onclick = function() {
+            if (pageNum <= 1) return;
+            pageNum--;
+            renderPage(pageNum, currentSearchTerm);
+        };
+        document.getElementById('next-page').onclick = function() {
+            if (pageNum >= pageCount) return;
+            pageNum++;
+            renderPage(pageNum, currentSearchTerm);
+        };
+        document.getElementById('go-page').onclick = function() {
+            const input = document.getElementById('jump-page');
+            const val = parseInt(input.value);
+            if (val >= 1 && val <= pageCount) {
+                pageNum = val;
+                renderPage(pageNum, currentSearchTerm);
+            }
+        };
+
+        // Search functionality
+        document.getElementById('search-btn').onclick = function() {
+            const term = document.getElementById('search-term').value.trim();
+            if (!term) return;
+            currentSearchTerm = term;
+            let found = false;
+            let foundPage = 0;
+            let searchResult = document.getElementById('search-result');
+            searchResult.textContent = 'Searching...';
+            searchResults = [];
+            // Search each page for the term and build result list
+            (function searchPage(n) {
+                if (n > pageCount) {
+                    searchResult.textContent = searchResults.length ? `Found on ${searchResults.length} page(s)` : 'Not found';
+                    updateSearchResultsList();
+                    if (searchResults.length) {
+                        pageNum = searchResults[0].page;
+                        currentMatchIdx = 0;
+                        renderPage(pageNum, term);
+                    }
+                    return;
+                }
+                pdfDoc.getPage(n).then(function(page) {
+                    page.getTextContent().then(function(textContent) {
+                        const text = textContent.items.map(item => item.str).join(' ');
+                        if (text.toLowerCase().includes(term.toLowerCase())) {
+                            searchResults.push({page: n, preview: text.substr(0, 100)});
+                        }
+                        searchPage(n + 1);
+                    });
+                });
+            })(1);
+        };
+
+        function updateSearchResultsList() {
+            const listDiv = document.getElementById('search-results-list');
+            const ul = document.getElementById('search-results-ul');
+            ul.innerHTML = '';
+            if (searchResults.length) {
+                listDiv.style.display = '';
+                searchResults.forEach(function(result, idx) {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item list-group-item-action';
+                    li.style.cursor = 'pointer';
+                    li.textContent = `Page ${result.page}: ...${result.preview}...`;
+                    li.onclick = function() {
+                        pageNum = result.page;
+                        currentMatchIdx = 0;
+                        renderPage(pageNum, currentSearchTerm);
+                    };
+                    ul.appendChild(li);
+                });
+            } else {
+                listDiv.style.display = 'none';
+            }
+        }
+
+        document.getElementById('prev-match').onclick = function() {
+            if (matches.length > 1) {
+                currentMatchIdx = (currentMatchIdx - 1 + matches.length) % matches.length;
+                renderPage(pageNum, currentSearchTerm);
+            }
+        };
+        document.getElementById('next-match').onclick = function() {
+            if (matches.length > 1) {
+                currentMatchIdx = (currentMatchIdx + 1) % matches.length;
+                renderPage(pageNum, currentSearchTerm);
+            }
+        };
+
+        // Mouse wheel for page navigation
+        container.addEventListener('wheel', function(e) {
+            if (e.deltaY > 0) {
+                if (pageNum < pageCount) {
+                    pageNum++;
+                    renderPage(pageNum, currentSearchTerm);
+                }
+            } else if (e.deltaY < 0) {
+                if (pageNum > 1) {
+                    pageNum--;
+                    renderPage(pageNum, currentSearchTerm);
+                }
+            }
+        });
+    }).catch(function(error) {
+        console.error('Error loading PDF document:', error);
+        alert('Error loading PDF document: ' + error.message);
+    });
+});
+</script>
+{% endblock %} 

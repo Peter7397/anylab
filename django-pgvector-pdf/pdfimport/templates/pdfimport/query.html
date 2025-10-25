@@ -1,0 +1,92 @@
+{% extends "pdfimport/base.html" %}
+{% block section_title %}Vector Search{% endblock %}
+{% block content %}
+<div class="row">
+  <div class="col-md-8" id="main-panel">
+    <div class="mb-4">
+        <form method="post" class="row g-2 align-items-center">
+            {% csrf_token %}
+            <div class="col-auto">
+                <input type="text" name="query" class="form-control" placeholder="Enter your query..." style="width: 350px;">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">Search</button>
+            </div>
+        </form>
+        {% if message %}
+        <div class="alert alert-danger mt-3">{{ message }}</div>
+        {% endif %}
+    </div>
+    {% if results %}
+    <div class="card">
+        <div class="card-header bg-light">
+            <strong>Search Results</strong>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 120px;">Document ID</th>
+                        <th>Content Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for id, content in results %}
+                    <tr>
+                        <td>{{ id }}</td>
+                        <td>{{ content|truncatechars:200 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="col-md-4 border-start" id="history-sidebar">
+    {% if query_history and query_history|length > 0 %}
+    <div class="mb-4">
+      <h6>Query History</h6>
+      <ul class="list-group mb-2" id="history-list">
+        {% for item in query_history %}
+        <li class="list-group-item history-item" data-index="{{ forloop.counter0 }}" style="cursor:pointer;">
+          <strong>Q:</strong> {{ item.query|truncatechars:40 }}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    <div id="history-detail" style="display:none;"></div>
+  </div>
+</div>
+<script id="history-data" type="application/json">{{ query_history_json|safe }}</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // History click logic
+  const historyItems = document.querySelectorAll('.history-item');
+  const historyDetail = document.getElementById('history-detail');
+  const historyData = JSON.parse(document.getElementById('history-data').textContent);
+  historyItems.forEach(function(item) {
+    item.addEventListener('click', function() {
+      const idx = parseInt(item.getAttribute('data-index'));
+      const entry = historyData[idx];
+      let html = `<div class='card mb-3'><div class='card-header bg-info text-white'><strong>Q:</strong> ${entry.query}</div><div class='card-body'><strong>Results:</strong><br><table class='table table-striped mb-0'><thead><tr><th>Document ID</th><th>Content Preview</th></tr></thead><tbody>`;
+      if (entry.results && entry.results.length > 0) {
+        entry.results.forEach(function(res) {
+          html += `<tr><td>${res.id}</td><td>${(res.content || '').slice(0,200)}</td></tr>`;
+        });
+      } else {
+        html += `<tr><td colspan='2'>No results</td></tr>`;
+      }
+      html += `</tbody></table></div></div>`;
+      historyDetail.innerHTML = html;
+      historyDetail.style.display = '';
+      // Scroll to detail panel if on mobile
+      if (window.innerWidth < 768) {
+        historyDetail.scrollIntoView({behavior:'smooth'});
+      }
+    });
+  });
+});
+</script>
+{% endblock %}

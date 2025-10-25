@@ -1,0 +1,19 @@
+{% extends "pdfimport/base.html" %}
+{% block section_title %}Upload PDF{% endblock %}
+{% block content %}
+<div class="mb-4">
+    <form method="post" enctype="multipart/form-data" class="row g-2 align-items-center">
+        {% csrf_token %}
+        <div class="col-auto">
+            <input type="file" name="pdfs" accept="application/pdf" class="form-control" multiple>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Upload</button>
+        </div>
+    </form>
+    <div class="form-text">You can select multiple PDF files. Already-uploaded files will be skipped automatically.</div>
+    {% if message %}
+    <div class="alert alert-info mt-3">{{ message }}</div>
+    {% endif %}
+</div>
+{% endblock %}

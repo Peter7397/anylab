@@ -1,0 +1,189 @@
+import React from 'react';
+import { 
+  Monitor, 
+  AlertTriangle, 
+  CheckCircle, 
+  Clock,
+  TrendingUp,
+  Activity,
+  FileText,
+  MessageSquare
+} from 'lucide-react';
+import { System } from '../../types';
+
+const Dashboard: React.FC = () => {
+  // Mock data - replace with actual API calls
+  const mockSystems: System[] = [
+    { id: '1', name: 'LAB-PC-001', ip: '192.168.1.101', os: 'Windows 10 Pro', lastLogin: '2024-01-15 09:30', status: 'online' },
+    { id: '2', name: 'LAB-PC-002', ip: '192.168.1.102', os: 'Windows 11 Pro', lastLogin: '2024-01-15 08:45', status: 'online' },
+    { id: '3', name: 'LAB-SERVER-01', ip: '192.168.1.10', os: 'Windows Server 2022', lastLogin: '2024-01-15 10:15', status: 'warning' },
+    { id: '4', name: 'LAB-PC-003', ip: '192.168.1.103', os: 'Windows 10 Pro', lastLogin: '2024-01-14 16:20', status: 'offline' },
+  ];
+
+  const stats = [
+    { name: 'Total PCs', value: '24', icon: Monitor, change: '+2', changeType: 'positive' },
+    { name: 'Issues Detected', value: '3', icon: AlertTriangle, change: '-1', changeType: 'negative' },
+    { name: 'Systems Online', value: '21', icon: CheckCircle, change: '+1', changeType: 'positive' },
+    { name: 'Pending Maintenance', value: '5', icon: Clock, change: '+2', changeType: 'neutral' },
+  ];
+
+  const recentActivity = [
+    { id: '1', type: 'scan', message: 'System scan completed', time: '2 minutes ago', status: 'success' },
+    { id: '2', type: 'alert', message: 'High CPU usage detected on LAB-SERVER-01', time: '15 minutes ago', status: 'warning' },
+    { id: '3', type: 'maintenance', message: 'Scheduled maintenance completed', time: '1 hour ago', status: 'success' },
+    { id: '4', type: 'ai', message: 'AI analysis completed for 15 log files', time: '2 hours ago', status: 'success' },
+  ];
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'status-ok';
+      case 'warning': return 'status-warning';
+      case 'offline': return 'status-critical';
+      default: return 'status-ok';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'online': return 'Online';
+      case 'warning': return 'Warning';
+      case 'offline': return 'Offline';
+      default: return 'Unknown';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-600">System overview and quick insights</p>
+        </div>
+        <div className="flex space-x-3">
+          <button className="btn-primary">
+            <Activity size={16} className="mr-2" />
+            Run System Scan
+          </button>
+          <button className="btn-secondary">
+            <FileText size={16} className="mr-2" />
+            Generate Report
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.name} className="card">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <Icon size={24} className="text-gray-400" />
+                </div>
+                <div className="ml-4 flex-1">
+                  <p className="text-sm font-medium text-gray-600">{stat.name}</p>
+                  <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                </div>
+                <div className={`text-sm ${
+                  stat.changeType === 'positive' ? 'text-success-600' :
+                  stat.changeType === 'negative' ? 'text-danger-600' : 'text-gray-600'
+                }`}>
+                  {stat.change}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* System Overview */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">System Overview</h2>
+            <button className="text-sm text-primary-600 hover:text-primary-700">
+              View All
+            </button>
+          </div>
+          <div className="space-y-3">
+            {mockSystems.map((system) => (
+              <div key={system.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className={`w-3 h-3 rounded-full ${
+                    system.status === 'online' ? 'bg-success-500' :
+                    system.status === 'warning' ? 'bg-warning-500' : 'bg-danger-500'
+                  }`} />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{system.name}</p>
+                    <p className="text-xs text-gray-500">{system.ip}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">{system.os}</p>
+                  <p className="text-xs text-gray-500">Last: {system.lastLogin}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Activity */}
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+            <button className="text-sm text-primary-600 hover:text-primary-700">
+              View All
+            </button>
+          </div>
+          <div className="space-y-3">
+            {recentActivity.map((activity) => (
+              <div key={activity.id} className="flex items-start space-x-3">
+                <div className={`w-2 h-2 rounded-full mt-2 ${
+                  activity.status === 'success' ? 'bg-success-500' :
+                  activity.status === 'warning' ? 'bg-warning-500' : 'bg-danger-500'
+                }`} />
+                <div className="flex-1">
+                  <p className="text-sm text-gray-900">{activity.message}</p>
+                  <p className="text-xs text-gray-500">{activity.time}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <MessageSquare size={20} className="text-primary-600 mr-3" />
+            <div className="text-left">
+              <p className="text-sm font-medium text-gray-900">AI Assistant</p>
+              <p className="text-xs text-gray-500">Get help with troubleshooting</p>
+            </div>
+          </button>
+          <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <Activity size={20} className="text-primary-600 mr-3" />
+            <div className="text-left">
+              <p className="text-sm font-medium text-gray-900">Log Analysis</p>
+              <p className="text-xs text-gray-500">Analyze system logs</p>
+            </div>
+          </button>
+          <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+            <Clock size={20} className="text-primary-600 mr-3" />
+            <div className="text-left">
+              <p className="text-sm font-medium text-gray-900">Maintenance</p>
+              <p className="text-xs text-gray-500">Schedule maintenance tasks</p>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard; 

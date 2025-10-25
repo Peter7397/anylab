@@ -1,0 +1,28 @@
+Application Monitoring Service (AppMonSvc) — OneLab Enhanced (v2.0.0)
+
+Scope
+-----
+Tail-focused log watcher with regex-based detection, context capture and artifact-free, low-overhead alerting. Integrates with OneLab via /alerts/ and /metrics/ endpoints. Adds deduplication, metrics, performance tracking, configuration validation, and structured logging.
+
+High‑Priority Features
+----------------------
+1) Enhanced Alert Schema: adds context lines, fingerprint, app category, file metadata, alert_id, metadata bundle.
+2) Deduplication: TTL‑based in-memory cache with bounded size; fingerprint = sha256(app|pattern|normalized_line).
+3) Metrics Upload: periodic (default 60s) POST to /metrics/ with service, performance, cache and application stats.
+
+Medium‑Priority Features
+------------------------
+4) Structured Logging & Scan Summaries.
+5) Configuration Validator with actionable errors/warnings.
+6) Performance Tracker using psutil to sample CPU/MEM along the way.
+
+Config
+------
+- config/global.default.json: defaults incl. paths, dedup, alert_server base, OneLab mappings.
+- config/appmon.onlab.json: site overrides.
+- sources[].patterns[]: name, regex, severity, context_before/after.
+
+Service
+-------
+- Run as Windows service (NSSM). Example: nssm install AppMonSvc "C:\Python\python.exe" "C:\AppMon\src\appmon_enhanced.py"
+- Logs: %ProgramData%\AppMon\AppMon\logs\AppMonSvc.log (JSON).

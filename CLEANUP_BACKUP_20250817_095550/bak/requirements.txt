@@ -1,0 +1,40 @@
+# Django and REST Framework
+Django==5.2.4
+djangorestframework==3.16.0
+django-cors-headers==4.7.0
+djangorestframework-simplejwt==5.3.0
+django-filter==24.1
+
+# Database
+psycopg2-binary==2.9.10
+
+# Task Queue
+celery==5.5.3
+redis==6.2.0
+
+# Environment and Utilities
+python-dotenv==1.1.1
+requests==2.31.0
+
+# Image Processing
+Pillow==10.4.0
+
+# Data Science and AI
+numpy==1.26.4
+pandas==2.2.1
+scikit-learn==1.4.1
+transformers==4.38.2
+torch==2.2.1
+sentence-transformers==2.5.1
+chromadb==0.4.22
+langchain==0.2.9
+langchain-community==0.2.9
+
+# Production Server
+gunicorn==21.2.0
+
+# Celery Monitoring
+flower==2.0.1
+
+# Health Checks
+curl_cffi==0.6.0 
