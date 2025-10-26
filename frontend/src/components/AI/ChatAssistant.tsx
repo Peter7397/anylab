@@ -62,7 +62,9 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
 
   const handleViewDocument = (source: any) => {
     if (source.uploaded_file_id) {
-      const viewerUrl = `${process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000'}/api/ai/pdf/${source.uploaded_file_id}/view/?page=${source.page_number || 1}`;
+      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+      // baseUrl already includes /api, so just add the ai/pdf path
+      const viewerUrl = `${baseUrl}/ai/pdf/${source.uploaded_file_id}/view/?page=${source.page_number || 1}`;
       window.open(viewerUrl, '_blank');
     }
   };
