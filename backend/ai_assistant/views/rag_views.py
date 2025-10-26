@@ -246,7 +246,7 @@ def documents(request):
             start = (page - 1) * page_size
             end = start + page_size
             
-            serializer = DocumentSerializer(docs[start:end], many=True)
+            serializer = DocumentSerializer(docs[start:end], many=True, context={'request': request})
             
             return success_response(
                 "Documents retrieved successfully",
@@ -340,7 +340,7 @@ def document_search(request):
                 Q(title__icontains=query) | Q(description__icontains=query)
             )
         
-        serializer = DocumentSerializer(docs, many=True)
+        serializer = DocumentSerializer(docs, many=True, context={'request': request})
         
         return success_response(
             "Documents found",
@@ -443,7 +443,7 @@ def pdf_search(request):
         else:
             pdfs = PDFDocument.objects.filter(title__icontains=query)
         
-        serializer = PDFDocumentSerializer(pdfs, many=True)
+        serializer = PDFDocumentSerializer(pdfs, many=True, context={'request': request})
         
         return success_response(
             "PDFs found",

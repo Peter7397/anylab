@@ -36,7 +36,7 @@ def pdf_documents(request):
         if request.method == 'GET':
             # Get all PDF documents
             pdfs = PDFDocument.objects.all()
-            serializer = PDFDocumentSerializer(pdfs, many=True)
+            serializer = PDFDocumentSerializer(pdfs, many=True, context={'request': request})
             
             BaseViewMixin.log_response({'pdfs': serializer.data}, 'pdf_documents')
             return success_response("PDF documents retrieved successfully", {'pdfs': serializer.data})
