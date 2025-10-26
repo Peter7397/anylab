@@ -103,22 +103,33 @@ class ComprehensiveContextOptimizer:
         context = context_info.get("context", "")
         source_count = context_info.get("source_count", 0)
         
-        # Enhanced instruction for comprehensive responses
+        # Ultra-strict instruction for maximum accuracy - document-only responses
         comprehensive_instruction = (
-            "You are an expert technical consultant providing comprehensive, detailed responses.\n\n"
-            "CRITICAL INSTRUCTIONS FOR COMPREHENSIVE ANSWERS:\n"
-            "1. Use ALL available information from the provided context - leave nothing out\n"
-            "2. Provide COMPLETE, DETAILED answers regardless of length\n"
-            "3. Include ALL relevant details, steps, procedures, and explanations\n"
-            "4. Synthesize information from ALL sources to create a thorough response\n"
-            "5. Cite sources using [Source: filename] format\n"
-            "6. If multiple sources provide similar information, combine and elaborate\n"
-            "7. Include specific details like version numbers, file paths, exact procedures\n"
-            "8. Provide background context and explanations for better understanding\n"
-            "9. Never truncate or summarize - give complete, exhaustive information\n"
-            "10. Structure the response logically using clear paragraphs and natural flow\n"
-            "11. Do NOT use markdown formatting, headers (###, ####), or special symbols\n"
-            "12. Write in plain text with proper paragraph breaks and natural organization\n\n"
+            "You are a technical documentation expert. Your ONLY source of information is the provided context below.\n\n"
+            "ABSOLUTE REQUIREMENTS - READ THESE CAREFULLY:\n\n"
+            "🚫 FORBIDDEN ACTIVITIES:\n"
+            "1. DO NOT use any knowledge outside the provided context\n"
+            "2. DO NOT guess, infer, or make assumptions\n"
+            "3. DO NOT use common sense or general knowledge\n"
+            "4. DO NOT fill in gaps with external information\n"
+            "5. DO NOT extrapolate beyond what is explicitly stated\n"
+            "6. DO NOT create examples that aren't in the documents\n"
+            "7. DO NOT add details that aren't explicitly mentioned\n"
+            "8. DO NOT use technical terms you learned elsewhere\n\n"
+            "✅ REQUIRED BEHAVIORS:\n"
+            "1. Extract information EXACTLY as stated in the context\n"
+            "2. ONLY cite information that appears in the provided context\n"
+            "3. If information is missing in the context, state: \"This information is not available in the provided documentation\"\n"
+            "4. Quote directly from the context when possible\n"
+            "5. Include page numbers and source names for EVERY claim\n"
+            "6. If multiple sources conflict, present both perspectives\n"
+            "7. Use precise technical terms exactly as they appear in documents\n"
+            "8. Include all steps/procedures in the exact order they appear\n\n"
+            "ACCURACY CHECKS BEFORE RESPONDING:\n"
+            "- Can I point to the exact sentence in the context that supports this claim? YES/NO (must be YES)\n"
+            "- Am I adding any information not in the context? YES/NO (must be NO)\n"
+            "- Are all my facts directly from the documents? YES/NO (must be YES)\n\n"
+            "Citation Format: For each claim, cite as: [Source: filename, Page X]\n\n"
         )
         
         # Query-type specific comprehensive instructions
@@ -183,10 +194,10 @@ class ComprehensiveRAGService(AdvancedRAGService):
     def __init__(self, model_name=None):
         super().__init__(model_name)
         
-        # Enhanced settings for comprehensive responses
-        self.comprehensive_top_k = 15  # Increased from 8
-        self.comprehensive_candidates = 40  # Increased from 20
-        self.similarity_threshold = 0.4  # Lowered for more inclusive results
+        # Enhanced settings for comprehensive responses - Option 3+ Optimization
+        self.comprehensive_top_k = 20  # Increased from 15 for better coverage
+        self.comprehensive_candidates = 60  # Increased from 40 for maximum recall
+        self.similarity_threshold = 0.3  # Lowered from 0.4 for more inclusive results (accuracy first)
         
         # Use comprehensive context optimizer
         self.comprehensive_optimizer = ComprehensiveContextOptimizer(max_context_length=12000)
@@ -222,10 +233,13 @@ class ComprehensiveRAGService(AdvancedRAGService):
             
             logger.info(f"Comprehensive search - Query type: {query_type}, expansion: {expansion_applied}")
             
-            # Step 2: Cast a wide net for comprehensive coverage
+            # Step 2: Cast a very wide net for maximum comprehensive coverage (Option 3+)
+            # Retrieve 60 candidates for maximum recall - accuracy is priority
             vector_results = self.search_relevant_documents_with_scoring(
                 expanded_query, top_k=self.comprehensive_candidates
             )
+            
+            logger.info(f"Retrieved {len(vector_results)} candidates out of {self.comprehensive_candidates} requested")
             
             if not vector_results:
                 return []
@@ -327,42 +341,47 @@ class ComprehensiveRAGService(AdvancedRAGService):
             logger.debug(f"Using cached comprehensive response: {prompt_hash[:8]}...")
             return cached_response
         
-        # Comprehensive response parameters - optimized for detailed, complete answers
+        # Ultra-conservative parameters for maximum accuracy - prevent hallucination
         comprehensive_params = {
             'procedural': {
-                'num_predict': 3000,    # Much longer for complete procedures
-                'temperature': 0.1,     # Very focused for accuracy
-                'top_p': 0.8,
-                'repeat_penalty': 1.15,
-                'num_ctx': 8192        # Larger context window
+                'num_predict': 4000,    # Allow long, complete procedures
+                'temperature': 0.05,    # Almost deterministic - maximum accuracy
+                'top_p': 0.7,          # Narrower distribution
+                'repeat_penalty': 1.3, # Strong penalty to prevent repetition
+                'num_ctx': 8192,
+                'top_k': 20            # Fewer token choices (more conservative)
             },
             'definitional': {
-                'num_predict': 2500,    # Longer for comprehensive definitions
-                'temperature': 0.15,    # Slightly more creative for examples
-                'top_p': 0.85,
-                'repeat_penalty': 1.1,
-                'num_ctx': 8192
+                'num_predict': 3000,    # Comprehensive definitions
+                'temperature': 0.05,    # Very low for accuracy
+                'top_p': 0.75,         # Narrow distribution
+                'repeat_penalty': 1.25,
+                'num_ctx': 8192,
+                'top_k': 20
             },
             'troubleshooting': {
-                'num_predict': 3500,    # Longest for complete troubleshooting
-                'temperature': 0.1,     # Very focused for accuracy
-                'top_p': 0.8,
-                'repeat_penalty': 1.2,
-                'num_ctx': 8192
+                'num_predict': 4000,    # Complete troubleshooting
+                'temperature': 0.05,    # Critical for accuracy
+                'top_p': 0.7,          # Very focused
+                'repeat_penalty': 1.3, # Strong penalty
+                'num_ctx': 8192,
+                'top_k': 20
             },
             'locational': {
-                'num_predict': 2000,    # Moderate length for locations
+                'num_predict': 2500,    # Moderate length
                 'temperature': 0.05,    # Extremely focused
-                'top_p': 0.75,
-                'repeat_penalty': 1.1,
-                'num_ctx': 8192
+                'top_p': 0.7,
+                'repeat_penalty': 1.2,
+                'num_ctx': 8192,
+                'top_k': 20
             },
             'general': {
-                'num_predict': 2800,    # Long for comprehensive coverage
-                'temperature': 0.15,    # Balanced
-                'top_p': 0.9,
-                'repeat_penalty': 1.1,
-                'num_ctx': 8192
+                'num_predict': 3500,    # Long for comprehensive coverage
+                'temperature': 0.05,    # Ultra-low for maximum accuracy
+                'top_p': 0.8,          # Narrow distribution
+                'repeat_penalty': 1.2, # Prevent repetition
+                'num_ctx': 8192,
+                'top_k': 20            # Conservative sampling
             }
         }
         
@@ -378,8 +397,8 @@ class ComprehensiveRAGService(AdvancedRAGService):
                     ],
                     "stream": False,
                     "options": {
-                        **params,
-                        "top_k": 40
+                        **params
+                        # top_k is already in params dict
                     }
                 },
                 timeout=300  # Increased timeout for longer responses
