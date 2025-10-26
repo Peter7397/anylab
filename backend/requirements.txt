@@ -45,4 +45,8 @@ ollama==0.1.7
 
 # Additional AI utilities
 huggingface-hub==0.36.0
-tokenizers==0.22.1 
+tokenizers==0.22.1
+
+# Web Scraping
+beautifulsoup4==4.12.3
+lxml==5.2.0 

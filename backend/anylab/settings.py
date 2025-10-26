@@ -43,8 +43,6 @@ INSTALLED_APPS = [
     
     # Local apps
     'users',
-    'monitoring',
-    'maintenance',
     'ai_assistant',
 ]
 
@@ -193,9 +191,15 @@ SIMPLE_JWT = {
 }
 
 # CORS settings
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,http://192.168.1.24:3000,http://10.96.17.21:3000,https://anylab.dpdns.org').split(',')
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://192.168.1.24:3000',
+    'http://10.96.17.21:3000',
+    'https://anylab.dpdns.org',
+]
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True').lower() == 'true'  # For development only
+CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -239,8 +243,8 @@ SESSION_CACHE_ALIAS = 'default'
 # AI Model Settings
 AI_MODEL_PATH = os.getenv('AI_MODEL_PATH', '/path/to/qwen-model')
 EMBEDDING_MODEL_PATH = os.getenv('EMBEDDING_MODEL_PATH', '/path/to/bge-model')
-OLLAMA_API_URL = os.getenv('OLLAMA_API_URL', 'http://ollama:11434')
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen:latest')
+OLLAMA_API_URL = os.getenv('OLLAMA_API_URL', 'http://localhost:11434')
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:latest')
 OLLAMA_REQUEST_TIMEOUT = int(os.getenv('OLLAMA_REQUEST_TIMEOUT', '120'))  # Reduced from 300 to 120 seconds
 # Generation defaults optimized for Qwen 7B speed
 OLLAMA_NUM_CTX = int(os.getenv('OLLAMA_NUM_CTX', '1024'))  # Reduced from 2048 to 1024 for faster processing
@@ -253,8 +257,8 @@ EMBEDDING_CACHE_TTL = int(os.getenv('EMBEDDING_CACHE_TTL', '3600'))  # 1 hour
 RESPONSE_CACHE_TTL = int(os.getenv('RESPONSE_CACHE_TTL', '1800'))  # 30 minutes
 
 # Embedding Model Settings
-EMBEDDING_MODEL_NAME = os.getenv('EMBEDDING_MODEL_NAME', 'BAAI/bge-m3')
-EMBEDDING_MODEL_FALLBACK = os.getenv('EMBEDDING_MODEL_FALLBACK', 'sentence-transformers/all-MiniLM-L6-v2')
+EMBEDDING_MODEL_NAME = os.getenv('EMBEDDING_MODEL_NAME', 'bge-m3:latest')
+EMBEDDING_MODEL_FALLBACK = os.getenv('EMBEDDING_MODEL_FALLBACK', 'nomic-embed-text:latest')
 EMBEDDING_DEVICE = os.getenv('EMBEDDING_DEVICE', 'cpu')
 
 # Dual Mode Settings

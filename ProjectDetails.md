@@ -2,10 +2,7 @@ Purpose:
 AnyLab is a web-based lab IT operations and troubleshooting platform integrating:
 
 **Slogan: AI eNlighteN Your Lab**
-- System administration (PC scanning, monitoring, maintenance)
-- Automated log collection & analysis
 - AI-driven troubleshooting (RAG-based Q&A using manuals, KBs, logs)
-- Maintenance planning & toolkit
 - AI RAG driving Assist 
 This design focuses on the AI Assistant and how it integrates with the rest of the platform.
 ---

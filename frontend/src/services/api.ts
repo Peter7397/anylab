@@ -133,7 +133,19 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
-      const data = await response.json();
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Non-JSON response (e.g., HTML error pages)
+        const text = await response.text();
+        console.error('Non-JSON response:', text.substring(0, 200));
+        throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText})`);
+      }
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -148,7 +160,7 @@ class ApiClient {
             throw new Error('Authentication failed');
           }
         }
-        throw new Error(data.message || `HTTP ${response.status}`);
+        throw new Error(data.message || data.error || `HTTP ${response.status}`);
       }
 
       return {
@@ -375,7 +387,7 @@ class ApiClient {
 
   // Vector search over pgvector
   async vectorSearch(query: string, topK: number = 5): Promise<{ query: string; top_k: number; results: Array<{ title: string; chunk_index: number; content: string; similarity: number }>}> {
-    const response = await this.request<{ query: string; top_k: number; results: Array<{ title: string; chunk_index: number; content: string; similarity: number }>}>('/ai/vector/search/', {
+    const response = await this.request<{ query: string; top_k: number; results: Array<{ title: string; chunk_index: number; content: string; similarity: number }>}>('/ai/rag/search/vector/', {
       method: 'POST',
       body: JSON.stringify({ query, top_k: topK }),
     });
@@ -415,7 +427,7 @@ class ApiClient {
       tokens_used?: number;
       search_method?: string;
       search_stats?: any;
-    }>('/ai/rag/advanced/', {
+    }>('/ai/rag/search/advanced/', {
       method: 'POST',
       body: JSON.stringify({ query, top_k: topK, search_mode: searchMode }),
     });
@@ -438,7 +450,7 @@ class ApiClient {
       tokens_used?: number;
       search_method?: string;
       search_stats?: any;
-    }>('/ai/rag/comprehensive/', {
+    }>('/ai/rag/search/comprehensive/', {
       method: 'POST',
       body: JSON.stringify({ query, top_k: topK, include_stats: includeStats }),
     });
@@ -614,6 +626,8 @@ class ApiClient {
   // Enhanced Document Management API
   async getDocuments(): Promise<any> {
     const response = await this.request('/ai/documents/');
+    // Backend returns {message, timestamp, documents, total, page, page_size}
+    // Frontend expects response.data which contains all these fields
     return response.data;
   }
 

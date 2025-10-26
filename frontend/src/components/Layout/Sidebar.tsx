@@ -31,7 +31,11 @@ import {
         Share2,
         ChevronDown,
         ChevronRight as ChevronRightIcon,
-        Download
+        Download,
+        FlaskConical,
+        Cpu,
+        ToggleLeft,
+        ToggleRight
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -39,11 +43,76 @@ interface SidebarProps {
         onToggle: () => void;
 }
 
-const navigation = [
+type OrganizationMode = 'general' | 'lab-informatics';
+
+const generalAgilentNavigation = [
         {
                 name: 'Dashboard',
                 href: '/',
                 icon: Home,
+        },
+        {
+                name: 'Gas Chromatography',
+                href: '/products/gc',
+                icon: FlaskConical,
+                children: [
+                        { name: 'GC Systems', href: '/products/gc/systems', icon: FlaskConical },
+                        { name: 'GC Columns', href: '/products/gc/columns', icon: FlaskConical },
+                        { name: 'GC Accessories', href: '/products/gc/accessories', icon: FlaskConical },
+                        { name: 'GC Software', href: '/products/gc/software', icon: Code },
+                ],
+        },
+        {
+                name: 'Liquid Chromatography',
+                href: '/products/lc',
+                icon: FlaskConical,
+                children: [
+                        { name: 'LC Systems', href: '/products/lc/systems', icon: FlaskConical },
+                        { name: 'LC Columns', href: '/products/lc/columns', icon: FlaskConical },
+                        { name: 'LC Accessories', href: '/products/lc/accessories', icon: FlaskConical },
+                        { name: 'LC Software', href: '/products/lc/software', icon: Code },
+                ],
+        },
+        {
+                name: 'Mass Spectrometry',
+                href: '/products/ms',
+                icon: Cpu,
+                children: [
+                        { name: 'MS Systems', href: '/products/ms/systems', icon: Cpu },
+                        { name: 'MS Software', href: '/products/ms/software', icon: Code },
+                        { name: 'MS Accessories', href: '/products/ms/accessories', icon: Cpu },
+                ],
+        },
+        {
+                name: 'NMR Systems',
+                href: '/products/nmr',
+                icon: Cpu,
+                children: [
+                        { name: 'NMR Systems', href: '/products/nmr/systems', icon: Cpu },
+                        { name: 'NMR Software', href: '/products/nmr/software', icon: Code },
+                        { name: 'NMR Accessories', href: '/products/nmr/accessories', icon: Cpu },
+                ],
+        },
+        {
+                name: 'Spectroscopy',
+                href: '/products/spectroscopy',
+                icon: Cpu,
+                children: [
+                        { name: 'UV-Vis', href: '/products/spectroscopy/uv-vis', icon: Cpu },
+                        { name: 'IR', href: '/products/spectroscopy/ir', icon: Cpu },
+                        { name: 'Fluorescence', href: '/products/spectroscopy/fluorescence', icon: Cpu },
+                ],
+        },
+        {
+                name: 'Knowledge Library',
+                href: '/ai/knowledge',
+                icon: Library,
+                children: [
+                        { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
+                        { name: 'Document Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
+                        { name: 'Product Manuals', href: '/ai/knowledge/manuals', icon: FileText },
+                        { name: 'Technical Specs', href: '/ai/knowledge/specs', icon: FileText },
+                ],
         },
         {
                 name: 'AI Assistant',
@@ -57,68 +126,89 @@ const navigation = [
                 ],
         },
         {
+                name: 'Administration',
+                href: '/admin/users',
+                icon: Settings,
+                children: [
+                        { name: 'Users & Roles', href: '/admin/users', icon: Users },
+                        { name: 'Licenses', href: '/admin/licenses', icon: Key },
+                ],
+        },
+];
+
+const labInformaticsNavigation = [
+        {
+                name: 'Dashboard',
+                href: '/',
+                icon: Home,
+        },
+        {
+                name: 'OpenLab Software Suite',
+                href: '/lab-informatics/openlab',
+                icon: Code,
+                children: [
+                        { name: 'OpenLab CDS', href: '/lab-informatics/openlab/cds', icon: Code },
+                        { name: 'OpenLab ECM', href: '/lab-informatics/openlab/ecm', icon: Database },
+                        { name: 'OpenLab ELN', href: '/lab-informatics/openlab/eln', icon: FileText },
+                        { name: 'OpenLab Server', href: '/lab-informatics/openlab/server', icon: Server },
+                ],
+        },
+        {
+                name: 'MassHunter Suite',
+                href: '/lab-informatics/masshunter',
+                icon: Cpu,
+                children: [
+                        { name: 'MassHunter Workstation', href: '/lab-informatics/masshunter/workstation', icon: Cpu },
+                        { name: 'MassHunter Quantitative', href: '/lab-informatics/masshunter/quantitative', icon: BarChart3 },
+                        { name: 'MassHunter Qualitative', href: '/lab-informatics/masshunter/qualitative', icon: Search },
+                        { name: 'MassHunter BioConfirm', href: '/lab-informatics/masshunter/bioconfirm', icon: Brain },
+                        { name: 'MassHunter Metabolomics', href: '/lab-informatics/masshunter/metabolomics', icon: Activity },
+                ],
+        },
+        {
+                name: 'VNMRJ Software',
+                href: '/lab-informatics/vnmrj',
+                icon: Cpu,
+                children: [
+                        { name: 'VNMRJ Current', href: '/lab-informatics/vnmrj/current', icon: Cpu },
+                        { name: 'VNMRJ Legacy', href: '/lab-informatics/vnmrj/legacy', icon: Cpu },
+                        { name: 'VNMR Legacy', href: '/lab-informatics/vnmrj/vnmr-legacy', icon: Cpu },
+                ],
+        },
+        {
+                name: 'Troubleshooting',
+                href: '/troubleshooting/overview',
+                icon: AlertTriangle,
+                children: [
+                        { name: 'Critical Issues', href: '/troubleshooting/critical', icon: AlertTriangle },
+                        { name: 'Common Issues', href: '/troubleshooting/common', icon: Monitor },
+                        { name: 'Error Codes', href: '/troubleshooting/error-codes', icon: FileSearch },
+                        { name: 'KPR Database', href: '/troubleshooting/kpr', icon: Database },
+                        { name: 'Solution Finder', href: '/troubleshooting/solutions', icon: Search },
+                ],
+        },
+        {
                 name: 'Knowledge Library',
                 href: '/ai/knowledge',
                 icon: Library,
                 children: [
                         { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
                         { name: 'Document Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
-                        { name: 'Useful Links', href: '/ai/knowledge/links', icon: Globe },
-                        { name: 'Sharing & Collaboration', href: '/ai/knowledge/sharing', icon: Share2 },
+                        { name: 'SSB Database', href: '/ai/knowledge/ssb', icon: Database },
+                        { name: 'Help Portal', href: '/ai/knowledge/help-portal', icon: Globe },
+                        { name: 'Community Solutions', href: '/ai/knowledge/community', icon: Users },
                 ],
         },
         {
-                name: 'System Monitoring',
-                href: '/monitoring/enhanced',
-                icon: Monitor,
+                name: 'AI Assistant',
+                href: '/ai/chat',
+                icon: MessageSquare,
                 children: [
-                        { name: 'Enhanced Dashboard', href: '/monitoring/enhanced', icon: BarChart3 },
-                        { name: 'SysMon Agents', href: '/monitoring/sysmon-agents', icon: Monitor },
-                        { name: 'Agent Deployment', href: '/monitoring/deployment', icon: Download },
-                        { name: 'System Details', href: '/monitoring/system-detail', icon: Server },
-                        { name: 'Performance', href: '/monitoring/performance', icon: Activity },
-                        { name: 'Resources', href: '/monitoring/resources', icon: Zap },
-                        { name: 'Network', href: '/monitoring/network', icon: Network },
-                        { name: 'Processes', href: '/monitoring/processes', icon: Activity },
-                        { name: 'Alerts', href: '/monitoring/alerts', icon: Bell },
-                        { name: 'Events', href: '/monitoring/events', icon: FileSearch },
-                ],
-        },
-        {
-                name: 'Database Monitoring',
-                href: '/database-monitoring/dashboard',
-                icon: Database,
-                children: [
-                        { name: 'Dashboard', href: '/database-monitoring/dashboard', icon: BarChart3 },
-                        { name: 'Databases', href: '/database-monitoring/databases', icon: Database },
-                        { name: 'Performance', href: '/database-monitoring/performance', icon: Zap },
-                        { name: 'Queries', href: '/database-monitoring/queries', icon: FileSearch },
-                        { name: 'Connections', href: '/database-monitoring/connections', icon: Network },
-                        { name: 'Tables', href: '/database-monitoring/tables', icon: FileText },
-                        { name: 'Indexes', href: '/database-monitoring/indexes', icon: Shield },
-                        { name: 'Backups', href: '/database-monitoring/backups', icon: Shield },
-                        { name: 'Alerts', href: '/database-monitoring/alerts', icon: Bell },
-                ],
-        },
-        {
-                name: 'AppMon Monitoring',
-                href: '/appmon/enhanced-dashboard',
-                icon: Code,
-                children: [
-                        { name: 'Enhanced Dashboard', href: '/appmon/enhanced-dashboard', icon: BarChart3 },
-                        { name: 'AppMon Agents', href: '/appmon/agents', icon: Monitor },
-                        { name: 'File Monitoring', href: '/appmon/file-monitoring', icon: FileSearch },
-                        { name: 'Performance Analytics', href: '/appmon/performance-analytics', icon: Activity },
-                        { name: 'Alert Management', href: '/appmon/alerts', icon: Bell },
-                ],
-        },
-        {
-                name: 'Maintenance',
-                href: '/maintenance/calendar',
-                icon: Wrench,
-                children: [
-                        { name: 'Calendar', href: '/maintenance/calendar', icon: Calendar },
-                        { name: 'SQL Health', href: '/maintenance/sql-health', icon: Database },
+                        { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
+                        { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
+                        { name: 'Advanced RAG', href: '/ai/rag', icon: Search },
+                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Brain },
+                        { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
         },
         {
@@ -128,15 +218,7 @@ const navigation = [
                 children: [
                         { name: 'Users & Roles', href: '/admin/users', icon: Users },
                         { name: 'Licenses', href: '/admin/licenses', icon: Key },
-                ],
-        },
-        {
-                name: 'Troubleshooting',
-                href: '/troubleshooting/overview',
-                icon: AlertTriangle,
-                children: [
-                        { name: 'System Overview', href: '/troubleshooting/overview', icon: Monitor },
-                        { name: 'Log Collection', href: '/troubleshooting/logs', icon: FileSearch },
+                        { name: 'System Settings', href: '/admin/system', icon: Settings },
                 ],
         },
 ];
@@ -144,6 +226,21 @@ const navigation = [
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         const location = useLocation();
         const [expandedItems, setExpandedItems] = useState<string[]>([]);
+        const [organizationMode, setOrganizationMode] = useState<OrganizationMode>(() => {
+                const saved = localStorage.getItem('anylab_organization_mode');
+                return (saved as OrganizationMode) || 'general';
+        });
+
+        // Save mode preference to localStorage
+        useEffect(() => {
+                localStorage.setItem('anylab_organization_mode', organizationMode);
+        }, [organizationMode]);
+
+        const toggleOrganizationMode = () => {
+                setOrganizationMode(prev => prev === 'general' ? 'lab-informatics' : 'general');
+        };
+
+        const navigation = organizationMode === 'general' ? generalAgilentNavigation : labInformaticsNavigation;
 
         const isActive = useCallback((href: string) => {
                 return location.pathname === href;
@@ -208,6 +305,55 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                         {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
                                 </button>
                         </div>
+
+                        {/* Mode Toggle */}
+                        {!collapsed && (
+                                <div className="p-4 border-b border-gray-200">
+                                        <div className="flex items-center justify-between">
+                                                <div className="flex flex-col">
+                                                        <span className="text-sm font-medium text-gray-700">
+                                                                Organization Mode
+                                                        </span>
+                                                        <span className="text-xs text-gray-500">
+                                                                {organizationMode === 'general' ? 'General Agilent Products' : 'Lab Informatics Focus'}
+                                                        </span>
+                                                </div>
+                                                <button
+                                                        onClick={toggleOrganizationMode}
+                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                                                organizationMode === 'lab-informatics' 
+                                                                        ? 'bg-blue-600' 
+                                                                        : 'bg-gray-200'
+                                                        }`}
+                                                >
+                                                        <span
+                                                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                                        organizationMode === 'lab-informatics' 
+                                                                                ? 'translate-x-6' 
+                                                                                : 'translate-x-1'
+                                                                }`}
+                                                        />
+                                                </button>
+                                        </div>
+                                </div>
+                        )}
+
+                        {/* Collapsed Mode Toggle */}
+                        {collapsed && (
+                                <div className="p-2 border-b border-gray-200">
+                                        <button
+                                                onClick={toggleOrganizationMode}
+                                                className="w-full p-2 rounded-md hover:bg-gray-100 transition-colors flex items-center justify-center"
+                                                title={organizationMode === 'general' ? 'Switch to Lab Informatics' : 'Switch to General Agilent'}
+                                        >
+                                                {organizationMode === 'general' ? (
+                                                        <FlaskConical size={20} className="text-gray-600" />
+                                                ) : (
+                                                        <Code size={20} className="text-blue-600" />
+                                                )}
+                                        </button>
+                                </div>
+                        )}
 
                         {/* Navigation */}
                         <nav className="flex-1 p-4 space-y-2">

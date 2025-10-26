@@ -46,11 +46,17 @@ class AdvancedRAGService(ImprovedRAGService):
                 logger.info(f"Using cached advanced search results for: {query[:30]}...")
                 return cached_results
             
-            # Step 1: Query Processing and Expansion
+            # Step 1: Query Processing and Adaptive Expansion
             query_type = query_processor.classify_query(query)
-            expanded_query = query_processor.expand_query(query) if self.use_query_expansion else query
+            # Use adaptive expansion - only expand if it would be beneficial
+            if self.use_query_expansion and query_processor.should_expand_query(query):
+                expanded_query = query_processor.expand_query(query)
+                expansion_applied = True
+            else:
+                expanded_query = query
+                expansion_applied = False
             
-            logger.info(f"Query type: {query_type}, expanded: {self.use_query_expansion}")
+            logger.info(f"Query type: {query_type}, expansion applied: {expansion_applied}")
             
             # Step 2: Vector Search (get more candidates for hybrid)
             vector_candidates = 30 if self.use_hybrid_search else self.top_k_candidates

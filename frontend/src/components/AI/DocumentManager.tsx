@@ -92,7 +92,14 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (doc: DocumentFile) => void }
     setLoading(true);
     try {
       const response = await apiClient.getDocuments();
-      setDocuments(response || []);
+      // Handle both old format (array) and new format (object with documents array)
+      if (Array.isArray(response)) {
+        setDocuments(response);
+      } else if (response && response.documents) {
+        setDocuments(response.documents);
+      } else {
+        setDocuments([]);
+      }
       setError(null);
     } catch (err) {
       setError('Failed to load documents');

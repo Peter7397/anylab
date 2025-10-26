@@ -15,10 +15,11 @@ logger = logging.getLogger(__name__)
 class EnhancedRAGService:
     def __init__(self, model_name=None):
         self.model_name = model_name or getattr(settings, 'OLLAMA_MODEL', 'qwen2.5:latest')
-        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
+        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
         self.embedding_model = getattr(settings, 'EMBEDDING_MODEL', 'bge-m3')
-        # Cache settings
-        self.embedding_cache_ttl = getattr(settings, 'EMBEDDING_CACHE_TTL', 3600)  # 1 hour
+        # Standardized cache settings across all RAG services
+        self.embedding_cache_ttl = getattr(settings, 'EMBEDDING_CACHE_TTL', 24 * 3600)  # 24 hours (standardized)
+        self.search_cache_ttl = getattr(settings, 'SEARCH_CACHE_TTL', 3600)  # 1 hour
         self.response_cache_ttl = getattr(settings, 'RESPONSE_CACHE_TTL', 1800)  # 30 minutes
         
     def get_embedding_from_ollama(self, text):

@@ -210,9 +210,17 @@ class ComprehensiveRAGService(AdvancedRAGService):
                 logger.info(f"Using cached comprehensive search results: {query[:30]}...")
                 return cached_results
             
-            # Step 1: Query processing with expansion for maximum coverage
+            # Step 1: Query processing with adaptive expansion
             query_type = query_processor.classify_query(query)
-            expanded_query = query_processor.expand_query(query)
+            # Use adaptive expansion - for comprehensive mode, still expand more aggressively
+            if query_processor.should_expand_query(query):
+                expanded_query = query_processor.expand_query(query)
+                expansion_applied = True
+            else:
+                expanded_query = query
+                expansion_applied = False
+            
+            logger.info(f"Comprehensive search - Query type: {query_type}, expansion: {expansion_applied}")
             
             # Step 2: Cast a wide net for comprehensive coverage
             vector_results = self.search_relevant_documents_with_scoring(

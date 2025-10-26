@@ -239,7 +239,7 @@ class HybridSearchEngine:
             return vector_results[:top_k]
 
 class QueryProcessor:
-    """Advanced query processing and expansion"""
+    """Advanced query processing with adaptive expansion"""
     
     def __init__(self):
         self.stop_words = {
@@ -266,8 +266,50 @@ class QueryProcessor:
         words = re.findall(r'\b[a-zA-Z]{2,}\b', query.lower())
         return [word for word in words if word not in self.stop_words]
     
+    def should_expand_query(self, query: str) -> bool:
+        """Determine if query should be expanded based on its characteristics"""
+        # Check if query contains exact phrases (quoted strings)
+        if '"' in query:
+            return False  # Exact phrases should not be expanded
+        
+        # Count significant words (non-stop words)
+        significant_words = self.extract_key_terms(query)
+        word_count = len(significant_words)
+        
+        # Don't expand very specific queries (too many terms)
+        if word_count > 8:
+            return False
+        
+        # Do expand very short queries (need more context)
+        if word_count < 3:
+            return True
+        
+        # Don't expand if query contains technical terms that should be exact
+        technical_exact_terms = ['version', 'ip', 'url', 'api', 'id', 'uuid', 'hash']
+        query_lower = query.lower()
+        if any(term in query_lower for term in technical_exact_terms):
+            return False
+        
+        # Check for specific question patterns that might not benefit from expansion
+        specific_patterns = [
+            r'^what is (the )?\w+$',  # "what is x" - definitional
+            r'^where is (the )?\w+$',  # "where is x" - locational
+            r'^when did \w+',          # "when did x" - temporal
+        ]
+        for pattern in specific_patterns:
+            if re.match(pattern, query.lower()):
+                return False
+        
+        # Default: expand for better recall
+        return True
+    
     def expand_query(self, query: str) -> str:
-        """Expand query with synonyms for better matching"""
+        """Expand query with synonyms for better matching (with adaptive logic)"""
+        # Check if expansion should be applied
+        if not self.should_expand_query(query):
+            logger.debug(f"Skipping expansion for specific query: {query[:50]}")
+            return query
+        
         words = query.lower().split()
         expanded_terms = []
         
@@ -278,7 +320,9 @@ class QueryProcessor:
                 expanded_terms.extend(self.synonyms[word])
         
         # Create expanded query (original + synonyms)
-        return ' '.join(expanded_terms)
+        expanded = ' '.join(expanded_terms)
+        logger.debug(f"Query expansion: '{query}' -> '{expanded[:100]}'")
+        return expanded
     
     def classify_query(self, query: str) -> str:
         """Classify query type for better processing"""

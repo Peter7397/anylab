@@ -383,9 +383,47 @@ const ChatAssistant: React.FC = () => {
     }
   };
 
+  const formatContentForDisplay = (text: string) => {
+    // More comprehensive markdown formatting with better asterisk handling
+    let formatted = text
+      // First pass: Handle bold text (double asterisks) - process first to avoid conflicts
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      // Second pass: Handle remaining single asterisks (italic) - only if not part of bold
+      .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
+      // Handle code blocks
+      .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded text-sm">$1</code>')
+      // Handle headers
+      .replace(/^#{1,6}\s+(.+)$/gm, '<h3 class="font-semibold text-lg mt-4 mb-2">$1</h3>')
+      // Handle numbered lists
+      .replace(/^(\d+)\.\s+(.+)$/gm, '<div class="ml-4 mb-1"><span class="font-medium">$1.</span> $2</div>')
+      // Handle bullet points
+      .replace(/^[-*]\s+(.+)$/gm, '<div class="ml-4 mb-1">• $1</div>')
+      // Convert line breaks
+      .replace(/\n/g, '<br>');
+    
+    return formatted;
+  };
+
   const copyToClipboard = async (text: string, messageId: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      // Clean up markdown formatting more thoroughly
+      let formattedText = text
+        // Remove bold formatting (double asterisks) - process first
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        // Remove italic formatting (single asterisks) - process remaining ones
+        .replace(/\*([^*\n]+?)\*/g, '$1')
+        // Remove headers
+        .replace(/^#{1,6}\s+/gm, '')
+        // Remove code backticks
+        .replace(/`([^`]+)`/g, '$1')
+        // Convert links to text
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        // Clean up extra whitespace
+        .replace(/\n{3,}/g, '\n\n')
+        .replace(/[ \t]+/g, ' ')
+        .trim();
+      
+      await navigator.clipboard.writeText(formattedText);
       setCopiedMessageId(messageId);
       setTimeout(() => setCopiedMessageId(null), 2000);
     } catch (err) {
@@ -512,11 +550,17 @@ const ChatAssistant: React.FC = () => {
                       }`}>
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
-                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            <div 
+                              className="text-sm prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ 
+                                __html: formatContentForDisplay(message.content) 
+                              }}
+                            />
                           </div>
                           <button
                             onClick={() => copyToClipboard(message.content, message.id)}
-                            className="ml-2 text-gray-400 hover:text-gray-600"
+                            className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
+                            title="Copy formatted text"
                           >
                             {copiedMessageId === message.id ? (
                               <Check className="h-4 w-4 text-green-600" />

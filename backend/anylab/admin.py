@@ -1,8 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from users.models import User, Role, UserRole
-from monitoring.models import System, SystemMetrics, LogEntry, Alert, NetworkConnection, DatabaseMetrics
-from maintenance.models import MaintenanceTask, MaintenanceSchedule, SQLQuery, DatabaseBackup, PerformanceBaseline
 from ai_assistant.models import (
     KnowledgeDocument, DocumentChunk, ChatSession, ChatMessage, 
     AIModel, AIConversationTemplate, AIUsageLog
@@ -43,103 +41,6 @@ class UserRoleAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'assigned_at', 'role')
     search_fields = ('user__username', 'user__email', 'role__name')
     ordering = ('-assigned_at',)
-
-
-@admin.register(System)
-class SystemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'hostname', 'ip_address', 'status', 'last_seen', 'created_at')
-    list_filter = ('status', 'os_type', 'created_at')
-    search_fields = ('name', 'hostname', 'ip_address')
-    ordering = ('name',)
-    readonly_fields = ('created_at', 'updated_at')
-
-
-@admin.register(SystemMetrics)
-class SystemMetricsAdmin(admin.ModelAdmin):
-    list_display = ('system', 'timestamp', 'cpu_usage', 'memory_usage', 'disk_usage')
-    list_filter = ('timestamp', 'system')
-    search_fields = ('system__name', 'system__hostname')
-    ordering = ('-timestamp',)
-    readonly_fields = ('timestamp',)
-
-
-@admin.register(LogEntry)
-class LogEntryAdmin(admin.ModelAdmin):
-    list_display = ('system', 'timestamp', 'level', 'source', 'message')
-    list_filter = ('level', 'source', 'timestamp', 'system')
-    search_fields = ('system__name', 'message', 'ip_address')
-    ordering = ('-timestamp',)
-    readonly_fields = ('timestamp',)
-
-
-@admin.register(Alert)
-class AlertAdmin(admin.ModelAdmin):
-    list_display = ('title', 'system', 'severity', 'status', 'created_at')
-    list_filter = ('severity', 'status', 'created_at', 'system')
-    search_fields = ('title', 'description', 'system__name')
-    ordering = ('-created_at',)
-    readonly_fields = ('created_at',)
-
-
-@admin.register(NetworkConnection)
-class NetworkConnectionAdmin(admin.ModelAdmin):
-    list_display = ('system', 'local_address', 'local_port', 'remote_address', 'remote_port', 'protocol', 'status')
-    list_filter = ('protocol', 'status', 'timestamp', 'system')
-    search_fields = ('system__name', 'local_address', 'remote_address', 'process_name')
-    ordering = ('-timestamp',)
-    readonly_fields = ('timestamp',)
-
-
-@admin.register(DatabaseMetrics)
-class DatabaseMetricsAdmin(admin.ModelAdmin):
-    list_display = ('system', 'timestamp', 'active_connections', 'slow_queries', 'query_time_avg')
-    list_filter = ('timestamp', 'system')
-    search_fields = ('system__name',)
-    ordering = ('-timestamp',)
-    readonly_fields = ('timestamp',)
-
-
-@admin.register(MaintenanceTask)
-class MaintenanceTaskAdmin(admin.ModelAdmin):
-    list_display = ('title', 'task_type', 'priority', 'status', 'assigned_to', 'scheduled_date')
-    list_filter = ('task_type', 'priority', 'status', 'scheduled_date', 'assigned_to')
-    search_fields = ('title', 'description', 'assigned_to__username')
-    ordering = ('-scheduled_date',)
-    filter_horizontal = ('systems',)
-
-
-@admin.register(MaintenanceSchedule)
-class MaintenanceScheduleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'frequency', 'interval', 'start_date', 'end_date', 'is_active')
-    list_filter = ('frequency', 'is_active', 'start_date')
-    search_fields = ('name', 'description')
-    ordering = ('name',)
-
-
-@admin.register(SQLQuery)
-class SQLQueryAdmin(admin.ModelAdmin):
-    list_display = ('system', 'query_type', 'execution_time', 'rows_affected', 'timestamp')
-    list_filter = ('query_type', 'timestamp', 'system')
-    search_fields = ('system__name', 'query_text', 'user__username')
-    ordering = ('-timestamp',)
-    readonly_fields = ('timestamp',)
-
-
-@admin.register(DatabaseBackup)
-class DatabaseBackupAdmin(admin.ModelAdmin):
-    list_display = ('backup_name', 'system', 'backup_type', 'status', 'started_at', 'completed_at')
-    list_filter = ('backup_type', 'status', 'started_at', 'system')
-    search_fields = ('backup_name', 'system__name', 'created_by__username')
-    ordering = ('-started_at',)
-    readonly_fields = ('started_at', 'completed_at')
-
-
-@admin.register(PerformanceBaseline)
-class PerformanceBaselineAdmin(admin.ModelAdmin):
-    list_display = ('name', 'system', 'cpu_baseline', 'memory_baseline', 'is_active')
-    list_filter = ('is_active', 'created_at', 'system')
-    search_fields = ('name', 'system__name')
-    ordering = ('name',)
 
 
 @admin.register(KnowledgeDocument)

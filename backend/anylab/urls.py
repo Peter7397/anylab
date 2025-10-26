@@ -37,8 +37,6 @@ urlpatterns = [
     
     # API endpoints
     path('api/users/', include('users.urls')),
-    path('api/monitoring/', include('monitoring.urls')),
-    path('api/maintenance/', include('maintenance.urls')),
     path('api/ai/', include('ai_assistant.urls')),
 ]
 

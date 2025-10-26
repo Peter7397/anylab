@@ -6,8 +6,11 @@
 1. [Authentication (JWT)](#authentication)
 2. [PDF Management](#pdf-management)
 3. [AI Assistant Endpoints](#ai-assistant)
-4. [User Management](#user-management)
-5. [Health Check](#health-check)
+4. [RAG Search Endpoints](#rag-search)
+5. [Document Management](#document-management)
+6. [Content Filtering](#content-filtering)
+7. [User Management](#user-management)
+8. [Health Check](#health-check)
 
 ---
 
@@ -182,7 +185,214 @@
 
 ---
 
-## <a name="user-management"></a>4. User Management
+## <a name="rag-search"></a>4. RAG Search Endpoints
+
+### Basic RAG Search
+- **Endpoint:** `POST /api/ai/rag/search/`
+- **Auth:** Required
+- **Content-Type:** `application/json`
+- **Request Body:**
+```json
+{
+  "query": "your search query",
+  "top_k": 8,
+  "search_mode": "enhanced"
+}
+```
+- **Response:**
+```json
+{
+  "message": "RAG search completed successfully",
+  "data": {
+    "response": "AI generated answer",
+    "sources": [...],
+    "query": "your search query",
+    "performance": {
+      "search_time_ms": 1234.56,
+      "total_time_ms": 1456.78,
+      "search_mode": "enhanced",
+      "top_k": 8
+    }
+  }
+}
+```
+
+### Advanced RAG Search
+- **Endpoint:** `POST /api/ai/rag/search/advanced/`
+- **Auth:** Required
+- **Content-Type:** `application/json`
+- **Request Body:**
+```json
+{
+  "query": "your search query",
+  "top_k": 8,
+  "search_mode": "hybrid"
+}
+```
+- **Response:** Same as Basic RAG, with hybrid search + reranking
+
+### Comprehensive RAG Search
+- **Endpoint:** `POST /api/ai/rag/search/comprehensive/`
+- **Auth:** Required
+- **Content-Type:** `application/json`
+- **Request Body:**
+```json
+{
+  "query": "your search query",
+  "top_k": 15,
+  "include_stats": false
+}
+```
+- **Response:** Maximum detail with 15 results
+
+### Vector Search
+- **Endpoint:** `POST /api/ai/rag/search/vector/`
+- **Auth:** Required
+- **Content-Type:** `application/json`
+- **Request Body:**
+```json
+{
+  "query": "your search query",
+  "top_k": 5
+}
+```
+- **Response:** Vector similarity results
+
+---
+
+## <a name="document-management"></a>5. Document Management Endpoints
+
+### List Documents
+- **Endpoint:** `GET /api/ai/documents/`
+- **Auth:** Required
+- **Query Parameters:**
+  - `page`: int (default: 1)
+  - `page_size`: int (default: 20)
+- **Response:**
+```json
+{
+  "message": "Documents retrieved successfully",
+  "documents": [...],
+  "total": 17,
+  "page": 1,
+  "page_size": 20
+}
+```
+
+### Upload Document
+- **Endpoint:** `POST /api/ai/documents/upload/`
+- **Auth:** Required
+- **Content-Type:** `multipart/form-data`
+- **Form Data:**
+  - `file`: Document file
+  - `title`: string
+  - `description`: string
+- **Response:** Document metadata
+
+### Download Document
+- **Endpoint:** `GET /api/ai/documents/{id}/download/`
+- **Auth:** Required
+- **Response:** File download
+
+### Delete Document
+- **Endpoint:** `DELETE /api/ai/documents/{id}/delete/`
+- **Auth:** Required
+- **Response:** Success message
+
+### Search Documents
+- **Endpoint:** `POST /api/ai/documents/search/`
+- **Auth:** Required
+- **Request Body:**
+```json
+{
+  "query": "search term",
+  "search_type": "title|description|both"
+}
+```
+- **Response:** Search results
+
+### Query History
+- **Endpoint:** `GET /api/ai/documents/history/`
+- **Auth:** Required
+- **Query Parameters:**
+  - `page`: int (default: 1)
+  - `page_size`: int (default: 50)
+- **Response:** User's query history
+
+### Index Information
+- **Endpoint:** `GET /api/ai/documents/index/info/`
+- **Auth:** Required
+- **Response:** Index statistics and distribution
+
+### List Uploaded Files
+- **Endpoint:** `GET /api/ai/documents/files/`
+- **Auth:** Required
+- **Query Parameters:**
+  - `page`: int (default: 1)
+  - `page_size`: int (default: 50)
+- **Response:** List of uploaded files
+
+### Performance Statistics
+- **Endpoint:** `GET /api/ai/documents/performance/stats/`
+- **Auth:** Required
+- **Response:** System performance metrics
+
+### Search Analytics
+- **Endpoint:** `GET /api/ai/documents/search/analytics/`
+- **Auth:** Required
+- **Response:** Search analytics and statistics
+
+---
+
+## <a name="content-filtering"></a>6. Content Filtering Endpoints
+
+### Filter Documents
+- **Endpoint:** `POST /api/ai/content/filter/`
+- **Auth:** Required
+- **Request Body:**
+```json
+{
+  "query": "search query",
+  "organization_mode": "general|lab-informatics",
+  "filters": [
+    {
+      "field": "document_type",
+      "operator": "equals",
+      "value": "pdf"
+    }
+  ],
+  "sort_order": "relevance|date_newest|date_oldest",
+  "page": 1,
+  "page_size": 20
+}
+```
+- **Response:** Filtered documents with metadata
+
+### Get Filter Suggestions
+- **Endpoint:** `GET /api/ai/content/suggestions/`
+- **Auth:** Required
+- **Query Parameters:**
+  - `organization_mode`: "general|lab-informatics"
+- **Response:** Available filter options
+
+### Save Filter Preset
+- **Endpoint:** `POST /api/ai/content/presets/`
+- **Auth:** Required
+- **Request Body:**
+```json
+{
+  "name": "My Preset",
+  "preset_data": {
+    "filters": [...],
+    "organization_mode": "general"
+  }
+}
+```
+- **Response:** Saved preset ID
+
+---
+
+## <a name="user-management"></a>7. User Management
 
 ### List Users
 - **Endpoint:** `GET /api/users/`
@@ -262,7 +472,7 @@
 
 ---
 
-## <a name="health-check"></a>5. Health Check
+## <a name="health-check"></a>8. Health Check
 
 ### Health Check
 - **Endpoint:** `GET /api/health/`
