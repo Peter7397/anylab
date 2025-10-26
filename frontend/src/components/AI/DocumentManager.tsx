@@ -262,16 +262,21 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (doc: DocumentFile) => void }
   };
 
   const handleView = (doc: DocumentFile) => {
-    // For PDF documents, use the enhanced PDF viewer
-    if (doc.document_type === 'pdf' && doc.id) {
-      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
-      // baseUrl already includes /api, so just add the ai/pdf path
-      const viewerUrl = `${baseUrl}/ai/pdf/${doc.id}/view/`;
-      window.open(viewerUrl, '_blank');
+    // For all document types, use the embedded viewer
+    if (onOpenInViewer && doc.file_url) {
+      // Open in the embedded DocumentViewer component
+      onOpenInViewer({
+        id: `doc-${doc.id}`,
+        title: doc.title,
+        url: doc.file_url,
+        type: doc.document_type as any,
+      });
+    } else if (doc.document_type === 'pdf' && doc.file_url) {
+      // Fallback: Open PDF in new tab if file_url is available
+      window.open(doc.file_url, '_blank');
     } else {
-      // For other document types, use the existing viewer
-      setSelectedDocument(doc);
-      setShowViewer(true);
+      // For other document types without file_url, show error
+      setError('Document URL not available');
     }
   };
 
