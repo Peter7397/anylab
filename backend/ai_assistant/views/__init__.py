@@ -12,6 +12,8 @@ from .forum_views import *
 from .github_views import *
 from .html_views import *
 from .content_views import *
+from .document_processing_views import *
+from .analytics_views import *
 from .legacy_views import *
 
 # Export commonly used items

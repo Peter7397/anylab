@@ -24,4 +24,10 @@ urlpatterns = [
     path('github/', include('ai_assistant.urls.github_urls')),
     path('forum/', include('ai_assistant.urls.forum_urls')),
     path('html/', include('ai_assistant.urls.html_urls')),
+    
+    # Document processing endpoints
+    path('process/', include('ai_assistant.urls.document_processing_urls')),
+    
+    # Analytics endpoints
+    path('analytics/', include('ai_assistant.urls.analytics_urls')),
 ]
