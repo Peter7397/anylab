@@ -304,27 +304,41 @@ class EnhancedRAGService:
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT dc.id, dc.content, dc.uploaded_file_id, dc.page_number, dc.chunk_index,
-                           uf.filename, uf.file_hash, uf.file_size
+                           COALESCE(uf.filename, df.title, 'Unknown Document') as filename,
+                           COALESCE(uf.file_hash, '') as file_hash, 
+                           COALESCE(uf.file_size, df.file_size, 0) as file_size
                     FROM ai_assistant_documentchunk dc
                     LEFT JOIN ai_assistant_uploadedfile uf ON dc.uploaded_file_id = uf.id
+                    LEFT JOIN ai_assistant_documentfile df ON df.id = dc.uploaded_file_id
                     ORDER BY dc.embedding <#> %s::vector
                     LIMIT %s;
                 """, [query_embedding, top_k])
                 results = cursor.fetchall()
             
-            formatted_results = [
-                {
-                    "id": row[0], 
-                    "content": row[1], 
-                    "uploaded_file_id": row[2], 
-                    "page_number": row[3],
+            formatted_results = []
+            for row in results:
+                uploaded_file_id = row[2]
+                page_number = row[3] or 1
+                filename = row[5] or "Unknown Document"
+                
+                # Create view URL for PDF viewer
+                view_url = None
+                if uploaded_file_id:
+                    view_url = f"/api/ai/pdf/{uploaded_file_id}/view/?page={page_number}"
+                
+                formatted_results.append({
+                    "id": row[0],
+                    "content": row[1],
+                    "uploaded_file_id": uploaded_file_id,
+                    "page_number": page_number,
                     "chunk_index": row[4],
-                    "filename": row[5] or "Unknown Document",
+                    "filename": filename,
                     "file_hash": row[6],
                     "file_size": row[7],
-                    "download_url": f"/api/ai/documents/{row[2]}/download/" if row[2] else None
-                } for row in results
-            ]
+                    "download_url": f"/api/ai/documents/{uploaded_file_id}/download/" if uploaded_file_id else None,
+                    "view_url": view_url,
+                    "source_display": f"{filename} (Page {page_number})" if filename != "Unknown Document" else f"Page {page_number}"
+                })
             
             # Cache the results
             cache.set(cache_key, formatted_results, self.response_cache_ttl)
