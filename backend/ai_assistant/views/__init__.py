@@ -12,8 +12,22 @@ from .forum_views import *
 from .github_views import *
 from .html_views import *
 from .content_views import *
-from .document_processing_views import *
-from .analytics_views import *
+
+# Try to import document processing views (may fail if dependencies not installed)
+try:
+    from .document_processing_views import *
+except ImportError as e:
+    print(f"Warning: Document processing views not available: {e}")
+    print("Install librosa, whisper, and other dependencies for full functionality")
+    pass
+
+# Try to import analytics views (may fail if dependencies not installed)
+try:
+    from .analytics_views import *
+except ImportError as e:
+    print(f"Warning: Analytics views not available: {e}")
+    pass
+
 from .legacy_views import *
 
 # Export commonly used items
