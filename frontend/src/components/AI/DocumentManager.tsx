@@ -266,7 +266,7 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (doc: DocumentFile) => void }
     if (onOpenInViewer && doc.file_url) {
       // Open in the embedded DocumentViewer component
       onOpenInViewer({
-        id: `doc-${doc.id}`,
+        id: String(doc.id),  // Convert number to string
         title: doc.title,
         url: doc.file_url,
         type: doc.document_type as any,
