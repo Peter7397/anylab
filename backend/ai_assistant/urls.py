@@ -16,6 +16,12 @@ urlpatterns = [
     # Content Management endpoints
     path('content/', include('ai_assistant.urls.content_urls')),
     
-    # Chat endpoint (import inside to avoid issues)
+    # Chat endpoint
     path('chat/', include('ai_assistant.urls.rag_urls')),
+    
+    # Scraper endpoints
+    path('ssb/', include('ai_assistant.urls.ssb_urls')),
+    path('github/', include('ai_assistant.urls.github_urls')),
+    path('forum/', include('ai_assistant.urls.forum_urls')),
+    path('html/', include('ai_assistant.urls.html_urls')),
 ]

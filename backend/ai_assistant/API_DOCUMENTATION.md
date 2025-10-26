@@ -12,7 +12,17 @@ This module provides comprehensive API documentation for the AI Assistant applic
 
 ## Overview
 The AI Assistant API provides comprehensive functionality for document management, 
-RAG (Retrieval-Augmented Generation) operations, content scraping, and analytics.
+RAG (Retrieval-Augmented Generation) operations, content scraping, users/roles management,
+and analytics.
+
+## Update: December 2024
+
+**New Features Added:**
+- ✅ Complete Users & Roles management system
+- ✅ Scraper API integration (SSB, GitHub, Forum, HTML)
+- ✅ Enhanced document types support
+- ✅ Source URL tracking for scraped content
+- ✅ Metadata support for documents
 
 ## Base URL
 ```
@@ -48,6 +58,55 @@ All responses follow a consistent format:
 ```
 
 ## Endpoints
+
+### Users & Roles Management (NEW)
+
+#### List All Roles
+- **GET** `/api/users/roles/`
+- **Description**: List all available roles
+- **Permission**: Admin only
+- **Response**: Array of role objects
+
+#### Create Role
+- **POST** `/api/users/roles/`
+- **Description**: Create a new role
+- **Permission**: Admin only
+- **Request Body**:
+  ```json
+  {
+      "name": "Role Name",
+      "description": "Role description",
+      "permissions": {},
+      "is_active": true
+  }
+  ```
+
+#### Role Detail
+- **GET** `/api/users/roles/<id>/` - Get role details
+- **PUT** `/api/users/roles/<id>/` - Update role
+- **DELETE** `/api/users/roles/<id>/` - Delete role
+
+#### Assign Role to User
+- **POST** `/api/users/roles/assign/`
+- **Description**: Assign a role to a user
+- **Permission**: Admin only
+- **Request Body**:
+  ```json
+  {
+      "user_id": 1,
+      "role_id": 2
+  }
+  ```
+
+#### Remove Role from User
+- **POST** `/api/users/roles/remove/`
+- **Description**: Remove a role from a user
+- **Permission**: Admin only
+
+#### Get User's Roles
+- **GET** `/api/users/<user_id>/roles/`
+- **Description**: Get all roles assigned to a user
+- **Response**: Array of role assignments
 
 ### RAG Operations
 

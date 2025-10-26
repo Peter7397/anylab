@@ -5,12 +5,20 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib import messages
+from django.contrib.auth import get_user_model
+from .models import Role, UserRole
+from .serializers import (
+    UserSerializer, UserCreateSerializer, UserUpdateSerializer,
+    RoleSerializer, UserRoleSerializer
+)
 import json
+
+User = get_user_model()
 
 def login_view(request):
     """Web-based login view"""
@@ -109,23 +117,128 @@ def user_profile(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_list(request):
-    """Get list of users (admin only)"""
+    """Get list of users"""
     if not request.user.is_staff:
         return Response({
             'error': 'Permission denied'
         }, status=status.HTTP_403_FORBIDDEN)
     
-    from django.contrib.auth import get_user_model
-    User = get_user_model()
     users = User.objects.all()
-    
+    serializer = UserSerializer(users, many=True)
     return Response({
-        'users': [{
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'is_staff': user.is_staff,
-            'is_active': user.is_active,
-            'date_joined': user.date_joined,
-        } for user in users]
+        'users': serializer.data
     })
+
+
+# ============= Role Management Endpoints =============
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAdminUser])
+def role_list_create(request):
+    """List all roles or create a new role"""
+    if request.method == 'GET':
+        roles = Role.objects.all()
+        serializer = RoleSerializer(roles, many=True)
+        return Response(serializer.data)
+    
+    elif request.method == 'POST':
+        serializer = RoleSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsAdminUser])
+def role_detail(request, role_id):
+    """Get, update, or delete a role"""
+    try:
+        role = Role.objects.get(id=role_id)
+    except Role.DoesNotExist:
+        return Response({'error': 'Role not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    if request.method == 'GET':
+        serializer = RoleSerializer(role)
+        return Response(serializer.data)
+    
+    elif request.method == 'PUT':
+        serializer = RoleSerializer(role, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    elif request.method == 'DELETE':
+        role.delete()
+        return Response({'message': 'Role deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def assign_role(request):
+    """Assign a role to a user"""
+    user_id = request.data.get('user_id')
+    role_id = request.data.get('role_id')
+    
+    if not user_id or not role_id:
+        return Response({
+            'error': 'user_id and role_id are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user = User.objects.get(id=user_id)
+        role = Role.objects.get(id=role_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Role.DoesNotExist:
+        return Response({'error': 'Role not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if role is already assigned
+    user_role, created = UserRole.objects.get_or_create(
+        user=user,
+        role=role,
+        defaults={'assigned_by': request.user, 'is_active': True}
+    )
+    
+    if not created:
+        user_role.is_active = True
+        user_role.save()
+    
+    serializer = UserRoleSerializer(user_role)
+    return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAdminUser])
+def remove_role(request):
+    """Remove a role from a user"""
+    user_id = request.data.get('user_id')
+    role_id = request.data.get('role_id')
+    
+    if not user_id or not role_id:
+        return Response({
+            'error': 'user_id and role_id are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        user_role = UserRole.objects.get(user_id=user_id, role_id=role_id)
+        user_role.is_active = False
+        user_role.save()
+        return Response({'message': 'Role removed successfully'}, status=status.HTTP_200_OK)
+    except UserRole.DoesNotExist:
+        return Response({'error': 'User role not found'}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_roles(request, user_id):
+    """Get all roles for a specific user"""
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    user_roles = UserRole.objects.filter(user=user, is_active=True)
+    serializer = UserRoleSerializer(user_roles, many=True)
+    return Response(serializer.data)

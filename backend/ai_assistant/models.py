@@ -33,6 +33,13 @@ class DocumentFile(models.Model):
         ('pptx', 'PowerPoint Presentation'),
         ('txt', 'Text Document'),
         ('rtf', 'Rich Text Document'),
+        ('ssb', 'SSB Entry'),
+        ('github', 'GitHub Repository'),
+        ('forum', 'Forum Post'),
+        ('html', 'HTML Content'),
+        ('url', 'Web URL'),
+        ('video', 'Video Transcript'),
+        ('image', 'Image with OCR'),
     ]
     
     title = models.CharField(max_length=255)
@@ -44,6 +51,8 @@ class DocumentFile(models.Model):
     filename = models.CharField(max_length=255, null=True, blank=True)
     document_type = models.CharField(max_length=10, choices=DOCUMENT_TYPES, default='pdf')
     description = models.TextField(blank=True, null=True)
+    source_url = models.URLField(blank=True, null=True)  # For scraped content
+    metadata = models.JSONField(default=dict, blank=True)  # Additional metadata
     uploaded_at = models.DateTimeField(auto_now_add=True)
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     page_count = models.IntegerField(default=0)
