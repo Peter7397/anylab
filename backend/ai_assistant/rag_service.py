@@ -33,8 +33,8 @@ class EnhancedRAGService:
             logger.info(f"Using cached embedding for text hash: {text_hash[:8]}...")
             return cached_embedding
         
-        # Try BGE-M3 first, then fallback to nomic-embed-text
-        models_to_try = ['bge-m3', 'nomic-embed-text']
+        # Try BGE-M3 first, then fallback to nomic-embed-text (but only if it generates 1024 dims)
+        models_to_try = ['bge-m3']
         
         for model in models_to_try:
             try:
@@ -48,6 +48,11 @@ class EnhancedRAGService:
                 )
                 response.raise_for_status()
                 embedding = response.json()["embedding"]
+                
+                # Ensure embedding has correct dimensions (1024)
+                if len(embedding) != 1024:
+                    logger.warning(f"Model {model} generated {len(embedding)} dimensions, expected 1024. Skipping.")
+                    continue
                 
                 # Cache the embedding
                 cache.set(cache_key, embedding, self.embedding_cache_ttl)
@@ -65,14 +70,14 @@ class EnhancedRAGService:
     
     def _simple_embedding_fallback(self, text):
         """Simple fallback embedding when Ollama embedding fails"""
-        # Create a simple 384-dimensional embedding based on text hash
+        # Create a simple 1024-dimensional embedding based on text hash
         import hashlib
         hash_obj = hashlib.md5(text.encode())
         hash_bytes = hash_obj.digest()
         
-        # Convert hash to 384-dimensional vector
+        # Convert hash to 1024-dimensional vector
         embedding = []
-        for i in range(384):
+        for i in range(1024):
             embedding.append((hash_bytes[i % 16] / 255.0) * 2 - 1)
         
         return embedding
@@ -159,7 +164,8 @@ class EnhancedRAGService:
                     chunk_index=idx
                 )
             
-            doc.close()
+            if doc:
+                doc.close()
             
             return {
                 'success': True,
@@ -249,7 +255,7 @@ class EnhancedRAGService:
                 file_size=os.path.getsize(file_path),
                 page_count=page_count,
                 intro=chunks[0][:200] if chunks else None,
-                uploaded_by=request.user if request and hasattr(request, 'user') else None
+                uploaded_by=request.user if request and hasattr(request, 'user') and request.user.is_authenticated else None
             )
             
             # Store document chunks with embeddings

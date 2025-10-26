@@ -84,7 +84,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
     const run = async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
         if (token) headers.Authorization = `Bearer ${token}`;
         const res = await fetch(url, { headers });
         const buf = await res.arrayBuffer();
@@ -243,7 +243,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
     
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -284,7 +284,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
       const maxSearchPages = Math.min(numPages, 10);
 
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -745,7 +745,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
     (async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
         if (token) headers.Authorization = `Bearer ${token}`;
         
         const res = await fetch(url, { headers });
@@ -844,7 +844,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
   const downloadDocx = async () => {
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -919,7 +919,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
     (async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
         if (token) headers.Authorization = `Bearer ${token}`;
         
         const res = await fetch(url, { headers });
@@ -962,7 +962,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
   const downloadTxt = async () => {
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -1043,7 +1043,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
     (async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
         if (token) headers.Authorization = `Bearer ${token}`;
         
         const res = await fetch(url, { headers });
@@ -1261,7 +1261,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
     (async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
         if (token) headers.Authorization = `Bearer ${token}`;
         
         const res = await fetch(url, { headers });
@@ -1288,7 +1288,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
   const downloadPpt = async () => {
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });

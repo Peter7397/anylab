@@ -11,7 +11,7 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     // If already logged in, redirect to dashboard
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
     if (token) {
       navigate('/', { replace: true });
     }
@@ -36,8 +36,8 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
       <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900">OnLab</h1>
-          <p className="text-sm text-gray-500">One AI solution for every lab</p>
+          <h1 className="text-2xl font-bold text-gray-900">AnyLab</h1>
+          <p className="text-sm text-gray-500">AI eNlighteN Your Lab</p>
           <h2 className="text-xl font-semibold text-gray-900 mt-4">Sign in</h2>
           <p className="text-sm text-gray-500 mt-1">Enter your credentials to continue</p>
         </div>

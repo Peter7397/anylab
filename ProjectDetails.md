@@ -1,5 +1,7 @@
 Purpose:
-OnLab is a web-based lab IT operations and troubleshooting platform integrating:
+AnyLab is a web-based lab IT operations and troubleshooting platform integrating:
+
+**Slogan: AI eNlighteN Your Lab**
 - System administration (PC scanning, monitoring, maintenance)
 - Automated log collection & analysis
 - AI-driven troubleshooting (RAG-based Q&A using manuals, KBs, logs)
@@ -345,16 +347,22 @@ volumes:
 
 10. RAG Pipeline & Current Status
 
-- Current status: RAG and embedding endpoints exist but are disabled and return 503 placeholders.
-  - Files of interest: `backend/ai_assistant/views.py` (RAG & embedding endpoints),
-    `backend/ai_assistant/rag_service.py`, `backend/ai_assistant/services.py` (to be implemented/activated).
-- Target pipeline:
-  - Ingestion: PDF/URL → extract → chunk → embed (BGE‑m3) → store (pgvector / JSON fallback).
-  - Retrieval: query rewrite → top‑k vector search → Qwen generation with citations.
-- Enable plan:
-  - Implement `rag_service` with chunking, embedding calls, storage, and retrieval.
-  - Wire endpoints to `rag_service` and `services` (embeddings).
-  - Provide migrations for vector storage if moving from JSON to pgvector.
+- **CURRENT STATUS: FULLY FUNCTIONAL** ✅
+  - RAG system is fully implemented and operational
+  - Multiple search modes available: Comprehensive, Advanced, Enhanced, and Basic
+  - All endpoints are active and returning proper responses
+  - Files implemented: `backend/ai_assistant/views.py`, `backend/ai_assistant/rag_service.py`, 
+    `backend/ai_assistant/improved_rag_service.py`, `backend/ai_assistant/advanced_rag_service.py`,
+    `backend/ai_assistant/comprehensive_rag_service.py`
+- **Implemented Pipeline:**
+  - Ingestion: PDF/URL → extract → chunk → embed (BGE‑m3 via Ollama) → store (pgvector)
+  - Retrieval: query processing → top‑k vector search → Qwen generation with citations
+  - Advanced features: Hybrid search, reranking, smart caching, duplicate detection
+- **Performance Optimizations:**
+  - Multi-level caching (embeddings, search results, responses)
+  - Optimized chunking strategies
+  - Smart similarity scoring
+  - Query history tracking
 
 ---
 
@@ -397,12 +405,14 @@ volumes:
 
 14. Near‑Term Roadmap
 
-- Implement `rag_service` and `embedding_service` with BGE‑m3 and Qwen integration; enable endpoints.
-- Add persistence and search for `KnowledgeDocument`/`DocumentChunk` with pgvector.
-- Finish Monitoring and Maintenance API CRUD, list, filters, and permissions.
-- Alerting pipeline (Celery): thresholds → notifications (email/webhook).
-- Frontend wiring for PDF Library and RAG Chat with citations and source filters.
-- Mode switch UI → toggles model configs and restarts AI container if needed.
+- ✅ **COMPLETED**: RAG service implementation with BGE‑m3 and Qwen integration
+- ✅ **COMPLETED**: Document persistence and search with pgvector
+- ✅ **COMPLETED**: Multiple RAG search modes (Comprehensive, Advanced, Enhanced, Basic)
+- ✅ **COMPLETED**: Frontend integration for PDF Library and RAG Chat
+- **IN PROGRESS**: Finish Monitoring and Maintenance API CRUD, list, filters, and permissions
+- **PLANNED**: Alerting pipeline (Celery): thresholds → notifications (email/webhook)
+- **PLANNED**: Mode switch UI → toggles model configs and restarts AI container if needed
+- **PLANNED**: Enhanced document type support (Word, Excel, PowerPoint)
 
 ---
 

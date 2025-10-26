@@ -49,8 +49,8 @@ class ImprovedRAGService:
             logger.debug(f"Using cached embedding for text hash: {text_hash[:8]}...")
             return cached_embedding
         
-        # Try BGE-M3 first, then fallback to nomic-embed-text
-        models_to_try = ['bge-m3', 'nomic-embed-text']
+        # Try BGE-M3 first (only use models that generate 1024 dimensions)
+        models_to_try = ['bge-m3']
         
         for model in models_to_try:
             try:
@@ -64,6 +64,11 @@ class ImprovedRAGService:
                 )
                 response.raise_for_status()
                 embedding = response.json()["embedding"]
+                
+                # Ensure embedding has correct dimensions (1024)
+                if len(embedding) != 1024:
+                    logger.warning(f"Model {model} generated {len(embedding)} dimensions, expected 1024. Skipping.")
+                    continue
                 
                 # Cache the embedding for longer (24 hours)
                 cache.set(cache_key, embedding, self.embedding_cache_ttl)

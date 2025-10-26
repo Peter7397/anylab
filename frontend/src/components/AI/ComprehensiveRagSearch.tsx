@@ -47,8 +47,8 @@ const ComprehensiveRagSearch: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Storage keys
-  const COMPREHENSIVE_HISTORY_STORAGE_KEY = 'onlab_comprehensive_history';
-  const COMPREHENSIVE_MESSAGES_STORAGE_KEY = 'onlab_comprehensive_messages';
+  const COMPREHENSIVE_HISTORY_STORAGE_KEY = 'anylab_comprehensive_history';
+  const COMPREHENSIVE_MESSAGES_STORAGE_KEY = 'anylab_comprehensive_messages';
 
   // Load history and messages on component mount
   useEffect(() => {

@@ -68,7 +68,7 @@ class Uploader:
             self.logger.warning(f"Queue cleanup failed: {e}")
 
     def post_alert(self, alert: dict, logger):
-        """Post alert to OnLab backend with enhanced error handling"""
+        """Post alert to AnyLab backend with enhanced error handling"""
         if not self.base_url or self.api_key in (None, "", "CHANGE_ME"):
             logger.warning("Alert server not configured; writing alert to queue only.")
             return self._enqueue_json(alert, "alerts")
@@ -82,7 +82,7 @@ class Uploader:
             self._cleanup_old_queue_files("alerts_")
 
     def post_metrics(self, metrics: dict, logger):
-        """Upload system metrics to OnLab with enhanced error handling"""
+        """Upload system metrics to AnyLab with enhanced error handling"""
         if not self.base_url or self.api_key in (None, "", "CHANGE_ME"):
             logger.warning("Metrics server not configured; writing metrics to queue only.")
             return self._enqueue_json(metrics, "metrics")
@@ -98,7 +98,7 @@ class Uploader:
             logger.debug(f"Metrics uploaded successfully: {response.status_code}")
 
     def post_zip_with_meta(self, metadata: dict, zip_path: str, logger):
-        """Upload zip file with metadata to OnLab"""
+        """Upload zip file with metadata to AnyLab"""
         if not os.path.isfile(zip_path): 
             logger.warning(f"Zip file not found: {zip_path}")
             return

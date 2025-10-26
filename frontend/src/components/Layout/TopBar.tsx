@@ -25,8 +25,8 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
 
   const handleLogout = () => {
     // Clear auth tokens
-    localStorage.removeItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
-    localStorage.removeItem(process.env.REACT_APP_REFRESH_TOKEN_KEY || 'onlab_refresh_token');
+    localStorage.removeItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+    localStorage.removeItem(process.env.REACT_APP_REFRESH_TOKEN_KEY || 'anylab_refresh_token');
     // Redirect to login
     navigate('/login', { replace: true });
   };

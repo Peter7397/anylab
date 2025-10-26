@@ -168,7 +168,7 @@ const ChatAssistant: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
-    const token = localStorage.getItem('onlab_token');
+    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
     setIsAuthenticated(!!token);
   }, []);
 
@@ -196,8 +196,8 @@ const ChatAssistant: React.FC = () => {
   */
 
   // Storage keys
-  const CHAT_HISTORY_STORAGE_KEY = 'onlab_chat_history';
-  const CHAT_MESSAGES_STORAGE_KEY = 'onlab_chat_messages';
+  const CHAT_HISTORY_STORAGE_KEY = 'anylab_chat_history';
+  const CHAT_MESSAGES_STORAGE_KEY = 'anylab_chat_messages';
 
   // Load chat history and messages on component mount
   useEffect(() => {

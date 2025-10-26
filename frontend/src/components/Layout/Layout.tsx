@@ -12,7 +12,7 @@ const Layout: React.FC = () => {
 
   // Check authentication on component mount
   useEffect(() => {
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
     if (!token) {
       console.log('No auth token found, redirecting to login');
       navigate('/login', { replace: true });

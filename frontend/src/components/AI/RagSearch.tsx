@@ -47,8 +47,8 @@ const RagSearch: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Storage keys
-  const RAG_HISTORY_STORAGE_KEY = 'onlab_rag_history';
-  const RAG_MESSAGES_STORAGE_KEY = 'onlab_rag_messages';
+  const RAG_HISTORY_STORAGE_KEY = 'anylab_rag_history';
+  const RAG_MESSAGES_STORAGE_KEY = 'anylab_rag_messages';
 
   // Load history and messages on component mount
   useEffect(() => {

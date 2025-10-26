@@ -1,5 +1,5 @@
 """
-URL configuration for onlab project.
+URL configuration for anylab project.
 """
 from django.contrib import admin
 from django.urls import path, include
@@ -17,7 +17,7 @@ from users import views
 @csrf_exempt
 def health_check(request):
     """Health check endpoint for Docker"""
-    return JsonResponse({"status": "healthy", "service": "onlab-backend"})
+    return JsonResponse({"status": "healthy", "service": "anylab-backend"})
 
 urlpatterns = [
     path('admin/', admin.site.urls),

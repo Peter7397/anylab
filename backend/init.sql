@@ -1,4 +1,4 @@
--- Initialize OneLab Database
+-- Initialize AnyLab Database
 -- This script runs when the PostgreSQL container starts for the first time
 
 -- Enable pgvector extension
@@ -23,8 +23,8 @@ DROP TABLE test_vectors;
 -- SET timezone = 'UTC';
 
 -- Create additional databases if needed
--- CREATE DATABASE onelab_test;
+-- CREATE DATABASE anylab_test;
 
 -- Grant permissions
--- GRANT ALL PRIVILEGES ON DATABASE onelab_db TO postgres;
--- GRANT ALL PRIVILEGES ON DATABASE onelab_test TO postgres; 
+-- GRANT ALL PRIVILEGES ON DATABASE anylab_db TO postgres;
+-- GRANT ALL PRIVILEGES ON DATABASE anylab_test TO postgres; 

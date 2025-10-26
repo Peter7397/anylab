@@ -1,8 +1,8 @@
-# 🖥️ OnLab SysMon Agent - Windows Client Package
+# 🖥️ AnyLab SysMon Agent - Windows Client Package
 
 ## 📦 Package Contents
 
-This package contains everything you need to deploy the OnLab System Monitor agent to your Windows target machine.
+This package contains everything you need to deploy the AnyLab System Monitor agent to your Windows target machine.
 
 ### 📁 Files Included
 
@@ -13,7 +13,7 @@ Windows-Client-Package/
 ├── 📋 requirements.txt             # Python dependencies
 ├── ⚙️ config/
 │   ├── global.default.json         # Default configuration
-│   └── sysmon.onelab.json          # OnLab server configuration
+│   └── sysmon.anylab.json          # AnyLab server configuration
 ├── 🚀 deploy-windows.ps1           # PowerShell deployment script (Recommended)
 ├── 🚀 deploy-windows.bat           # Batch deployment script
 ├── 🖥️ vmware-setup.ps1            # VMware-specific setup script
@@ -27,7 +27,7 @@ Windows-Client-Package/
 
 **Step 1: Edit Configuration**
 ```powershell
-# Open config/sysmon.onelab.json and update:
+# Open config/sysmon.anylab.json and update:
 {
   "server_url": "http://10.96.17.21:8000",
   "api_key": "YOUR_API_KEY_HERE",
@@ -68,7 +68,7 @@ deploy-windows.bat
 
 ### Required Settings
 
-**Edit `config/sysmon.onelab.json`:**
+**Edit `config/sysmon.anylab.json`:**
 ```json
 {
   "server_url": "http://10.96.17.21:8000",
@@ -82,7 +82,7 @@ deploy-windows.bat
 
 ### Get API Key
 
-1. **Go to OnLab Admin Panel:** `http://10.96.17.21:8000/admin`
+1. **Go to AnyLab Admin Panel:** `http://10.96.17.21:8000/admin`
 2. **Login:** `admin` / `admin123`
 3. **Navigate:** Users → API Keys → Create new key
 4. **Copy the API key** and paste it in the configuration
@@ -101,22 +101,22 @@ sc qc SysMonAgent
 ### View Logs
 ```powershell
 # View recent logs
-Get-Content "C:\Program Files\OnLab\SysMon\logs\sysmon.log" -Tail 20
+Get-Content "C:\Program Files\AnyLab\SysMon\logs\sysmon.log" -Tail 20
 
 # Monitor logs in real-time
-Get-Content "C:\Program Files\OnLab\SysMon\logs\sysmon.log" -Wait
+Get-Content "C:\Program Files\AnyLab\SysMon\logs\sysmon.log" -Wait
 ```
 
 ### Test Network Connectivity
 ```powershell
-# Test connection to OnLab server
+# Test connection to AnyLab server
 Invoke-WebRequest -Uri "http://10.96.17.21:8000/api/" -Method GET
 
 # Test API endpoint
 Invoke-WebRequest -Uri "http://10.96.17.21:8000/api/monitoring/" -Method GET
 ```
 
-### Check OnLab Dashboard
+### Check AnyLab Dashboard
 - **Open:** `http://10.96.17.21:3000`
 - **Login:** `admin` / `admin123`
 - **Navigate:** Monitoring → System Monitoring
@@ -145,7 +145,7 @@ sc qc SysMonAgent
 sc config SysMonAgent start= auto
 
 # Change service description
-sc description SysMonAgent "OnLab System Monitoring Agent"
+sc description SysMonAgent "AnyLab System Monitoring Agent"
 ```
 
 ## 🐛 Troubleshooting
@@ -185,7 +185,7 @@ if %errorLevel% neq 0 (
 )
 
 # Check file permissions
-Get-Acl "C:\Program Files\OnLab\SysMon\"
+Get-Acl "C:\Program Files\AnyLab\SysMon\"
 ```
 
 **4. Python Issues**
@@ -230,7 +230,7 @@ python -u sysmon.py
 ### Monitoring Intervals
 - **Default:** 60 seconds
 - **Configurable:** 30-300 seconds
-- **Real-time:** Available via OnLab dashboard
+- **Real-time:** Available via AnyLab dashboard
 
 ## 🔄 Updates
 
@@ -240,10 +240,10 @@ python -u sysmon.py
 net stop SysMonAgent
 
 # Backup current installation
-Copy-Item "C:\Program Files\OnLab\SysMon" "C:\Program Files\OnLab\SysMon.backup" -Recurse
+Copy-Item "C:\Program Files\AnyLab\SysMon" "C:\Program Files\AnyLab\SysMon.backup" -Recurse
 
 # Copy new files
-Copy-Item "sysmon.py" "C:\Program Files\OnLab\SysMon\"
+Copy-Item "sysmon.py" "C:\Program Files\AnyLab\SysMon\"
 
 # Start service
 net start SysMonAgent
@@ -252,7 +252,7 @@ net start SysMonAgent
 ### Update Configuration
 ```powershell
 # Edit configuration
-notepad "C:\Program Files\OnLab\SysMon\config\sysmon.onelab.json"
+notepad "C:\Program Files\AnyLab\SysMon\config\sysmon.anylab.json"
 
 # Restart service to apply changes
 net stop SysMonAgent && net start SysMonAgent
@@ -262,23 +262,23 @@ net stop SysMonAgent && net start SysMonAgent
 
 ### Firewall Configuration
 ```powershell
-# Allow outbound connections to OnLab server
-New-NetFirewallRule -DisplayName "OnLab SysMon Agent" -Direction Outbound -Protocol TCP -RemoteAddress 10.96.17.21 -RemotePort 8000 -Action Allow
+# Allow outbound connections to AnyLab server
+New-NetFirewallRule -DisplayName "AnyLab SysMon Agent" -Direction Outbound -Protocol TCP -RemoteAddress 10.96.17.21 -RemotePort 8000 -Action Allow
 ```
 
 ### Antivirus Exclusions
 ```powershell
 # Add exclusions for SysMon agent
 # Common paths to exclude:
-# - C:\Program Files\OnLab\SysMon\
-# - C:\Program Files\OnLab\SysMon\logs\
-# - C:\Program Files\OnLab\SysMon\queue\
+# - C:\Program Files\AnyLab\SysMon\
+# - C:\Program Files\AnyLab\SysMon\logs\
+# - C:\Program Files\AnyLab\SysMon\queue\
 ```
 
 ## 📞 Support
 
 ### Log Locations
-- **Service Logs:** `C:\Program Files\OnLab\SysMon\logs\sysmon.log`
+- **Service Logs:** `C:\Program Files\AnyLab\SysMon\logs\sysmon.log`
 - **Windows Event Logs:** Application → SysMonAgent
 - **Python Errors:** Console output when running manually
 
@@ -288,16 +288,16 @@ New-NetFirewallRule -DisplayName "OnLab SysMon Agent" -Direction Outbound -Proto
 sc query SysMonAgent
 
 # View recent logs
-Get-Content "C:\Program Files\OnLab\SysMon\logs\sysmon.log" -Tail 10
+Get-Content "C:\Program Files\AnyLab\SysMon\logs\sysmon.log" -Tail 10
 
 # Test connectivity
 Invoke-WebRequest -Uri "http://10.96.17.21:8000/api/" -Method GET
 
 # Check configuration
-Get-Content "C:\Program Files\OnLab\SysMon\config\sysmon.onelab.json"
+Get-Content "C:\Program Files\AnyLab\SysMon\config\sysmon.anylab.json"
 ```
 
-### OnLab Dashboard
+### AnyLab Dashboard
 - **URL:** `http://10.96.17.21:3000`
 - **Login:** `admin` / `admin123`
 - **Monitoring:** System Monitoring → Your Windows Machine
@@ -306,9 +306,9 @@ Get-Content "C:\Program Files\OnLab\SysMon\config\sysmon.onelab.json"
 
 - ✅ Service installed and running (`sc query SysMonAgent`)
 - ✅ Configuration updated with correct server URL and API key
-- ✅ Network connectivity to OnLab server (10.96.17.21:8000)
+- ✅ Network connectivity to AnyLab server (10.96.17.21:8000)
 - ✅ Logs showing successful data upload
-- ✅ Machine appears in OnLab dashboard
+- ✅ Machine appears in AnyLab dashboard
 - ✅ Metrics being collected (CPU, Memory, Disk, Network)
 - ✅ No errors in Windows Event Logs
 
@@ -318,4 +318,4 @@ Get-Content "C:\Program Files\OnLab\SysMon\config\sysmon.onelab.json"
 2. **Verify all metrics are collected**
 3. **Test different scenarios** (high CPU, memory, network issues)
 4. **Deploy to production machines**
-5. **Set up monitoring alerts** in OnLab dashboard
+5. **Set up monitoring alerts** in AnyLab dashboard

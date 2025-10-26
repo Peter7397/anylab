@@ -71,7 +71,7 @@ echo "Deploying SysMon Agent..."
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label htmlFor="server_url">OnLab Server URL</Label>
+              <Label htmlFor="server_url">AnyLab Server URL</Label>
               <Input
                 value={serverUrl}
                 onChange={(e) => setServerUrl(e.target.value)}

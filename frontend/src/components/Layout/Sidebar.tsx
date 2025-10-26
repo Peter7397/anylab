@@ -197,8 +197,8 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                         <div className="flex items-center justify-between p-4 border-b border-gray-200">
                                 {!collapsed && (
                                         <div>
-                                                <h1 className="text-xl font-bold text-gray-900">OnLab</h1>
-                                                <p className="text-xs text-gray-500">One AI solution for every lab</p>
+                                                <h1 className="text-xl font-bold text-gray-900">AnyLab</h1>
+                                                <p className="text-xs text-gray-500">AI eNlighteN Your Lab</p>
                                         </div>
                                 )}
                                 <button

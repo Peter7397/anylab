@@ -35,14 +35,14 @@ curl_cffi==0.6.0
 psutil==5.9.8
 
 # AI/ML Dependencies
-sentence-transformers==2.2.2
-torch==2.0.1
-transformers==4.36.2
-numpy==1.24.3
-scikit-learn==1.3.2
+sentence-transformers==5.1.2
+torch==2.9.0
+transformers==4.57.1
+numpy==2.3.4
+scikit-learn==1.7.2
 faiss-cpu==1.7.4
 ollama==0.1.7
 
 # Additional AI utilities
-huggingface-hub==0.19.4
-tokenizers==0.15.0 
+huggingface-hub==0.36.0
+tokenizers==0.22.1 

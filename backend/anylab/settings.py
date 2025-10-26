@@ -1,5 +1,5 @@
 """
-Django settings for onlab project.
+Django settings for anylab project.
 """
 
 from pathlib import Path
@@ -57,10 +57,10 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'onlab.middleware.LoginRequiredMiddleware',
+    'anylab.middleware.LoginRequiredMiddleware',
 ]
 
-ROOT_URLCONF = 'onlab.urls'
+ROOT_URLCONF = 'anylab.urls'
 
 TEMPLATES = [
     {
@@ -78,7 +78,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'onlab.wsgi.application'
+WSGI_APPLICATION = 'anylab.wsgi.application'
 
 
 # Database
@@ -88,7 +88,7 @@ WSGI_APPLICATION = 'onlab.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME', 'onlab'),
+        'NAME': os.getenv('DB_NAME', 'anylab'),
         'USER': os.getenv('DB_USER', 'postgres'),
         'PASSWORD': os.getenv('DB_PASSWORD', 'password'),
         'HOST': os.getenv('DB_HOST', 'db'),  # Default to 'db' service name for Docker
@@ -193,9 +193,9 @@ SIMPLE_JWT = {
 }
 
 # CORS settings
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,http://192.168.1.24:3000,http://10.96.17.21:3000').split(',')
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,http://192.168.1.24:3000,http://10.96.17.21:3000,https://anylab.dpdns.org').split(',')
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'False').lower() == 'true'  # For development only
+CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True').lower() == 'true'  # For development only
 CORS_ALLOW_HEADERS = [
     'accept',
     'accept-encoding',
@@ -284,7 +284,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'onlab.log'),
+            'filename': os.path.join(BASE_DIR, 'logs', 'anylab.log'),
             'formatter': 'verbose',
         },
         'console': {

@@ -1,8 +1,10 @@
-# OnLab0812 - Comprehensive Laboratory Management System
+# AnyLab0812 - Comprehensive Laboratory Management System
 
 ## Overview
 
-OnLab0812 is a modern, full-stack laboratory management system that combines AI-powered document processing, system monitoring, and comprehensive laboratory operations management. Built with Django, React, and Docker, it provides a complete solution for laboratory environments.
+AnyLab0812 is a modern, full-stack laboratory management system that combines AI-powered document processing, system monitoring, and comprehensive laboratory operations management. Built with Django, React, and Docker, it provides a complete solution for laboratory environments.
+
+**Slogan: AI eNlighteN Your Lab**
 
 ## 🚀 Features
 
@@ -12,6 +14,9 @@ OnLab0812 is a modern, full-stack laboratory management system that combines AI-
 - **Hybrid Search** combining vector and keyword-based retrieval
 - **Document Viewer** with real-time annotation capabilities
 - **Knowledge Library** for centralized document management
+- **Multiple Search Modes**: Comprehensive, Advanced, Enhanced, and Basic RAG
+- **Real-time Document Processing** with Ollama integration
+- **Smart Caching** for improved performance and response times
 
 ### System Monitoring
 - **Real-time System Metrics** monitoring (CPU, Memory, Disk, Network)
@@ -37,13 +42,13 @@ OnLab0812 is a modern, full-stack laboratory management system that combines AI-
 ## 🏗️ Architecture
 
 ```
-OnLab0812/
+AnyLab0812/
 ├── backend/                 # Django Backend
 │   ├── ai_assistant/       # AI & RAG Services
 │   ├── monitoring/         # System Monitoring
 │   ├── maintenance/        # Maintenance Management
 │   ├── users/             # User Management
-│   └── onlab/             # Main Django Project
+│   └── anylab/            # Main Django Project
 ├── frontend/              # React Frontend
 │   ├── src/
 │   │   ├── components/    # React Components
@@ -72,9 +77,12 @@ OnLab0812/
 - **Axios** - HTTP client
 
 ### AI & ML
-- **Sentence Transformers** - Text embeddings
-- **Ollama** - Local LLM integration
-- **RAG Pipeline** - Document retrieval and generation
+- **Ollama Integration** - Local LLM with Qwen 2.5-7B model
+- **BGE-M3 Embeddings** - High-quality text embeddings via Ollama
+- **Advanced RAG Pipeline** - Multi-mode document retrieval and generation
+- **Smart Chunking** - Enhanced document processing with semantic understanding
+- **Hybrid Search Engine** - Combines vector similarity with keyword matching
+- **Cross-Encoder Reranking** - Advanced result ranking for better accuracy
 
 ### Infrastructure
 - **Docker** - Containerization
@@ -93,8 +101,8 @@ OnLab0812/
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/yourusername/OnLab0812.git
-cd OnLab0812
+git clone https://github.com/yourusername/AnyLab0812.git
+cd AnyLab0812
 ```
 
 ### 2. Environment Setup
@@ -187,7 +195,8 @@ For support and questions:
 - **v1.0.0** - Initial release with core features
 - **v1.1.0** - Enhanced RAG system and monitoring
 - **v1.2.0** - UI improvements and performance optimizations
+- **v1.3.0** - **CURRENT** - Fully functional RAG system with multiple search modes
 
 ---
 
-**OnLab0812** - Empowering laboratories with intelligent management solutions.
+**AnyLab0812** - AI eNlighteN Your Lab with intelligent management solutions.

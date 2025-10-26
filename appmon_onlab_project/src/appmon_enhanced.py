@@ -307,9 +307,9 @@ def load_config(global_path, local_path):
     return cfg
 
 def main():
-    ap = argparse.ArgumentParser(description="Application Monitoring Service (AppMonSvc) — OneLab Enhanced")
+    ap = argparse.ArgumentParser(description="Application Monitoring Service (AppMonSvc) — AnyLab Enhanced")
     ap.add_argument("--global", dest="global_cfg", default=os.path.join("config","global.default.json"))
-    ap.add_argument("--local", dest="local_cfg", default=os.path.join("config","appmon.onlab.json"))
+    ap.add_argument("--local", dest="local_cfg", default=os.path.join("config","appmon.anylab.json"))
     ap.add_argument("--once", action="store_true")
     args = ap.parse_args()
     cfg = load_config(args.global_cfg, args.local_cfg)

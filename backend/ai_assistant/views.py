@@ -16,7 +16,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from sentence_transformers import SentenceTransformer
+# from sentence_transformers import SentenceTransformer  # temporarily disabled
 import numpy as np
 import requests
 
@@ -302,7 +302,7 @@ def upload_pdf_enhanced(request):
                 file=saved_file,  # Use the saved file path
                 filename=pdf_file.name,
                 description=description,
-                uploaded_by=request.user,
+                uploaded_by=request.user if request.user.is_authenticated else None,
                 page_count=result['page_count'],
                 file_size=pdf_file.size
             )
@@ -457,7 +457,7 @@ def pdf_documents(request):
     elif request.method == 'POST':
         serializer = PDFDocumentSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(uploaded_by=request.user)
+            serializer.save(uploaded_by=request.user if request.user.is_authenticated else None)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -563,7 +563,7 @@ def documents(request):
     elif request.method == 'POST':
         serializer = DocumentSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
-            serializer.save(uploaded_by=request.user)
+            serializer.save(uploaded_by=request.user if request.user.is_authenticated else None)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -646,7 +646,7 @@ def upload_document_enhanced(request):
                 filename=uploaded_file.name,
                 document_type=document_type,
                 description=description,
-                uploaded_by=request.user,
+                uploaded_by=request.user if request.user.is_authenticated else None,
                 page_count=result.get('page_count', 0),
                 file_size=uploaded_file.size
             )

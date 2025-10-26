@@ -71,7 +71,7 @@ class SysMonService:
             return None
 
     def upload_metrics(self, metrics):
-        """Upload metrics to OnLab backend"""
+        """Upload metrics to AnyLab backend"""
         if not metrics:
             return False
             
@@ -215,7 +215,7 @@ def main():
     ap.add_argument("--global", dest="global_cfg", default=os.path.join("config","global.default.json"))
     ap.add_argument("--local", dest="local_cfg", default=os.path.join("config","sysmon.local.json"))
     ap.add_argument("--once", action="store_true", help="Collect once and exit")
-    ap.add_argument("--upload-metrics", action="store_true", help="Upload metrics to OnLab")
+    ap.add_argument("--upload-metrics", action="store_true", help="Upload metrics to AnyLab")
     ap.add_argument("--version", action="version", version="SysMonSvc 2.0.0")
     args = ap.parse_args()
 

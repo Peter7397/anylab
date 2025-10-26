@@ -215,7 +215,7 @@ def main():
     ap.add_argument("--global", dest="global_cfg", default=os.path.join("config","global.default.json"))
     ap.add_argument("--local", dest="local_cfg", default=os.path.join("config","appmon.local.json"))
     ap.add_argument("--once", action="store_true", help="Scan once and exit")
-    ap.add_argument("--upload-metrics", action="store_true", help="Upload metrics to OnLab")
+    ap.add_argument("--upload-metrics", action="store_true", help="Upload metrics to AnyLab")
     args = ap.parse_args()
 
     cfg = load_config(args.global_cfg, args.local_cfg)

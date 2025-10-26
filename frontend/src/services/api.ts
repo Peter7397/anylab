@@ -1,9 +1,9 @@
-// API Service Layer for OnLab Frontend
+// API Service Layer for AnyLab Frontend
 // This file handles all API communication with the Django backend
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
-const JWT_STORAGE_KEY = process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token';
-const REFRESH_TOKEN_KEY = process.env.REACT_APP_REFRESH_TOKEN_KEY || 'onlab_refresh_token';
+const JWT_STORAGE_KEY = process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token';
+const REFRESH_TOKEN_KEY = process.env.REACT_APP_REFRESH_TOKEN_KEY || 'anylab_refresh_token';
 
 // Types
 export interface ApiResponse<T = any> {

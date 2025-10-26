@@ -1,5 +1,5 @@
 """
-ASGI config for onlab project.
+ASGI config for anylab project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 
@@ -11,6 +11,6 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'onlab.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'anylab.settings')
 
 application = get_asgi_application()

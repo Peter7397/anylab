@@ -79,7 +79,7 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (doc: DocumentFile) => void }
 
   // Debug: Check authentication status
   useEffect(() => {
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
     console.log('Auth token exists:', !!token);
     if (token) {
       console.log('Token preview:', token.substring(0, 50) + '...');
@@ -164,7 +164,7 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (doc: DocumentFile) => void }
     setError(null);
 
     // Debug: Check auth token before upload
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'onlab_token');
+    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
     console.log('Upload attempt - Auth token exists:', !!token);
     if (!token) {
       setError('Not authenticated. Please log in first.');

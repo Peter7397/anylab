@@ -4,9 +4,9 @@ services:
   # PostgreSQL Database with pgvector
   db:
     image: pgvector/pgvector:pg16
-    container_name: onelab_db_prod
+    container_name: anylab_db_prod
     environment:
-      - POSTGRES_DB=onelab
+      - POSTGRES_DB=anylab
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=${DB_PASSWORD:-password}
     volumes:
@@ -15,7 +15,7 @@ services:
     ports:
       - "5432:5432"
     networks:
-      - onelab_network
+      - anylab_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -26,14 +26,14 @@ services:
   # Redis for caching and Celery
   redis:
     image: redis:7-alpine
-    container_name: onelab_redis_prod
+    container_name: anylab_redis_prod
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
     volumes:
       - redis_data:/data
     ports:
       - "6379:6379"
     networks:
-      - onelab_network
+      - anylab_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -44,11 +44,11 @@ services:
   # Django Web Application
   web:
     build: .
-    container_name: onelab_web_prod
+    container_name: anylab_web_prod
     command: >
       sh -c "python manage.py migrate &&
              python manage.py collectstatic --noinput &&
-             gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 300 --max-requests 1000 --max-requests-jitter 100 onelab.wsgi:application"
+             gunicorn --bind 0.0.0.0:8000 --workers 3 --timeout 300 --max-requests 1000 --max-requests-jitter 100 anylab.wsgi:application"
     volumes:
       - ./media:/app/media
       - static_volume:/app/staticfiles
@@ -69,7 +69,7 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - onelab_network
+      - anylab_network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
@@ -80,8 +80,8 @@ services:
   # Celery Worker
   celery:
     build: .
-    container_name: onelab_celery_prod
-    command: celery -A onelab worker --loglevel=info --concurrency=2 --max-tasks-per-child=1000
+    container_name: anylab_celery_prod
+    command: celery -A anylab worker --loglevel=info --concurrency=2 --max-tasks-per-child=1000
     volumes:
       - ./media:/app/media
       - ./logs:/app/logs
@@ -105,14 +105,14 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - onelab_network
+      - anylab_network
     restart: unless-stopped
 
   # Celery Beat (Scheduler)
   celery-beat:
     build: .
-    container_name: onelab_celery_beat_prod
-    command: celery -A onelab beat --loglevel=info
+    container_name: anylab_celery_beat_prod
+    command: celery -A anylab beat --loglevel=info
     volumes:
       - ./media:/app/media
       - ./logs:/app/logs
@@ -136,13 +136,13 @@ services:
       redis:
         condition: service_healthy
     networks:
-      - onelab_network
+      - anylab_network
     restart: unless-stopped
 
   # Nginx Reverse Proxy (Optional)
   nginx:
     image: nginx:alpine
-    container_name: onelab_nginx_prod
+    container_name: anylab_nginx_prod
     ports:
       - "80:80"
       - "443:443"
@@ -153,7 +153,7 @@ services:
     depends_on:
       - web
     networks:
-      - onelab_network
+      - anylab_network
     restart: unless-stopped
     profiles:
       - nginx
@@ -167,5 +167,5 @@ volumes:
     driver: local
 
 networks:
-  onelab_network:
+  anylab_network:
     driver: bridge

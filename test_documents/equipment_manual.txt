@@ -1,0 +1,140 @@
+Laboratory Equipment Manual: Centrifuge Operation and Maintenance
+
+EQUIPMENT: Eppendorf 5424 Microcentrifuge
+MODEL: 5424 R
+SERIAL NUMBER: EP-2024-001
+LOCATION: Lab Room 101, Bench 3
+
+1. EQUIPMENT OVERVIEW
+The Eppendorf 5424 R is a refrigerated microcentrifuge designed for high-speed centrifugation of small volume samples. It features temperature control, multiple rotor options, and advanced safety features.
+
+2. TECHNICAL SPECIFICATIONS
+- Maximum Speed: 15,000 rpm
+- Maximum RCF: 21,130 x g
+- Temperature Range: -9°C to +40°C
+- Capacity: 24 x 1.5/2.0 ml tubes
+- Rotor Types: Fixed-angle and swing-out
+- Power: 230V, 50/60Hz
+- Dimensions: 280 x 280 x 200 mm
+- Weight: 8.5 kg
+
+3. SAFETY FEATURES
+- Automatic rotor recognition
+- Imbalance detection and shutdown
+- Lid lock mechanism
+- Over-temperature protection
+- Emergency stop button
+- Audible alarms for malfunctions
+
+4. OPERATION PROCEDURES
+
+4.1 Pre-Use Checklist
+- Verify power connection and grounding
+- Check rotor installation and locking
+- Ensure lid is properly closed
+- Verify temperature settings
+- Check for any visible damage
+
+4.2 Sample Loading
+1. Balance tubes by weight (±0.1g difference)
+2. Place tubes in opposite positions
+3. Ensure tubes are properly seated
+4. Close lid completely until lock engages
+5. Verify rotor is properly balanced
+
+4.3 Programming Run Parameters
+1. Press "Set" button to enter programming mode
+2. Use arrow keys to select speed (rpm or RCF)
+3. Set temperature if required
+4. Set run time using timer
+5. Press "Start" to begin centrifugation
+
+4.4 Monitoring and Completion
+- Monitor run progress on display
+- Check for any unusual vibrations or sounds
+- Wait for automatic deceleration
+- Allow rotor to come to complete stop
+- Open lid only after rotor stops completely
+
+5. MAINTENANCE SCHEDULE
+
+Daily:
+- Visual inspection of equipment
+- Check rotor condition
+- Clean exterior surfaces
+- Verify temperature calibration
+
+Weekly:
+- Deep clean rotor and chamber
+- Check lid seal condition
+- Test safety features
+- Update maintenance log
+
+Monthly:
+- Professional calibration check
+- Lubrication of moving parts
+- Electrical safety inspection
+- Performance verification
+
+6. TROUBLESHOOTING GUIDE
+
+Problem: Equipment won't start
+Solution: Check power connection, verify lid is closed, check rotor installation
+
+Problem: Excessive vibration
+Solution: Check tube balance, verify rotor is properly seated, check for damage
+
+Problem: Temperature not reaching set point
+Solution: Check door seal, verify cooling system, allow more time for temperature stabilization
+
+Problem: Error codes on display
+Solution: Refer to error code manual, contact service technician if needed
+
+7. CLEANING PROCEDURES
+
+Daily Cleaning:
+- Wipe exterior with mild detergent
+- Clean rotor with 70% ethanol
+- Remove any spilled samples immediately
+
+Deep Cleaning:
+- Remove rotor and clean thoroughly
+- Clean chamber with appropriate disinfectant
+- Check and clean door seal
+- Allow complete drying before reassembly
+
+8. CALIBRATION RECORDS
+- Last Calibration: September 15, 2025
+- Next Due: December 15, 2025
+- Calibrated By: Eppendorf Service Center
+- Certificate Number: CAL-2025-0915-001
+
+9. CONTACT INFORMATION
+- Service Provider: Eppendorf Technical Support
+- Phone: 1-800-EPPENDORF
+- Email: service@eppendorf.com
+- Local Technician: John Smith (555-0123)
+
+10. WARRANTY INFORMATION
+- Warranty Period: 2 years from purchase date
+- Purchase Date: March 15, 2024
+- Warranty Expires: March 15, 2026
+- Coverage: Parts and labor for manufacturing defects
+
+11. SAFETY WARNINGS
+- Never operate without proper rotor installation
+- Always balance tubes before centrifugation
+- Do not exceed maximum speed ratings
+- Keep hands clear of moving parts
+- Follow all institutional safety protocols
+
+12. APPENDICES
+- Appendix A: Rotor Compatibility Chart
+- Appendix B: Speed/RCF Conversion Table
+- Appendix C: Error Code Reference
+- Appendix D: Maintenance Log Template
+
+Document Version: 1.3
+Last Updated: October 2025
+Prepared By: Laboratory Equipment Manager
+Approved By: Dr. Michael Chen, Lab Director

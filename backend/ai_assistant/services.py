@@ -18,7 +18,7 @@ class EmbeddingService:
         # are unavailable (e.g., no internet to download weights)
         self.fallback_hasher = None
         # Use 384 to match MiniLM-L6-v2 dimensions for better forward compatibility
-        self.fallback_dimension = 384
+        self.fallback_dimension = 1024
         self._initialize_models()
     
     def _initialize_models(self):

@@ -1,0 +1,75 @@
+Laboratory Protocol: DNA Extraction and Analysis
+
+1. INTRODUCTION
+This protocol describes the standard procedure for DNA extraction from biological samples and subsequent analysis using polymerase chain reaction (PCR) techniques.
+
+2. MATERIALS REQUIRED
+- Sample tubes containing biological material
+- DNA extraction kit (Qiagen DNeasy Blood & Tissue Kit)
+- Microcentrifuge tubes (1.5ml and 2ml)
+- Pipettes (10μl, 100μl, 1000μl)
+- Centrifuge
+- Water bath or heating block
+- Ethanol (70% and 100%)
+- Distilled water
+- Buffer solutions (ATL, AL, AW1, AW2, AE)
+
+3. SAFETY PRECAUTIONS
+- Wear appropriate personal protective equipment (PPE)
+- Work in a biosafety cabinet for potentially infectious samples
+- Dispose of biological waste according to institutional guidelines
+- Follow standard laboratory safety protocols
+
+4. PROCEDURE
+
+4.1 Sample Preparation
+- Label all tubes clearly with sample identification
+- Ensure samples are properly stored at appropriate temperatures
+- Record sample information in laboratory notebook
+
+4.2 DNA Extraction
+1. Add 200μl of sample to 1.5ml microcentrifuge tube
+2. Add 20μl of proteinase K and 200μl of buffer AL
+3. Mix thoroughly by vortexing for 15 seconds
+4. Incubate at 56°C for 10 minutes
+5. Add 200μl of ethanol (100%) and mix by inverting
+6. Transfer mixture to DNeasy Mini spin column
+7. Centrifuge at 6000 x g for 1 minute
+8. Discard flow-through and add 500μl buffer AW1
+9. Centrifuge at 6000 x g for 1 minute
+10. Discard flow-through and add 500μl buffer AW2
+11. Centrifuge at 20,000 x g for 3 minutes
+12. Transfer column to new 1.5ml tube
+13. Add 200μl buffer AE and incubate at room temperature for 1 minute
+14. Centrifuge at 6000 x g for 1 minute to elute DNA
+
+4.3 DNA Quantification
+- Measure DNA concentration using spectrophotometer
+- Calculate DNA yield and purity (A260/A280 ratio)
+- Record results in laboratory notebook
+
+4.4 Quality Control
+- Run gel electrophoresis to verify DNA integrity
+- Check for contamination using negative controls
+- Document all quality control results
+
+5. TROUBLESHOOTING
+
+Common Issues:
+- Low DNA yield: Check sample quality and extraction efficiency
+- Poor DNA quality: Verify buffer conditions and incubation times
+- Contamination: Review sterile technique and equipment cleaning
+
+6. EXPECTED RESULTS
+- DNA concentration: 50-200 ng/μl
+- A260/A280 ratio: 1.8-2.0
+- DNA integrity: Clear bands on agarose gel
+
+7. REFERENCES
+- Qiagen DNeasy Blood & Tissue Handbook
+- Molecular Biology Laboratory Protocols
+- Institutional Biosafety Guidelines
+
+Protocol Version: 2.1
+Last Updated: October 2025
+Reviewed By: Dr. Sarah Johnson

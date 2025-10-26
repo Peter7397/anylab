@@ -13,7 +13,7 @@ interface DeploymentStatus {
 const ClientAgentDeployer: React.FC = () => {
   const [deploymentStatus, setDeploymentStatus] = useState<DeploymentStatus>({
     status: 'idle',
-    message: 'Ready to deploy OnLab Client Agent'
+    message: 'Ready to deploy AnyLab Client Agent'
   });
   const [clientInfo, setClientInfo] = useState({
     hostname: '',
@@ -140,7 +140,7 @@ const ClientAgentDeployer: React.FC = () => {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">OnLab Client Agent Deployer</h1>
+        <h1 className="text-2xl font-bold text-gray-900">AnyLab Client Agent Deployer</h1>
         <div className="text-sm text-gray-500">
           One-click deployment for Windows monitoring
         </div>
@@ -288,7 +288,7 @@ const ClientAgentDeployer: React.FC = () => {
             <h3 className="font-medium text-yellow-800">Security Notice</h3>
             <p className="text-sm text-yellow-700 mt-1">
               The client agent requires administrator privileges to access Windows Event Logs and install as a service. 
-              The agent only collects system monitoring data and sends it to your OnLab server for analysis.
+              The agent only collects system monitoring data and sends it to your AnyLab server for analysis.
             </p>
           </div>
         </div>
