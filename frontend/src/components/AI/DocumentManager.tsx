@@ -42,7 +42,7 @@ interface DocumentSearchParams {
   document_type: string;
 }
 
-const DocumentManager: React.FC<{ onOpenInViewer?: (doc: DocumentFile) => void }> = ({ onOpenInViewer }) => {
+const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx' }) => void }> = ({ onOpenInViewer }) => {
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -264,12 +264,23 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (doc: DocumentFile) => void }
   const handleView = (doc: DocumentFile) => {
     // For all document types, use the embedded viewer
     if (onOpenInViewer && doc.file_url) {
+      // Determine document type for viewer
+      let docType: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx' = 'pdf';
+      const type = doc.document_type || '';
+      if (type === 'doc' || type === 'docx') docType = 'docx';
+      else if (type === 'xls') docType = 'xls';
+      else if (type === 'xlsx') docType = 'xlsx';
+      else if (type === 'ppt') docType = 'ppt';
+      else if (type === 'pptx') docType = 'pptx';
+      else if (type === 'txt') docType = 'txt';
+      else docType = 'pdf';
+      
       // Open in the embedded DocumentViewer component
       onOpenInViewer({
-        id: String(doc.id),  // Convert number to string
+        id: String(doc.id),
         title: doc.title,
         url: doc.file_url,
-        type: doc.document_type as any,
+        type: docType,
       });
     } else if (doc.document_type === 'pdf' && doc.file_url) {
       // Fallback: Open PDF in new tab if file_url is available
