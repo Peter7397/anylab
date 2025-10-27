@@ -10,24 +10,55 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Check authentication on component mount
+  // Check authentication and load AI mode on component mount
   useEffect(() => {
     const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
     if (!token) {
       console.log('No auth token found, redirecting to login');
       navigate('/login', { replace: true });
     }
+    
+    // Load AI mode preference
+    const savedMode = localStorage.getItem('ai_mode') as AIMode;
+    if (savedMode && (savedMode === 'performance' || savedMode === 'lightweight')) {
+      setAiMode(savedMode);
+    }
   }, [navigate]);
 
   const handleQuickAction = (action: string) => {
-    console.log('Quick action:', action);
-    // TODO: Implement quick actions
+    switch (action) {
+      case 'scan':
+        navigate('/scrapers');
+        break;
+      case 'refresh':
+        window.location.reload();
+        break;
+      case 'report':
+        // Navigate to analytics or generate report
+        navigate('/admin/analytics');
+        break;
+      case 'analyze':
+        // Navigate to AI chat
+        navigate('/ai/chat');
+        break;
+      default:
+        console.log('Quick action:', action);
+    }
   };
 
   const handleAIModeChange = (mode: AIMode) => {
     setAiMode(mode);
-    console.log('AI Mode changed to:', mode);
-    // TODO: Implement AI mode switching
+    // Store AI mode preference
+    localStorage.setItem('ai_mode', mode);
+    
+    // Show notification about mode change
+    console.log(`AI Mode switched to: ${mode}`);
+    
+    // You can add logic here to:
+    // 1. Update API endpoints based on mode
+    // 2. Change model parameters
+    // 3. Adjust caching strategies
+    // 4. Notify backend of mode change
   };
 
   // Generate breadcrumbs from current path

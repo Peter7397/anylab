@@ -15,12 +15,14 @@ import {
   File,
   FileSpreadsheet,
   Presentation,
-  FileCode
+  FileCode,
+  Edit,
+  Wand2
 } from 'lucide-react';
 import { apiClient } from '../../services/api';
 
 // Debug: Ensure this component is using updated code
-console.log('DocumentManager component loaded with updated imports');
+console.log('DocumentManager component loaded with updated imports v2.0 with Auto-Extract button');
 
 interface DocumentFile {
   id: number;
@@ -42,26 +44,41 @@ interface DocumentSearchParams {
   document_type: string;
 }
 
-const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx' }) => void }> = ({ onOpenInViewer }) => {
+interface DocumentManagerProps {
+  onOpenInViewer?: (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx' }) => void;
+  defaultDocType?: string;
+}
+
+const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defaultDocType = 'all' }) => {
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [searchParams, setSearchParams] = useState<DocumentSearchParams>({
     query: '',
     search_type: 'both',
-    document_type: 'all'
+    document_type: defaultDocType
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadForm, setUploadForm] = useState({
     title: '',
     description: '',
-    document_type: 'pdf'
+    document_type: 'pdf',
+    product_category: '',
+    version: '',
+    content_type: ''
   });
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<DocumentFile | null>(null);
   const [showViewer, setShowViewer] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editMetadata, setEditMetadata] = useState({
+    product_category: '',
+    content_type: '',
+    version: ''
+  });
+  const [extracting, setExtracting] = useState(false);
 
   // Document type configurations
   const documentTypes = [
@@ -70,12 +87,60 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
     { value: 'xls', label: 'Excel Spreadsheet', icon: FileSpreadsheet, extensions: ['.xls', '.xlsx'] },
     { value: 'ppt', label: 'PowerPoint Presentation', icon: Presentation, extensions: ['.ppt', '.pptx'] },
     { value: 'txt', label: 'Text Document', icon: FileCode, extensions: ['.txt', '.rtf'] },
+    { value: 'SSB_KPR', label: 'SSB/KPR File', icon: FileText, extensions: ['.mhtml', '.html'] },
+  ];
+
+  // Product categories
+  const productCategories = [
+    { value: '', label: 'Select Product' },
+    { value: 'openlab_cds', label: 'OpenLab CDS' },
+    { value: 'openlab_ecm', label: 'OpenLab ECM' },
+    { value: 'openlab_eln', label: 'OpenLab ELN' },
+    { value: 'openlab_server', label: 'OpenLab Server' },
+    { value: 'masshunter_workstation', label: 'MassHunter Workstation' },
+    { value: 'masshunter_quantitative', label: 'MassHunter Quantitative' },
+    { value: 'masshunter_qualitative', label: 'MassHunter Qualitative' },
+    { value: 'masshunter_bioconfirm', label: 'MassHunter BioConfirm' },
+    { value: 'masshunter_metabolomics', label: 'MassHunter Metabolomics' },
+    { value: 'vnmrj_current', label: 'VNMRJ Current' },
+    { value: 'vnmrj_legacy', label: 'VNMRJ Legacy' },
+    { value: 'vnmr_legacy', label: 'VNMR Legacy' },
+  ];
+
+  // Content types
+  const contentTypes = [
+    { value: '', label: 'Select Document Type' },
+    { value: 'installation_guide', label: 'Installation Guide' },
+    { value: 'user_manual', label: 'User Manual' },
+    { value: 'configuration_guide', label: 'Configuration Guide' },
+    { value: 'troubleshooting_guide', label: 'Troubleshooting Guide' },
+    { value: 'maintenance_procedure', label: 'Maintenance Procedure' },
+    { value: 'calibration_procedure', label: 'Calibration Procedure' },
+    { value: 'best_practice_guide', label: 'Best Practice Guide' },
+    { value: 'video_tutorial', label: 'Video Tutorial' },
+    { value: 'webinar_recording', label: 'Webinar Recording' },
+    { value: 'ssb_kpr', label: 'SSB/KPR' },
   ];
 
   // Load documents on component mount
   useEffect(() => {
-    loadDocuments();
-  }, []);
+    // If defaultDocType is set, trigger search with that filter
+    if (defaultDocType && defaultDocType !== 'all') {
+      setSearchParams(prev => ({ ...prev, document_type: defaultDocType }));
+      // Load with the filter immediately
+      apiClient.searchDocuments('', 'both', defaultDocType)
+        .then(response => {
+          setDocuments(response.results || []);
+          setError(null);
+        })
+        .catch(err => {
+          setError('Failed to load documents');
+          console.error('Error loading documents:', err);
+        });
+    } else {
+      loadDocuments();
+    }
+  }, [defaultDocType]);
 
   // Debug: Check authentication status
   useEffect(() => {
@@ -180,6 +245,8 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
     }
 
     try {
+      // Upload all files through the standard document upload flow
+      // This ensures chunks and embeddings are created for RAG
       const uploadPromises = selectedFiles.map(async (file, index) => {
         const title = uploadForm.title.trim() 
           ? `${uploadForm.title}${selectedFiles.length > 1 ? ` (${index + 1})` : ''}`
@@ -189,14 +256,24 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
           file, 
           title, 
           uploadForm.description, 
-          uploadForm.document_type
+          uploadForm.document_type,
+          uploadForm.product_category,
+          uploadForm.content_type,
+          uploadForm.version
         );
       });
 
       await Promise.all(uploadPromises);
 
       setSuccess(`Successfully uploaded ${selectedFiles.length} document(s)!`);
-      setUploadForm({ title: '', description: '', document_type: 'pdf' });
+      setUploadForm({ 
+        title: '', 
+        description: '', 
+        document_type: 'pdf',
+        product_category: '',
+        version: '',
+        content_type: ''
+      });
       setSelectedFiles([]);
       setShowUploadModal(false);
       loadDocuments(); // Reload the list
@@ -295,6 +372,67 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
     return size;
   };
 
+  const handleEditMetadata = (doc: DocumentFile) => {
+    // Fetch document metadata and populate edit form
+    // For now, just open modal with doc info
+    setSelectedDocument(doc);
+    setEditMetadata({
+      product_category: '', // TODO: Fetch from doc.metadata
+      content_type: '',     // TODO: Fetch from doc.metadata
+      version: ''           // TODO: Fetch from doc.metadata
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveMetadata = async () => {
+    if (!selectedDocument) return;
+
+    try {
+      await apiClient.updateDocumentMetadata(selectedDocument.id, {
+        product_category: editMetadata.product_category,
+        content_type: editMetadata.content_type,
+        version: editMetadata.version
+      });
+      
+      setSuccess('Metadata updated successfully!');
+      setShowEditModal(false);
+      setSelectedDocument(null);
+      loadDocuments();
+    } catch (err: any) {
+      setError(err.message || 'Failed to update metadata');
+    }
+  };
+
+  const handleExtractMetadata = async () => {
+    const confirmed = window.confirm(
+      'This will extract metadata for all documents missing product/content information. Continue?'
+    );
+    
+    if (!confirmed) return;
+
+    setExtracting(true);
+    setError(null);
+
+    try {
+      const result = await apiClient.extractDocumentsMetadata();
+      
+      setSuccess(
+        `Metadata extracted successfully! ` +
+        `Updated ${result.updated_count} documents, ` +
+        `skipped ${result.skipped_count} with existing metadata.`
+      );
+      
+      // Reload documents to show updated data
+      loadDocuments();
+    } catch (err: any) {
+      setError(err.message || 'Failed to extract metadata');
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  console.log('Rendering DocumentManager with extract button visible. extracting state:', extracting);
+
   return (
     <div className="p-6 bg-white rounded-lg shadow-sm">
       {/* Header */}
@@ -303,13 +441,43 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
           <h2 className="text-2xl font-bold text-gray-900">Document Manager</h2>
           <p className="text-gray-600">Upload, view, and manage your documents (PDF, Word, Excel, PowerPoint, Text)</p>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-        >
-          <Upload size={20} />
-          Upload Document
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExtractMetadata}
+            disabled={extracting}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Automatically extract product/content/version from existing documents"
+          >
+            <Wand2 size={20} />
+            {extracting ? 'Extracting...' : 'Auto-Extract Metadata'}
+          </button>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
+            <Upload size={20} />
+            Upload Document
+          </button>
+        </div>
+      </div>
+
+      {/* Auto-Extract Button - Standalone */}
+      <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-purple-900 mb-1">Auto-Extract Metadata</h3>
+            <p className="text-xs text-purple-700">Automatically detect product, content type, and version from existing documents</p>
+          </div>
+          <button
+            onClick={handleExtractMetadata}
+            disabled={extracting}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            title="Automatically extract product/content/version from existing documents"
+          >
+            <Wand2 size={18} />
+            {extracting ? 'Extracting...' : 'Extract Now'}
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -337,6 +505,7 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">All Types</option>
+              <option value="SSB_KPR">SSB/KPR</option>
               {documentTypes.map(type => (
                 <option key={type.value} value={type.value}>{type.label}</option>
               ))}
@@ -452,29 +621,26 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
                     </div>
 
                     <div className="flex gap-2 ml-4">
-                      {onOpenInViewer ? (
-                        <button
-                          onClick={() => onOpenInViewer(doc)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Open in Viewer"
-                        >
-                          <Eye size={18} />
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleView(doc)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View Document"
-                        >
-                          <Eye size={18} />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleView(doc)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="View Document"
+                      >
+                        <Eye size={18} />
+                      </button>
                       <button
                         onClick={() => handleDownload(doc)}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                         title="Download Document"
                       >
                         <Download size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleEditMetadata(doc)}
+                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                        title="Edit Metadata"
+                      >
+                        <Edit size={18} />
                       </button>
                       <button
                         onClick={() => handleDelete(doc.id)}
@@ -519,6 +685,7 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
                   {documentTypes.map(type => (
                     <option key={type.value} value={type.value}>{type.label}</option>
                   ))}
+                  <option value="SSB_KPR">SSB/KPR File (.mhtml, .html, .txt)</option>
                 </select>
               </div>
 
@@ -573,6 +740,51 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Product Category *
+                </label>
+                <select
+                  value={uploadForm.product_category}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, product_category: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  {productCategories.map(category => (
+                    <option key={category.value} value={category.value}>{category.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Document Type *
+                </label>
+                <select
+                  value={uploadForm.content_type}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, content_type: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  {contentTypes.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Version (optional)
+                </label>
+                <input
+                  type="text"
+                  value={uploadForm.version}
+                  onChange={(e) => setUploadForm(prev => ({ ...prev, version: e.target.value }))}
+                  placeholder="e.g., 3.2.1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => setShowUploadModal(false)}
@@ -618,6 +830,85 @@ const DocumentManager: React.FC<{ onOpenInViewer?: (args: { id: string; title: s
                   <p>Document viewer not available</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Metadata Modal */}
+      {showEditModal && selectedDocument && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Edit Metadata</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Product Category *
+                </label>
+                <select
+                  value={editMetadata.product_category}
+                  onChange={(e) => setEditMetadata(prev => ({ ...prev, product_category: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  {productCategories.map(category => (
+                    <option key={category.value} value={category.value}>{category.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Document Type *
+                </label>
+                <select
+                  value={editMetadata.content_type}
+                  onChange={(e) => setEditMetadata(prev => ({ ...prev, content_type: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  {contentTypes.map(type => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Version
+                </label>
+                <input
+                  type="text"
+                  value={editMetadata.version}
+                  onChange={(e) => setEditMetadata(prev => ({ ...prev, version: e.target.value }))}
+                  placeholder="e.g., 3.2.1"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveMetadata}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Save
+                </button>
+              </div>
             </div>
           </div>
         </div>

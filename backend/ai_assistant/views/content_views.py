@@ -224,6 +224,10 @@ def update_document_metadata(request):
     try:
         BaseViewMixin.log_request(request, 'update_document_metadata')
         
+        # Debug: Log the request path
+        logger.info(f"update_document_metadata called with path: {request.path}")
+        logger.info(f"Request data: {request.data}")
+        
         document_id = request.data.get('document_id')
         metadata_updates = request.data.get('metadata_updates', {})
         
@@ -236,10 +240,21 @@ def update_document_metadata(request):
         except DocumentFile.DoesNotExist:
             return error_response("Document not found", status.HTTP_404_NOT_FOUND)
         
-        # Update metadata
-        current_metadata = json.loads(document.metadata) if document.metadata else {}
+        # Update metadata - Django JSONField auto-converts JSON to dict
+        # So document.metadata is already a dict (or None)
+        if document.metadata is None:
+            current_metadata = {}
+        elif isinstance(document.metadata, dict):
+            current_metadata = document.metadata.copy()
+        elif isinstance(document.metadata, str):
+            current_metadata = json.loads(document.metadata) if document.metadata else {}
+        else:
+            current_metadata = {}
+        
         current_metadata.update(metadata_updates)
-        document.metadata = json.dumps(current_metadata)
+        
+        # Save as dict - Django JSONField will auto-serialize
+        document.metadata = current_metadata
         document.save()
         
         result = {

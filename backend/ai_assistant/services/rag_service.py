@@ -234,7 +234,7 @@ class RAGService(BaseService):
         """Upload and process PDF file"""
         try:
             self.log_operation('upload_pdf_enhanced', {
-                'filename': file.name,
+                'file_name': file.name,
                 'file_size': file.size
             })
             
@@ -276,7 +276,7 @@ class RAGService(BaseService):
         """Upload and process document file"""
         try:
             self.log_operation('upload_document_enhanced', {
-                'filename': file.name,
+                'file_name': file.name,
                 'file_size': file.size
             })
             
@@ -302,10 +302,13 @@ class RAGService(BaseService):
             # Process document based on file type
             file_extension = file.name.split('.')[-1].lower()
             
+            # Process all document types - PDF, text, HTML/MHTML files all get processed for RAG
             if file_extension == 'pdf':
                 result = self.rag_service.process_pdf_and_build_index(file_path, user)
             else:
-                result = self.rag_service.process_document_and_build_index(file_path, user)
+                # Process text files, HTML, MHTML, and other formats
+                # Pass the file object, file_path, and user
+                result = self.rag_service.process_document_and_build_index(file, file_path, file_hash, user)
             
             # Clean up temporary file
             fs.delete(filename)

@@ -9,7 +9,8 @@ from ..views import (
     get_query_history, get_index_info, list_uploaded_files, get_performance_stats,
     get_search_analytics, documents, document_download, document_delete,
     document_search, pdf_view, pdf_download, pdf_delete, pdf_search,
-    upload_document_enhanced, pdf_documents, upload_pdf_enhanced
+    upload_document_enhanced, pdf_documents, upload_pdf_enhanced,
+    extract_documents_metadata
 )
 
 urlpatterns = [
@@ -17,6 +18,7 @@ urlpatterns = [
     path('', documents, name='documents_list'),
     path('upload/', upload_document_enhanced, name='documents_upload'),
     path('upload/enhanced/', upload_document_enhanced, name='documents_upload_enhanced'),
+    path('extract-metadata/', extract_documents_metadata, name='documents_extract_metadata'),
     path('<int:doc_id>/download/', document_download, name='documents_download'),
     path('<int:doc_id>/delete/', document_delete, name='documents_delete'),
     path('search/', document_search, name='documents_search'),

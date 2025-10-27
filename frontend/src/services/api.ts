@@ -309,6 +309,268 @@ class ApiClient {
     });
   }
 
+  // Roles API
+  async getRoles(): Promise<any[]> {
+    const response = await this.request('/users/roles/');
+    return response.data as any[];
+  }
+
+  async createRole(roleData: any): Promise<any> {
+    const response = await this.request('/users/roles/', {
+      method: 'POST',
+      body: JSON.stringify(roleData),
+    });
+    return response.data;
+  }
+
+  async updateRole(id: number, roleData: any): Promise<any> {
+    const response = await this.request(`/users/roles/${id}/`, {
+      method: 'PUT',
+      body: JSON.stringify(roleData),
+    });
+    return response.data;
+  }
+
+  async deleteRole(id: number): Promise<void> {
+    await this.request(`/users/roles/${id}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async assignRole(userId: number, roleId: number): Promise<any> {
+    const response = await this.request('/users/roles/assign/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, role_id: roleId }),
+    });
+    return response.data;
+  }
+
+  async removeRole(userId: number, roleId: number): Promise<void> {
+    await this.request('/users/roles/remove/', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, role_id: roleId }),
+    });
+  }
+
+  async getUserRoles(userId: number): Promise<any[]> {
+    const response = await this.request(`/users/${userId}/roles/`);
+    return response.data as any[];
+  }
+
+  // Analytics API
+  async getUserStatistics(): Promise<any> {
+    const response = await this.request('/ai/analytics/user/stats/');
+    return response.data;
+  }
+
+  async getContributionAnalytics(): Promise<any> {
+    const response = await this.request('/ai/analytics/user/contributions/');
+    return response.data;
+  }
+
+  async getPerformanceAnalytics(): Promise<any> {
+    const response = await this.request('/ai/analytics/performance/');
+    return response.data;
+  }
+
+  async getDocumentAnalytics(): Promise<any> {
+    const response = await this.request('/ai/analytics/documents/');
+    return response.data;
+  }
+
+  async getUserBehaviorStats(): Promise<any> {
+    const response = await this.request('/ai/analytics/user/behavior/');
+    return response.data;
+  }
+
+  // Document Processing API
+  async processVideo(file: File, title?: string, description?: string): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (title) formData.append('title', title);
+    if (description) formData.append('description', description);
+
+    const token = this.getAuthToken();
+    const response = await fetch(`${this.baseURL}/ai/process/video/process/`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  async processImage(file: File, title?: string, description?: string): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (title) formData.append('title', title);
+    if (description) formData.append('description', description);
+
+    const token = this.getAuthToken();
+    const response = await fetch(`${this.baseURL}/ai/process/image/process/`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  async getVideoTranscripts(): Promise<any> {
+    const response = await this.request('/ai/process/video/transcripts/');
+    return response.data;
+  }
+
+  async getOCRResults(): Promise<any> {
+    const response = await this.request('/ai/process/image/ocr-results/');
+    return response.data;
+  }
+
+  // Scraper API - SSB
+  async scrapeSSB(config: any = {}): Promise<any> {
+    const response = await this.request('/ai/ssb/scrape/database/', {
+      method: 'POST',
+      body: JSON.stringify({ config }),
+    });
+    return response.data;
+  }
+
+  async scrapeSSBHelpPortal(config: any = {}): Promise<any> {
+    const response = await this.request('/ai/ssb/scrape/help-portal/', {
+      method: 'POST',
+      body: JSON.stringify({ config }),
+    });
+    return response.data;
+  }
+
+  async getSSBStatus(): Promise<any> {
+    const response = await this.request('/ai/ssb/status/');
+    return response.data;
+  }
+
+  async triggerSSBScraping(config: any = {}): Promise<any> {
+    const response = await this.request('/ai/ssb/trigger/', {
+      method: 'POST',
+      body: JSON.stringify({ config }),
+    });
+    return response.data;
+  }
+
+  // importSSBFile removed - now using standard uploadDocument() for all files
+
+  async scheduleSSB(config: any): Promise<any> {
+    const response = await this.request('/ai/ssb/schedule/', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+    return response.data;
+  }
+
+  // Scraper API - GitHub
+  async scanGitHubRepos(config: any): Promise<any> {
+    const response = await this.request('/ai/github/scan/repositories/', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+    return response.data;
+  }
+
+  async scanGitHubFiles(config: any): Promise<any> {
+    const response = await this.request('/ai/github/scan/files/', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+    return response.data;
+  }
+
+  async getGitHubStatus(): Promise<any> {
+    const response = await this.request('/ai/github/status/');
+    return response.data;
+  }
+
+  async scheduleGitHub(config: any): Promise<any> {
+    const response = await this.request('/ai/github/schedule/', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+    return response.data;
+  }
+
+  async getGitHubAnalytics(): Promise<any> {
+    const response = await this.request('/ai/github/analytics/');
+    return response.data;
+  }
+
+  // Scraper API - Forum
+  async scrapeForumPosts(config: any): Promise<any> {
+    const response = await this.request('/ai/forum/scrape/posts/', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+    return response.data;
+  }
+
+  async getForumStatus(): Promise<any> {
+    const response = await this.request('/ai/forum/status/');
+    return response.data;
+  }
+
+  async scheduleForum(config: any): Promise<any> {
+    const response = await this.request('/ai/forum/schedule/', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+    return response.data;
+  }
+
+  async getForumAnalytics(): Promise<any> {
+    const response = await this.request('/ai/forum/analytics/');
+    return response.data;
+  }
+
+  // Scraper API - HTML
+  async parseHTMLURL(url: string, config: any = {}): Promise<any> {
+    const response = await this.request('/ai/html/parse/url/', {
+      method: 'POST',
+      body: JSON.stringify({ url, ...config }),
+    });
+    return response.data;
+  }
+
+  async parseHTMLText(html: string, config: any = {}): Promise<any> {
+    const response = await this.request('/ai/html/parse/text/', {
+      method: 'POST',
+      body: JSON.stringify({ html, ...config }),
+    });
+    return response.data;
+  }
+
+  async getHTMLStatus(): Promise<any> {
+    const response = await this.request('/ai/html/status/');
+    return response.data;
+  }
+
+  async scheduleHTML(config: any): Promise<any> {
+    const response = await this.request('/ai/html/schedule/', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+    return response.data;
+  }
+
+  async getHTMLAnalytics(): Promise<any> {
+    const response = await this.request('/ai/html/analytics/');
+    return response.data;
+  }
+
   // Monitoring API
   async getSystems(): Promise<System[]> {
     const response = await this.request<System[]>('/monitoring/systems/');
@@ -453,6 +715,23 @@ class ApiClient {
     }>('/ai/rag/search/comprehensive/', {
       method: 'POST',
       body: JSON.stringify({ query, top_k: topK, include_stats: includeStats }),
+    });
+    return response.data;
+  }
+
+  // Troubleshooting AI - Log Analysis
+  async analyzeLogs(data: { query: string; log_content: string }): Promise<{ 
+    analysis: string; 
+    suggestions: string[];
+    severity?: 'low' | 'medium' | 'high';
+  }> {
+    const response = await this.request<{ 
+      analysis: string; 
+      suggestions: string[];
+      severity?: 'low' | 'medium' | 'high';
+    }>('/ai/troubleshoot/analyze/', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
     return response.data;
   }
@@ -631,7 +910,15 @@ class ApiClient {
     return response.data;
   }
 
-  async uploadDocument(file: File, title: string, description?: string, documentType?: string): Promise<any> {
+  async uploadDocument(
+    file: File, 
+    title: string, 
+    description?: string, 
+    documentType?: string,
+    productCategory?: string,
+    contentType?: string,
+    version?: string
+  ): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('title', title);
@@ -640,6 +927,15 @@ class ApiClient {
     }
     if (documentType) {
       formData.append('document_type', documentType);
+    }
+    if (productCategory) {
+      formData.append('product_category', productCategory);
+    }
+    if (contentType) {
+      formData.append('content_type', contentType);
+    }
+    if (version) {
+      formData.append('version', version);
     }
 
     const url = `${this.baseURL}/ai/documents/upload/`;
@@ -688,6 +984,30 @@ class ApiClient {
     await this.request(`/ai/documents/${docId}/delete/`, {
       method: 'DELETE',
     });
+  }
+
+  async updateDocumentMetadata(docId: number, metadataUpdates: any): Promise<any> {
+    const response = await this.request('/ai/content/metadata/' + docId + '/update/', {
+      method: 'POST',
+      body: JSON.stringify({ document_id: docId, metadata_updates: metadataUpdates }),
+    });
+    return response.data;
+  }
+
+  async extractDocumentsMetadata(): Promise<any> {
+    const response = await this.request('/ai/documents/extract-metadata/', {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async getProductDocuments(productCategory: string, options?: { latestOnly?: boolean }): Promise<any> {
+    let url = `/ai/products/${productCategory}/documents/`;
+    if (options?.latestOnly) {
+      url += '?latest_only=true';
+    }
+    const response = await this.request(url);
+    return response.data;
   }
 
   async searchDocuments(query: string, searchType: 'title' | 'content' | 'both' = 'both', documentType: string = 'all'): Promise<any> {

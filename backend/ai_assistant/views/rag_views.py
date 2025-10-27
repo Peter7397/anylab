@@ -20,6 +20,10 @@ from rest_framework.response import Response
 from rest_framework import status
 import requests
 
+from ..utils.version_detector import detect_version
+from ..utils.product_detector import detect_product, detect_content_type
+from ..utils.metadata_validator import validate_metadata, sanitize_metadata
+
 from ..models import (
     PDFDocument, WebLink, KnowledgeShare, 
     UploadedFile, DocumentChunk, DocumentFile, QueryHistory
@@ -208,7 +212,7 @@ def upload_pdf_enhanced(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def upload_document_enhanced(request):
-    """Enhanced document upload with automatic processing"""
+    """Enhanced document upload with automatic processing and metadata"""
     try:
         BaseViewMixin.log_request(request, 'upload_document_enhanced')
         
@@ -217,17 +221,163 @@ def upload_document_enhanced(request):
         
         file = request.FILES['file']
         
-        # Use service layer
+        # Extract metadata from request
+        product_category = request.POST.get('product_category', '')
+        content_type = request.POST.get('content_type', '')
+        version = request.POST.get('version', '')
+        title = request.POST.get('title', file.name)
+        description = request.POST.get('description', '')
+        document_type = request.POST.get('document_type', 'pdf')
+        
+        # Auto-detect metadata if not provided
+        search_text = f"{title} {file.name} {description}"
+        
+        if not product_category:
+            product_category = detect_product(search_text) or ''
+        
+        if not content_type:
+            content_type = detect_content_type(search_text) or ''
+        
+        # Auto-detect version if not provided
+        if not version:
+            version = detect_version(title) or detect_version(file.name)
+        
+        # Create and validate metadata
+        metadata = {
+            'product_category': product_category,
+            'content_type': content_type,
+            'version': version,
+            'document_type': document_type
+        }
+        
+        # Sanitize metadata
+        metadata = sanitize_metadata(metadata)
+        
+        # Validate metadata (warn but don't block for now)
+        is_valid, errors = validate_metadata(metadata)
+        if not is_valid and metadata['product_category']:  # Only validate if product is set
+            logger.warning(f"Metadata validation errors: {errors}")
+        
+        # Use service layer to process document
         result = rag_service.upload_document_enhanced(file, request.user)
         
         if result['success']:
+            # Create DocumentFile record with metadata
+            import json
+            from ai_assistant.models import DocumentChunk
+            
+            # Find the uploaded file
+            uploaded_file_id = result['data'].get('uploaded_file_id')
+            uploaded_file = None
+            if uploaded_file_id:
+                uploaded_file = UploadedFile.objects.get(id=uploaded_file_id)
+            
+            # Create DocumentFile record
+            document_file = DocumentFile.objects.create(
+                title=title,
+                filename=file.name,
+                document_type=document_type,
+                description=description,
+                metadata=metadata,  # Django JSONField can store dict directly
+                uploaded_by=request.user,
+                page_count=result['data'].get('page_count', 1),
+                file_size=file.size
+            )
+            
+            # Link all chunks from UploadedFile to DocumentFile
+            if uploaded_file:
+                chunks_updated = DocumentChunk.objects.filter(
+                    uploaded_file=uploaded_file,
+                    document_file__isnull=True
+                ).update(document_file=document_file)
+                logger.info(f"Linked {chunks_updated} chunks to DocumentFile {document_file.id}")
+            
+            result['data']['document_id'] = document_file.id
+            result['data']['metadata'] = metadata
+            
             BaseViewMixin.log_response(result['data'], 'upload_document_enhanced')
             return success_response(result['message'], result['data'])
+        
         else:
             return error_response(result['message'])
         
     except Exception as e:
         return BaseViewMixin.handle_error(e, 'upload_document_enhanced')
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def extract_documents_metadata(request):
+    """Extract metadata for all documents missing product/content/version"""
+    try:
+        BaseViewMixin.log_request(request, 'extract_documents_metadata')
+        
+        import json
+        
+        # Get all documents
+        all_docs = DocumentFile.objects.all()
+        
+        updated_count = 0
+        skipped_count = 0
+        
+        for doc in all_docs:
+            try:
+                # Check if metadata already exists
+                current_metadata = {}
+                if doc.metadata:
+                    try:
+                        current_metadata = json.loads(doc.metadata) if isinstance(doc.metadata, str) else doc.metadata
+                    except json.JSONDecodeError:
+                        pass
+                
+                # Skip if already has product/content/version
+                if (current_metadata.get('product_category') and 
+                    current_metadata.get('content_type')):
+                    skipped_count += 1
+                    continue
+                
+                # Create search text from title, filename, and description
+                search_text = f"{doc.title} {doc.filename} {doc.description or ''}"
+                
+                # Auto-detect metadata
+                product_category = detect_product(search_text) or ''
+                content_type = detect_content_type(search_text) or ''
+                version = detect_version(search_text) or ''
+                
+                # Only update if we detected something
+                if product_category or content_type or version:
+                    # Prepare metadata
+                    new_metadata = {
+                        'product_category': product_category,
+                        'content_type': content_type,
+                        'version': version,
+                        'document_type': doc.document_type
+                    }
+                    
+                    # Merge with existing metadata
+                    if current_metadata:
+                        new_metadata.update(current_metadata)
+                    
+                    # Update the document - store as dict (Django JSONField handles both)
+                    doc.metadata = new_metadata
+                    doc.save()
+                    
+                    updated_count += 1
+            except Exception as e:
+                logger.error(f"Error processing document {doc.id}: {e}")
+                continue
+        
+        result = {
+            'updated_count': updated_count,
+            'skipped_count': skipped_count,
+            'total_processed': updated_count + skipped_count
+        }
+        
+        BaseViewMixin.log_response(result, 'extract_documents_metadata')
+        return success_response(f"Metadata extracted for {updated_count} documents", result)
+        
+    except Exception as e:
+        return BaseViewMixin.handle_error(e, 'extract_documents_metadata')
 
 
 @api_view(['GET', 'POST'])
@@ -301,12 +451,25 @@ def document_delete(request, doc_id):
         
         doc = DocumentFile.objects.get(id=doc_id)
         
-        # Delete associated chunks
-        DocumentChunk.objects.filter(uploaded_file=doc.uploaded_file).delete()
+        # Delete associated chunks - find via document_file or uploaded_file
+        # First try via document_file (new way)
+        chunks_via_doc = DocumentChunk.objects.filter(document_file=doc)
+        if chunks_via_doc.exists():
+            chunks_via_doc.delete()
+        
+        # Also check for chunks via uploaded_file (legacy way)
+        # Find UploadedFile that matches this document's filename
+        uploaded_files = UploadedFile.objects.filter(filename=doc.filename)
+        for uf in uploaded_files:
+            chunks_via_uf = DocumentChunk.objects.filter(uploaded_file=uf)
+            if chunks_via_uf.exists():
+                chunks_via_uf.delete()
         
         # Delete file if exists
-        if doc.file:
-            os.remove(doc.file.path)
+        if doc.file and hasattr(doc.file, 'path'):
+            import os
+            if os.path.exists(doc.file.path):
+                os.remove(doc.file.path)
         
         doc.delete()
         
@@ -326,19 +489,28 @@ def document_search(request):
         BaseViewMixin.log_request(request, 'document_search')
         
         query = request.data.get('query', '').strip()
-        if not query:
-            return bad_request_response('Query is required')
+        search_type = request.data.get('search_type', 'both')
+        document_type = request.data.get('document_type', 'all')
         
-        search_type = request.data.get('search_type', 'title')
+        # Get queryset - filter by document_type if specified
+        if document_type and document_type != 'all':
+            docs = DocumentFile.objects.filter(document_type=document_type)
+        else:
+            docs = DocumentFile.objects.all()
         
-        if search_type == 'title':
-            docs = DocumentFile.objects.filter(title__icontains=query)
-        elif search_type == 'description':
-            docs = DocumentFile.objects.filter(description__icontains=query)
-        else:  # both
-            docs = DocumentFile.objects.filter(
-                Q(title__icontains=query) | Q(description__icontains=query)
-            )
+        # Apply search filter only if query provided
+        if query:
+            if search_type == 'title':
+                docs = docs.filter(title__icontains=query)
+            elif search_type == 'content' or search_type == 'description':
+                docs = docs.filter(description__icontains=query)
+            else:  # both
+                docs = docs.filter(
+                    Q(title__icontains=query) | Q(description__icontains=query)
+                )
+        
+        # Debug logging
+        logger.info(f"Document search: query='{query}', document_type='{document_type}', results={docs.count()}")
         
         serializer = DocumentSerializer(docs, many=True, context={'request': request})
         

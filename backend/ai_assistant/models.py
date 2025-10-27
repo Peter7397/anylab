@@ -33,6 +33,7 @@ class DocumentFile(models.Model):
         ('pptx', 'PowerPoint Presentation'),
         ('txt', 'Text Document'),
         ('rtf', 'Rich Text Document'),
+        ('SSB_KPR', 'SSB/KPR File'),
         ('ssb', 'SSB Entry'),
         ('github', 'GitHub Repository'),
         ('forum', 'Forum Post'),
@@ -45,7 +46,7 @@ class DocumentFile(models.Model):
     title = models.CharField(max_length=255)
     file = models.FileField(
         upload_to='documents/', 
-        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf'])],
+        validators=[FileExtensionValidator(allowed_extensions=['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'rtf', 'mhtml', 'html'])],
         null=True, blank=True
     )
     filename = models.CharField(max_length=255, null=True, blank=True)
@@ -67,6 +68,7 @@ class DocumentFile(models.Model):
 class DocumentChunk(models.Model):
     """Document chunks with vector embeddings for RAG"""
     uploaded_file = models.ForeignKey(UploadedFile, on_delete=models.CASCADE, related_name='pages', null=True, blank=True)
+    document_file = models.ForeignKey(DocumentFile, on_delete=models.CASCADE, related_name='chunks', null=True, blank=True)
     content = models.TextField()
     embedding = VectorField(dimensions=1024, null=True, blank=True)  # BGE-M3 dimension - allow null for existing data
     page_number = models.IntegerField(default=1)
@@ -74,10 +76,15 @@ class DocumentChunk(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)  # Allow null for existing data
 
     def __str__(self):
-        return f"{self.uploaded_file.filename if self.uploaded_file else 'Unknown'} - Page {self.page_number}"
+        filename = (
+            self.uploaded_file.filename 
+            if self.uploaded_file 
+            else (self.document_file.filename if self.document_file else 'Unknown')
+        )
+        return f"{filename} - Page {self.page_number}"
 
     class Meta:
-        ordering = ['uploaded_file', 'page_number', 'chunk_index']
+        ordering = ['uploaded_file', 'document_file', 'page_number', 'chunk_index']
 
 # Legacy PDFDocument for backward compatibility
 class PDFDocument(models.Model):

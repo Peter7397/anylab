@@ -128,12 +128,11 @@ class HybridSearchEngine:
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT dc.id, dc.content, dc.uploaded_file_id, dc.page_number, dc.chunk_index,
-                       COALESCE(uf.filename, df.title, 'Unknown Document') as filename,
+                       COALESCE(uf.filename, 'Unknown Document') as filename,
                        COALESCE(uf.file_hash, '') as file_hash, 
-                       COALESCE(uf.file_size, df.file_size, 0) as file_size
+                       COALESCE(uf.file_size, 0) as file_size
                 FROM ai_assistant_documentchunk dc
                 LEFT JOIN ai_assistant_uploadedfile uf ON dc.uploaded_file_id = uf.id
-                LEFT JOIN ai_assistant_documentfile df ON df.id = dc.uploaded_file_id
                 WHERE dc.embedding IS NOT NULL AND dc.content IS NOT NULL
                 ORDER BY dc.id;
             """)
@@ -144,6 +143,17 @@ class HybridSearchEngine:
             uploaded_file_id = row[2]
             page_number = row[3] or 1
             filename = row[5] or "Unknown Document"
+            content = row[1]
+            
+            # Generate title: use filename if valid, otherwise extract from content
+            if filename and filename != "Unknown Document":
+                title = filename
+            else:
+                # Extract first meaningful words from content as title
+                words = content.split()[:10]  # First 10 words
+                title = " ".join(words)
+                if len(title) > 100:
+                    title = title[:100] + "..."
             
             # Create view URL for PDF viewer
             view_url = None
@@ -152,11 +162,12 @@ class HybridSearchEngine:
             
             documents.append({
                 "id": row[0],
-                "content": row[1],
+                "content": content,
                 "uploaded_file_id": uploaded_file_id,
                 "page_number": page_number,
                 "chunk_index": row[4],
                 "filename": filename,
+                "title": title,  # Smart title: filename or content excerpt
                 "file_hash": row[6],
                 "file_size": row[7],
                 "view_url": view_url,

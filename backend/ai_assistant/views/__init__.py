@@ -28,6 +28,9 @@ except ImportError as e:
     print(f"Warning: Analytics views not available: {e}")
     pass
 
+# Import product views
+from . import product_views
+
 from .legacy_views import *
 
 # Export commonly used items
@@ -38,6 +41,7 @@ __all__ = [
     'vector_search',
     'upload_pdf_enhanced',
     'upload_document_enhanced',
+    'extract_documents_metadata',
     'documents',
     'document_download',
     'document_delete',
@@ -90,6 +94,9 @@ __all__ = [
     'get_document_metadata',
     'update_document_metadata',
     'get_filter_analytics',
+    
+    # Product Views
+    'get_product_documents',
     
     # Legacy Views
     'pdf_documents',

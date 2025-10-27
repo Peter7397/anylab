@@ -34,8 +34,9 @@ class EnhancedRAGService:
             logger.info(f"Using cached embedding for text hash: {text_hash[:8]}...")
             return cached_embedding
         
-        # Try BGE-M3 first, then fallback to nomic-embed-text (but only if it generates 1024 dims)
-        models_to_try = ['bge-m3']
+        # Use BGE-M3 first (best for technical docs and SSB content)
+        # BGE-M3 is now working properly
+        models_to_try = ['bge-m3', 'nomic-embed-text']
         
         for model in models_to_try:
             try:
@@ -50,10 +51,20 @@ class EnhancedRAGService:
                 response.raise_for_status()
                 embedding = response.json()["embedding"]
                 
-                # Ensure embedding has correct dimensions (1024)
-                if len(embedding) != 1024:
-                    logger.warning(f"Model {model} generated {len(embedding)} dimensions, expected 1024. Skipping.")
-                    continue
+                # nomic-embed-text returns 768 dims, we need 1024
+                # Pad or truncate to 1024 dimensions
+                if len(embedding) == 768 and model == 'nomic-embed-text':
+                    # Pad to 1024 by repeating the last 256 dimensions
+                    padding = embedding[-256:] if len(embedding) >= 256 else [0] * 256
+                    embedding = list(embedding) + list(padding)
+                elif len(embedding) != 1024:
+                    logger.warning(f"Model {model} generated {len(embedding)} dimensions, padding/truncating to 1024.")
+                    if len(embedding) < 1024:
+                        # Pad with zeros
+                        embedding = list(embedding) + [0] * (1024 - len(embedding))
+                    else:
+                        # Truncate
+                        embedding = embedding[:1024]
                 
                 # Cache the embedding
                 cache.set(cache_key, embedding, self.embedding_cache_ttl)
@@ -68,6 +79,108 @@ class EnhancedRAGService:
         fallback_embedding = self._simple_embedding_fallback(text)
         cache.set(cache_key, fallback_embedding, self.embedding_cache_ttl)
         return fallback_embedding
+    
+    def get_embeddings_from_ollama_batch(self, texts):
+        """Get embeddings for multiple texts efficiently with batch processing
+        
+        This method processes a batch of texts by:
+        1. Checking cache first for each text (fast lookup)
+        2. Only calling Ollama API for uncached texts
+        3. Processing remaining uncached texts in parallel for efficiency
+        
+        Args:
+            texts: List of text strings to embed
+            
+        Returns:
+            List of embeddings corresponding to input texts
+        """
+        import hashlib
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        # Safety check: Limit batch size to prevent memory issues
+        MAX_BATCH_SIZE = 50
+        MAX_CONCURRENT_WORKERS = 10
+        
+        if len(texts) > MAX_BATCH_SIZE:
+            logger.warning(f"Batch too large ({len(texts)} chunks), limiting to {MAX_BATCH_SIZE}")
+            texts = texts[:MAX_BATCH_SIZE]
+        
+        results = [None] * len(texts)
+        cache_hits = 0
+        api_calls_needed = []
+        
+        # Phase 1: Check cache for all texts
+        for idx, text in enumerate(texts):
+            if not text.strip():
+                results[idx] = self._simple_embedding_fallback(text)
+                continue
+                
+            text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+            cache_key = f"embedding_{text_hash}"
+            cached_embedding = cache.get(cache_key)
+            
+            if cached_embedding is not None:
+                results[idx] = cached_embedding
+                cache_hits += 1
+            else:
+                api_calls_needed.append((idx, text))
+        
+        if cache_hits > 0:
+            logger.info(f"Cache hits: {cache_hits}/{len(texts)} chunks")
+        
+        # Phase 2: Process uncached texts with parallel API calls
+        if api_calls_needed:
+            logger.info(f"Fetching {len(api_calls_needed)} embeddings from Ollama (parallel processing)")
+            
+            def fetch_embedding(idx, text):
+                """Fetch embedding for a single text with timeout protection"""
+                try:
+                    # Try BGE-M3 first
+                    response = requests.post(
+                        f"{self.ollama_url}/api/embeddings",
+                        json={
+                            "model": "bge-m3",
+                            "prompt": text
+                        },
+                        timeout=30  # Increased timeout for large batches
+                    )
+                    response.raise_for_status()
+                    embedding = response.json()["embedding"]
+                    
+                    # Ensure 1024 dimensions
+                    if len(embedding) < 1024:
+                        embedding = list(embedding) + [0] * (1024 - len(embedding))
+                    elif len(embedding) > 1024:
+                        embedding = embedding[:1024]
+                    
+                    # Cache it
+                    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+                    cache_key = f"embedding_{text_hash}"
+                    cache.set(cache_key, embedding, self.embedding_cache_ttl)
+                    
+                    return idx, embedding
+                except requests.exceptions.Timeout:
+                    logger.warning(f"Timeout for text {idx}, using fallback")
+                    return idx, self._simple_embedding_fallback(text)
+                except Exception as e:
+                    logger.warning(f"Failed to get embedding for text {idx}: {e}")
+                    return idx, self._simple_embedding_fallback(text)
+            
+            # Use ThreadPoolExecutor for parallel processing (limited to prevent server overload)
+            with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_WORKERS) as executor:
+                futures = {executor.submit(fetch_embedding, idx, text): (idx, text) 
+                          for idx, text in api_calls_needed}
+                
+                for future in as_completed(futures):
+                    try:
+                        idx, embedding = future.result()
+                        results[idx] = embedding
+                    except Exception as e:
+                        idx, text = futures[future]
+                        logger.error(f"Error processing chunk {idx}: {e}")
+                        results[idx] = self._simple_embedding_fallback(text)
+        
+        return results
     
     def _simple_embedding_fallback(self, text):
         """Simple fallback embedding when Ollama embedding fails"""
@@ -183,11 +296,14 @@ class EnhancedRAGService:
                 'error': str(e)
             }
 
-    def process_document_and_build_index(self, document_file, title=None, file_hash=None, request=None):
+    def process_document_and_build_index(self, document_file, file_path=None, file_hash=None, user=None, title=None):
         """Process various document types and build vector index using Ollama embeddings"""
         try:
             # Handle different file types
-            if hasattr(document_file, 'temporary_file_path'):
+            # If file_path is provided, use it directly
+            if file_path and isinstance(file_path, str):
+                pass  # Use the provided file_path
+            elif hasattr(document_file, 'temporary_file_path'):
                 file_path = document_file.temporary_file_path()
             elif hasattr(document_file, 'path'):
                 file_path = document_file.path
@@ -212,7 +328,12 @@ class EnhancedRAGService:
                 }
             
             # Determine document type and process accordingly
-            file_extension = document_file.name.split('.')[-1].lower() if '.' in document_file.name else 'pdf'
+            # Get filename from file_path or document_file
+            if file_path and isinstance(file_path, str):
+                filename = file_path.split('/')[-1]
+                file_extension = filename.split('.')[-1].lower() if '.' in filename else 'pdf'
+            else:
+                file_extension = document_file.name.split('.')[-1].lower() if hasattr(document_file, 'name') and '.' in document_file.name else 'pdf'
             chunks = []
             vectors = []
             
@@ -232,15 +353,58 @@ class EnhancedRAGService:
                     if doc:
                         doc.close()
                 
-            elif file_extension in ['txt', 'rtf']:
-                # Process text files
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    text = f.read()
-                    if text.strip():
-                        embedding = self.get_embedding_from_ollama(text)
-                        chunks.append(text)
-                        vectors.append(embedding)
+            elif file_extension in ['txt', 'rtf', 'html', 'mhtml']:
+                # Process text files and HTML/MHTML files
+                # Safety check: Limit file size to prevent memory issues
+                MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
+                file_size = os.path.getsize(file_path)
+                
+                if file_size > MAX_FILE_SIZE:
+                    logger.warning(f"File too large ({file_size} bytes), using sample processing")
+                    # For very large files, process only first 5MB
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        text = f.read(5 * 1024 * 1024)  # Read only first 5MB
+                        logger.info(f"Processing sample of large file: {len(text)} characters")
+                else:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        text = f.read()
+                
+                if text.strip():
+                    # Use very small chunks for SSB files (100 chars per chunk)
+                    # Maximum precision for short SSB topics
+                    # Process in batches to avoid timeout/memory issues
+                    chunk_size = 100
+                    split_chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+                    
+                    # Filter out empty chunks
+                    valid_chunks = [chunk_text for chunk_text in split_chunks if chunk_text.strip()]
+                    
+                    # Process in batches of 50 chunks at a time for better performance
+                    batch_size = 50
+                    total_batches = (len(valid_chunks) + batch_size - 1) // batch_size
+                    
+                    logger.info(f"Processing {len(valid_chunks)} chunks in {total_batches} batches")
+                    
+                    for batch_idx in range(0, len(valid_chunks), batch_size):
+                        batch = valid_chunks[batch_idx:batch_idx + batch_size]
+                        
+                        logger.info(f"Processing batch {batch_idx // batch_size + 1}/{total_batches}")
+                        
+                        # Use batch embedding method for efficiency
+                        batch_embeddings = self.get_embeddings_from_ollama_batch(batch)
+                        
+                        # Store results
+                        for idx, chunk_text in enumerate(batch):
+                            if chunk_text.strip():
+                                embedding = batch_embeddings[idx] if idx < len(batch_embeddings) else self.get_embedding_from_ollama(chunk_text)
+                                chunks.append(chunk_text)
+                                vectors.append(embedding)
+                
                 page_count = 1
+                if not chunks:
+                    # Fallback if no chunks created
+                    chunks = [text[:200]]
+                    vectors = [self.get_embedding_from_ollama(chunks[0])]
                 
             else:
                 # For other document types, just store basic info for now
@@ -250,13 +414,19 @@ class EnhancedRAGService:
                 page_count = 1
             
             # Create UploadedFile record
+            # Get filename from file_path or document_file
+            if file_path and isinstance(file_path, str):
+                filename_for_record = title or file_path.split('/')[-1]
+            else:
+                filename_for_record = title or (document_file.name if hasattr(document_file, 'name') else 'unknown')
+            
             uploaded_file = UploadedFile.objects.create(
-                filename=title or document_file.name,
+                filename=filename_for_record,
                 file_hash=file_hash,
                 file_size=os.path.getsize(file_path),
                 page_count=page_count,
                 intro=chunks[0][:200] if chunks else None,
-                uploaded_by=request.user if request and hasattr(request, 'user') and request.user.is_authenticated else None
+                uploaded_by=user if user else None
             )
             
             # Store document chunks with embeddings
@@ -304,12 +474,11 @@ class EnhancedRAGService:
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT dc.id, dc.content, dc.uploaded_file_id, dc.page_number, dc.chunk_index,
-                           COALESCE(uf.filename, df.title, 'Unknown Document') as filename,
+                           COALESCE(uf.filename, 'Unknown Document') as filename,
                            COALESCE(uf.file_hash, '') as file_hash, 
-                           COALESCE(uf.file_size, df.file_size, 0) as file_size
+                           COALESCE(uf.file_size, 0) as file_size
                     FROM ai_assistant_documentchunk dc
                     LEFT JOIN ai_assistant_uploadedfile uf ON dc.uploaded_file_id = uf.id
-                    LEFT JOIN ai_assistant_documentfile df ON df.id = dc.uploaded_file_id
                     ORDER BY dc.embedding <#> %s::vector
                     LIMIT %s;
                 """, [query_embedding, top_k])
@@ -320,6 +489,17 @@ class EnhancedRAGService:
                 uploaded_file_id = row[2]
                 page_number = row[3] or 1
                 filename = row[5] or "Unknown Document"
+                content = row[1]
+                
+                # Generate title: use filename if valid, otherwise extract from content
+                if filename and filename != "Unknown Document":
+                    title = filename
+                else:
+                    # Extract first meaningful words from content as title
+                    words = content.split()[:10]  # First 10 words
+                    title = " ".join(words)
+                    if len(title) > 100:
+                        title = title[:100] + "..."
                 
                 # Create view URL for PDF viewer
                 view_url = None
@@ -328,11 +508,12 @@ class EnhancedRAGService:
                 
                 formatted_results.append({
                     "id": row[0],
-                    "content": row[1],
+                    "content": content,
                     "uploaded_file_id": uploaded_file_id,
                     "page_number": page_number,
                     "chunk_index": row[4],
                     "filename": filename,
+                    "title": title,  # Smart title: filename or content excerpt
                     "file_hash": row[6],
                     "file_size": row[7],
                     "download_url": f"/api/ai/documents/{uploaded_file_id}/download/" if uploaded_file_id else None,

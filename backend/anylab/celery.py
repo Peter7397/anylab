@@ -1,6 +1,7 @@
 import os
 from celery import Celery
 from django.conf import settings
+from celery.schedules import crontab
 
 # Set the default Django settings module for the 'celery' program.
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'anylab.settings')
@@ -59,6 +60,10 @@ app.conf.update(
         'process-document-queue': {
             'task': 'ai_assistant.tasks.process_document_queue',
             'schedule': 30.0,  # Every 30 seconds
+        },
+        'scrape-ssb-weekly': {
+            'task': 'ai_assistant.tasks.scrape_ssb_weekly',
+            'schedule': crontab(hour=2, minute=0, day_of_week=0),  # Every Sunday at 2 AM
         },
     },
 )

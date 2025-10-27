@@ -123,6 +123,7 @@ const generalAgilentNavigation = [
                         { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
                         { name: 'Advanced RAG', href: '/ai/rag', icon: Search },
                         { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Brain },
+                        { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
         },
         {

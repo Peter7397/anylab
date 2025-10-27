@@ -30,4 +30,10 @@ urlpatterns = [
     
     # Analytics endpoints
     path('analytics/', include('ai_assistant.urls.analytics_urls')),
+    
+    # Troubleshooting AI endpoints
+    path('troubleshoot/', include('ai_assistant.urls.troubleshooting_urls')),
+    
+    # Product endpoints
+    path('products/', include('ai_assistant.urls.product_urls')),
 ]

@@ -1,119 +1,200 @@
-import React, { useState } from 'react';
-import { Users, UserPlus, Shield, Edit, Trash2, Search, Filter, MoreVertical } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Users, UserPlus, Shield, Edit, Trash2, Search, Filter, MoreVertical, AlertCircle } from 'lucide-react';
+import { apiClient } from '../../services/api';
 
 interface User {
   id: string;
-  name: string;
+  username: string;
   email: string;
-  role: 'admin' | 'manager' | 'technician' | 'viewer';
-  status: 'active' | 'inactive' | 'pending';
-  lastLogin: string;
-  department: string;
-  permissions: string[];
+  first_name: string;
+  last_name: string;
+  employee_id?: string;
+  department?: string;
+  position?: string;
+  phone?: string;
+  is_active: boolean;
+  is_staff: boolean;
+  is_superuser: boolean;
+  roles?: Role[];
+}
+
+interface Role {
+  id: number;
+  name: string;
+  description: string;
+  permissions: any;
+  is_active: boolean;
+  userCount?: number;
 }
 
 const UsersRoles: React.FC = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRole, setSelectedRole] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // New user form state
+  const [newUser, setNewUser] = useState({
+    username: '',
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+    department: '',
+    position: '',
+  });
 
-  const users: User[] = [
-    {
-      id: '1',
-      name: 'John Doe',
-      email: 'john.doe@onlab.com',
-      role: 'admin',
-      status: 'active',
-      lastLogin: '2024-01-15 14:30:25',
-      department: 'IT',
-      permissions: ['read', 'write', 'delete', 'admin']
-    },
-    {
-      id: '2',
-      name: 'Jane Smith',
-      email: 'jane.smith@onlab.com',
-      role: 'manager',
-      status: 'active',
-      lastLogin: '2024-01-15 13:45:12',
-      department: 'Operations',
-      permissions: ['read', 'write']
-    },
-    {
-      id: '3',
-      name: 'Mike Johnson',
-      email: 'mike.johnson@onlab.com',
-      role: 'technician',
-      status: 'active',
-      lastLogin: '2024-01-15 12:20:08',
-      department: 'Maintenance',
-      permissions: ['read', 'write']
-    },
-    {
-      id: '4',
-      name: 'Sarah Wilson',
-      email: 'sarah.wilson@onlab.com',
-      role: 'viewer',
-      status: 'inactive',
-      lastLogin: '2024-01-10 09:15:30',
-      department: 'Analytics',
-      permissions: ['read']
-    }
-  ];
+  // Load data from API
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const roles = [
-    {
-      name: 'admin',
-      description: 'Full system access and control',
-      permissions: ['read', 'write', 'delete', 'admin'],
-      userCount: 1
-    },
-    {
-      name: 'manager',
-      description: 'Manage operations and teams',
-      permissions: ['read', 'write'],
-      userCount: 2
-    },
-    {
-      name: 'technician',
-      description: 'Perform maintenance and troubleshooting',
-      permissions: ['read', 'write'],
-      userCount: 3
-    },
-    {
-      name: 'viewer',
-      description: 'View-only access to system data',
-      permissions: ['read'],
-      userCount: 1
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [usersData, rolesData] = await Promise.allSettled([
+        apiClient.getUsers(),
+        apiClient.getRoles(),
+      ]);
+
+      if (usersData.status === 'fulfilled') {
+        const usersWithRoles = await Promise.all(
+          usersData.value.map(async (user: any) => {
+            try {
+              const userRoles = await apiClient.getUserRoles(parseInt(user.id));
+              return { ...user, roles: userRoles.map((ur: any) => ur.role) };
+            } catch {
+              return { ...user, roles: [] };
+            }
+          })
+        );
+        setUsers(usersWithRoles);
+      }
+
+      if (rolesData.status === 'fulfilled') {
+        const rolesWithCounts = rolesData.value.map((role: any) => ({
+          ...role,
+          userCount: users.filter(u => u.roles?.some(r => r.id === role.id)).length
+        }));
+        setRoles(rolesWithCounts);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to load users and roles');
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newUser.username || !newUser.email || !newUser.password) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      setError(null);
+      await apiClient.createUser(newUser);
+      setShowAddModal(false);
+      setNewUser({
+        username: '',
+        email: '',
+        password: '',
+        first_name: '',
+        last_name: '',
+        department: '',
+        position: '',
+      });
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to create user');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      try {
+        await apiClient.deleteUser(parseInt(userId));
+        await loadData();
+      } catch (err: any) {
+        setError(err?.message || 'Failed to delete user');
+      }
+    }
+  };
+
+  const handleAssignRole = async (userId: string, roleId: number) => {
+    try {
+      await apiClient.assignRole(parseInt(userId), roleId);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to assign role');
+    }
+  };
+
+  const handleRemoveRole = async (userId: string, roleId: number) => {
+    try {
+      await apiClient.removeRole(parseInt(userId), roleId);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to remove role');
+    }
+  };
+
+  // Filter users based on search and role
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = 
+      user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesRole = selectedRole === 'all' || 
+      user.roles?.some(role => role.name.toLowerCase() === selectedRole.toLowerCase());
+
+    return matchesSearch && matchesRole;
+  });
+
+  // Calculate stats
+  const stats = {
+    total: users.length,
+    active: users.filter(u => u.is_active).length,
+    inactive: users.filter(u => !u.is_active).length,
+    rolesCount: roles.length,
+  };
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'admin': return 'text-red-600 bg-red-100';
-      case 'manager': return 'text-blue-600 bg-blue-100';
-      case 'technician': return 'text-green-600 bg-green-100';
-      case 'viewer': return 'text-gray-600 bg-gray-100';
+      case 'admin':
+      case 'Admin': return 'text-red-600 bg-red-100';
+      case 'manager':
+      case 'Manager': return 'text-blue-600 bg-blue-100';
+      case 'technician':
+      case 'Technician': return 'text-green-600 bg-green-100';
+      case 'viewer':
+      case 'Viewer': return 'text-gray-600 bg-gray-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'text-green-600 bg-green-100';
-      case 'inactive': return 'text-red-600 bg-red-100';
-      case 'pending': return 'text-yellow-600 bg-yellow-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
+  const getStatusColor = (isActive: boolean) => {
+    return isActive
+      ? 'text-green-600 bg-green-100'
+      : 'text-red-600 bg-red-100';
   };
 
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'admin': return <Shield size={16} />;
-      case 'manager': return <Users size={16} />;
-      case 'technician': return <Users size={16} />;
-      case 'viewer': return <Users size={16} />;
-      default: return <Users size={16} />;
-    }
-  };
+  const getRoleIcon = () => <Shield size={16} />;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -138,6 +219,17 @@ const UsersRoles: React.FC = () => {
         </div>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
+          <AlertCircle className="text-red-600 mt-0.5 mr-3" size={20} />
+          <div>
+            <p className="text-sm font-medium text-red-800">Error</p>
+            <p className="text-sm text-red-600">{error}</p>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="card">
@@ -147,7 +239,7 @@ const UsersRoles: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Users</p>
-              <p className="text-2xl font-bold text-gray-900">4</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
         </div>
@@ -158,7 +250,7 @@ const UsersRoles: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Active Users</p>
-              <p className="text-2xl font-bold text-gray-900">3</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
             </div>
           </div>
         </div>
@@ -169,7 +261,7 @@ const UsersRoles: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Roles</p>
-              <p className="text-2xl font-bold text-gray-900">4</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.rolesCount}</p>
             </div>
           </div>
         </div>
@@ -180,7 +272,7 @@ const UsersRoles: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Inactive</p>
-              <p className="text-2xl font-bold text-gray-900">1</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.inactive}</p>
             </div>
           </div>
         </div>
@@ -197,6 +289,8 @@ const UsersRoles: React.FC = () => {
                 type="text"
                 placeholder="Search users..."
                 className="input-field pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
             <select 
@@ -205,10 +299,11 @@ const UsersRoles: React.FC = () => {
               onChange={(e) => setSelectedRole(e.target.value)}
             >
               <option value="all">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="manager">Manager</option>
-              <option value="technician">Technician</option>
-              <option value="viewer">Viewer</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.name}>
+                  {role.name}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -230,44 +325,53 @@ const UsersRoles: React.FC = () => {
                   Department
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Login
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((user) => (
+              {filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {user.first_name} {user.last_name} ({user.username})
+                      </div>
                       <div className="text-sm text-gray-500">{user.email}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(user.role)}`}>
-                      {getRoleIcon(user.role)}
-                      <span className="ml-1 capitalize">{user.role}</span>
-                    </span>
+                    {user.roles && user.roles.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {user.roles.map((role) => (
+                          <span
+                            key={role.id}
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(role.name)}`}
+                          >
+                            {role.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">No roles assigned</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(user.status)}`}>
-                      {user.status}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(user.is_active)}`}>
+                      {user.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {user.department}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {user.lastLogin}
+                    {user.department || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button className="text-blue-600 hover:text-blue-900 mr-3">
                       <Edit size={16} />
                     </button>
-                    <button className="text-red-600 hover:text-red-900">
+                    <button 
+                      className="text-red-600 hover:text-red-900"
+                      onClick={() => handleDeleteUser(user.id)}
+                    >
                       <Trash2 size={16} />
                     </button>
                   </td>
@@ -290,33 +394,43 @@ const UsersRoles: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {roles.map((role) => (
-            <div key={role.name} className="border border-gray-200 rounded-lg p-4">
+            <div key={role.id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getRoleColor(role.name)}`}>
-                    {getRoleIcon(role.name)}
-                    <span className="ml-1 capitalize">{role.name}</span>
+                    {getRoleIcon()}
+                    <span className="ml-1">{role.name}</span>
                   </span>
-                  <span className="ml-2 text-sm text-gray-500">({role.userCount} users)</span>
+                  <span className="ml-2 text-sm text-gray-500">
+                    ({users.filter(u => u.roles?.some(r => r.id === role.id)).length} users)
+                  </span>
                 </div>
                 <button className="text-gray-400 hover:text-gray-600">
                   <MoreVertical size={16} />
                 </button>
               </div>
               
-              <p className="text-sm text-gray-600 mb-3">{role.description}</p>
+              <p className="text-sm text-gray-600 mb-3">{role.description || 'No description'}</p>
               
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-gray-700">Permissions:</h4>
                 <div className="flex flex-wrap gap-1">
-                  {role.permissions.map((permission) => (
-                    <span
-                      key={permission}
-                      className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800"
-                    >
-                      {permission}
-                    </span>
-                  ))}
+                  {role.permissions && typeof role.permissions === 'object' ? (
+                    Object.keys(role.permissions).length > 0 ? (
+                      Object.keys(role.permissions).map((key) => (
+                        <span
+                          key={key}
+                          className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800"
+                        >
+                          {key}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-gray-400">No specific permissions</span>
+                    )
+                  ) : (
+                    <span className="text-xs text-gray-400">No permissions defined</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -330,32 +444,72 @@ const UsersRoles: React.FC = () => {
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleAddUser}>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Full Name</label>
-                  <input type="text" className="input-field" />
+                  <label className="block text-sm font-medium text-gray-700">Username *</label>
+                  <input 
+                    type="text" 
+                    className="input-field"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({...newUser, username: e.target.value})}
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
-                  <input type="email" className="input-field" />
+                  <label className="block text-sm font-medium text-gray-700">Email *</label>
+                  <input 
+                    type="email" 
+                    className="input-field"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({...newUser, email: e.target.value})}
+                    required
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Role</label>
-                  <select className="input-field">
-                    <option>Select Role</option>
-                    <option value="admin">Admin</option>
-                    <option value="manager">Manager</option>
-                    <option value="technician">Technician</option>
-                    <option value="viewer">Viewer</option>
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700">Password *</label>
+                  <input 
+                    type="password" 
+                    className="input-field"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({...newUser, password: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">First Name</label>
+                  <input 
+                    type="text" 
+                    className="input-field"
+                    value={newUser.first_name}
+                    onChange={(e) => setNewUser({...newUser, first_name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                  <input 
+                    type="text" 
+                    className="input-field"
+                    value={newUser.last_name}
+                    onChange={(e) => setNewUser({...newUser, last_name: e.target.value})}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Department</label>
-                  <input type="text" className="input-field" />
+                  <input 
+                    type="text" 
+                    className="input-field"
+                    value={newUser.department}
+                    onChange={(e) => setNewUser({...newUser, department: e.target.value})}
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Password</label>
-                  <input type="password" className="input-field" />
+                  <label className="block text-sm font-medium text-gray-700">Position</label>
+                  <input 
+                    type="text" 
+                    className="input-field"
+                    value={newUser.position}
+                    onChange={(e) => setNewUser({...newUser, position: e.target.value})}
+                  />
                 </div>
                 <div className="flex justify-end space-x-3">
                   <button
@@ -378,4 +532,4 @@ const UsersRoles: React.FC = () => {
   );
 };
 
-export default UsersRoles; 
+export default UsersRoles;

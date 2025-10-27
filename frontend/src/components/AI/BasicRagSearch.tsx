@@ -35,7 +35,7 @@ const BasicRagSearch: React.FC = () => {
     preview: string; 
     timestamp: string;
     response?: string;
-    sources?: Array<{ title: string; content: string; page?: number; score?: number }>;
+    sources?: Array<{ title: string; content: string; page?: number; score?: number; view_url?: string }>;
   }>>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [performanceStats, setPerformanceStats] = useState<PerformanceStats>({
@@ -133,8 +133,9 @@ const BasicRagSearch: React.FC = () => {
         references: res.sources?.map((source: any) => ({
           title: source.title || 'Unknown Document',
           content: source.content || '',
-          page: source.page,
-          score: source.similarity || source.score
+          page: source.page || source.page_number,
+          score: source.similarity || source.score,
+          view_url: source.view_url
         })) || []
       };
 
@@ -143,12 +144,20 @@ const BasicRagSearch: React.FC = () => {
       // Update history with response
       setChatHistory(prev => prev.map(item => 
         item.id === messageId 
-          ? { ...item, response: res.response, sources: res.sources?.map((source: any) => ({
-              title: source.title || 'Unknown Document',
-              content: source.content || '',
-              page: source.page,
-              score: source.similarity || source.score
-            })) || [] }
+          ? { ...item, response: res.response, sources: res.sources?.map((source: any) => {
+              const mappedSource = {
+                title: source.title || 'Unknown Document',
+                content: source.content || '',
+                page: source.page || source.page_number,
+                score: source.similarity || source.score,
+                view_url: source.view_url
+              };
+              // Debug log to verify view_url is being captured
+              if (source.view_url) {
+                console.log('Source view_url:', source.view_url);
+              }
+              return mappedSource;
+            }) || [] }
           : item
       ));
     } catch (error) {
@@ -498,7 +507,19 @@ const BasicRagSearch: React.FC = () => {
                                   <div className="space-y-2">
                                     {item.sources.map((source, index) => (
                                       <div key={index} className="text-xs bg-white p-2 rounded border">
-                                        <p className="font-medium text-gray-800">{source.title}</p>
+                                        {source.view_url && typeof source.view_url === 'string' && source.view_url.length > 0 ? (
+                                          <a 
+                                            href={source.view_url} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                                            title={`Open ${source.title} on page ${source.page || 'N/A'}`}
+                                          >
+                                            {source.title}
+                                          </a>
+                                        ) : (
+                                          <p className="font-medium text-gray-800" title="View URL not available">{source.title}</p>
+                                        )}
                                         {source.page && <p className="text-gray-600">Page: {source.page}</p>}
                                         {source.score && <p className="text-gray-600">Relevance: {(source.score * 100).toFixed(1)}%</p>}
                                         <p className="text-gray-700 mt-1">{source.content.substring(0, 100)}...</p>

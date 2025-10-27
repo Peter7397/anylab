@@ -117,10 +117,11 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = DocumentFile
         fields = [
             'id', 'title', 'filename', 'document_type', 'description', 'uploaded_by', 
-            'uploaded_at', 'page_count', 'file_size_mb', 'uploaded_date', 'file_url'
+            'uploaded_at', 'page_count', 'file_size_mb', 'uploaded_date', 'file_url',
+            'metadata', 'source_url'
         ]
         read_only_fields = ['id', 'uploaded_by', 'uploaded_at', 'file_size_mb', 
-                           'uploaded_date', 'file_url']
+                           'uploaded_date', 'file_url', 'metadata', 'source_url']
     
     def get_file_size_mb(self, obj):
         if obj.file_size:
