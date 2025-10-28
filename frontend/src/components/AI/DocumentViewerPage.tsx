@@ -6,7 +6,7 @@ interface ViewerTab {
   id: string;
   title: string;
   url: string;
-  type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx';
+  type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html';
   page?: number;
   query?: string;
 }

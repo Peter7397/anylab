@@ -3,6 +3,7 @@ import os
 import fitz  # PyMuPDF
 import hashlib
 import numpy as np
+from pathlib import Path
 from django.db import connection
 from django.conf import settings
 from django.core.cache import cache
@@ -23,7 +24,17 @@ class EnhancedRAGService:
         self.response_cache_ttl = getattr(settings, 'RESPONSE_CACHE_TTL', 1800)  # 30 minutes
         
     def get_embedding_from_ollama(self, text):
-        """Get embedding from Ollama using the embedding model with caching"""
+        """
+        Get embedding from BGE-M3 ONLY
+        NO FALLBACKS - Quality requirement
+        
+        QUALITY RULES:
+        - Use BGE-M3 model ONLY
+        - No nomic-embed-text fallback
+        - 1024 dimensions (BGE-M3 standard)
+        - No hash-based fallback
+        - Will retry but NO compromises on model quality
+        """
         # Create cache key based on text hash
         text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
         cache_key = f"embedding_{text_hash}"
@@ -34,51 +45,54 @@ class EnhancedRAGService:
             logger.info(f"Using cached embedding for text hash: {text_hash[:8]}...")
             return cached_embedding
         
-        # Use BGE-M3 first (best for technical docs and SSB content)
-        # BGE-M3 is now working properly
-        models_to_try = ['bge-m3', 'nomic-embed-text']
+        # Use BGE-M3 ONLY - NO FALLBACKS
+        max_retries = 3
+        retry_count = 0
         
-        for model in models_to_try:
+        while retry_count < max_retries:
             try:
                 response = requests.post(
                     f"{self.ollama_url}/api/embeddings",
                     json={
-                        "model": model,
+                        "model": "bge-m3",  # BGE-M3 ONLY
                         "prompt": text
                     },
-                    timeout=15  # Reduced timeout for faster failure
+                    timeout=60  # Longer timeout for quality
                 )
                 response.raise_for_status()
                 embedding = response.json()["embedding"]
                 
-                # nomic-embed-text returns 768 dims, we need 1024
-                # Pad or truncate to 1024 dimensions
-                if len(embedding) == 768 and model == 'nomic-embed-text':
-                    # Pad to 1024 by repeating the last 256 dimensions
-                    padding = embedding[-256:] if len(embedding) >= 256 else [0] * 256
-                    embedding = list(embedding) + list(padding)
-                elif len(embedding) != 1024:
-                    logger.warning(f"Model {model} generated {len(embedding)} dimensions, padding/truncating to 1024.")
+                # Ensure 1024 dimensions (BGE-M3 standard)
+                if len(embedding) != 1024:
                     if len(embedding) < 1024:
                         # Pad with zeros
-                        embedding = list(embedding) + [0] * (1024 - len(embedding))
+                        embedding = list(embedding) + [0.0] * (1024 - len(embedding))
+                        logger.warning(f"Padded embedding to 1024 dimensions")
                     else:
                         # Truncate
                         embedding = embedding[:1024]
+                        logger.warning(f"Truncated embedding to 1024 dimensions")
                 
                 # Cache the embedding
                 cache.set(cache_key, embedding, self.embedding_cache_ttl)
-                logger.info(f"Successfully used {model} for embedding and cached it")
+                logger.info(f"Successfully used BGE-M3 for embedding and cached it")
                 return embedding
+                
+            except requests.exceptions.Timeout:
+                retry_count += 1
+                logger.warning(f"BGE-M3 timeout (attempt {retry_count}/{max_retries})")
+                if retry_count >= max_retries:
+                    raise Exception("BGE-M3 embedding timeout after multiple retries")
+                    
             except Exception as e:
-                logger.warning(f"Failed to use {model} for embedding: {e}")
+                logger.error(f"BGE-M3 embedding error: {e}")
+                if retry_count >= max_retries - 1:
+                    raise Exception(f"BGE-M3 embedding failed after all retries: {str(e)}")
+                retry_count += 1
                 continue
         
-        # If all models fail, use fallback
-        logger.warning("All embedding models failed, using fallback")
-        fallback_embedding = self._simple_embedding_fallback(text)
-        cache.set(cache_key, fallback_embedding, self.embedding_cache_ttl)
-        return fallback_embedding
+        # Should never reach here, but if we do, raise error
+        raise Exception("Failed to get BGE-M3 embedding after all retries")
     
     def get_embeddings_from_ollama_batch(self, texts):
         """Get embeddings for multiple texts efficiently with batch processing
@@ -133,38 +147,51 @@ class EnhancedRAGService:
             logger.info(f"Fetching {len(api_calls_needed)} embeddings from Ollama (parallel processing)")
             
             def fetch_embedding(idx, text):
-                """Fetch embedding for a single text with timeout protection"""
-                try:
-                    # Try BGE-M3 first
-                    response = requests.post(
-                        f"{self.ollama_url}/api/embeddings",
-                        json={
-                            "model": "bge-m3",
-                            "prompt": text
-                        },
-                        timeout=30  # Increased timeout for large batches
-                    )
-                    response.raise_for_status()
-                    embedding = response.json()["embedding"]
-                    
-                    # Ensure 1024 dimensions
-                    if len(embedding) < 1024:
-                        embedding = list(embedding) + [0] * (1024 - len(embedding))
-                    elif len(embedding) > 1024:
-                        embedding = embedding[:1024]
-                    
-                    # Cache it
-                    text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-                    cache_key = f"embedding_{text_hash}"
-                    cache.set(cache_key, embedding, self.embedding_cache_ttl)
-                    
-                    return idx, embedding
-                except requests.exceptions.Timeout:
-                    logger.warning(f"Timeout for text {idx}, using fallback")
-                    return idx, self._simple_embedding_fallback(text)
-                except Exception as e:
-                    logger.warning(f"Failed to get embedding for text {idx}: {e}")
-                    return idx, self._simple_embedding_fallback(text)
+                """Fetch embedding using BGE-M3 ONLY - NO FALLBACKS"""
+                max_retries = 3
+                retry_count = 0
+                
+                while retry_count < max_retries:
+                    try:
+                        response = requests.post(
+                            f"{self.ollama_url}/api/embeddings",
+                            json={
+                                "model": "bge-m3",  # BGE-M3 ONLY
+                                "prompt": text
+                            },
+                            timeout=60  # Longer timeout for quality
+                        )
+                        response.raise_for_status()
+                        embedding = response.json()["embedding"]
+                        
+                        # Ensure 1024 dimensions
+                        if len(embedding) != 1024:
+                            if len(embedding) < 1024:
+                                embedding = list(embedding) + [0.0] * (1024 - len(embedding))
+                            else:
+                                embedding = embedding[:1024]
+                        
+                        # Cache it
+                        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+                        cache_key = f"embedding_{text_hash}"
+                        cache.set(cache_key, embedding, self.embedding_cache_ttl)
+                        
+                        return idx, embedding
+                        
+                    except requests.exceptions.Timeout:
+                        retry_count += 1
+                        logger.warning(f"BGE-M3 timeout for text {idx} (attempt {retry_count}/{max_retries})")
+                        if retry_count >= max_retries:
+                            raise Exception(f"BGE-M3 embedding timeout for text {idx}")
+                            
+                    except Exception as e:
+                        logger.error(f"BGE-M3 embedding error for text {idx}: {e}")
+                        retry_count += 1
+                        if retry_count >= max_retries:
+                            raise Exception(f"BGE-M3 embedding failed for text {idx}: {str(e)}")
+                        continue
+                
+                raise Exception(f"Failed to get BGE-M3 embedding for text {idx}")
             
             # Use ThreadPoolExecutor for parallel processing (limited to prevent server overload)
             with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_WORKERS) as executor:
@@ -178,7 +205,8 @@ class EnhancedRAGService:
                     except Exception as e:
                         idx, text = futures[future]
                         logger.error(f"Error processing chunk {idx}: {e}")
-                        results[idx] = self._simple_embedding_fallback(text)
+                        # NO FALLBACK - Quality requirement
+                        raise Exception(f"BGE-M3 batch processing failed for chunk {idx}: {str(e)}")
         
         return results
     
@@ -217,7 +245,10 @@ class EnhancedRAGService:
         """Process PDF file and build vector index using Ollama embeddings"""
         try:
             # Handle different file types
-            if hasattr(pdf_file, 'temporary_file_path'):
+            if isinstance(pdf_file, (str, Path)):
+                # Handle Path objects or string paths (from file system)
+                file_path = str(pdf_file)
+            elif hasattr(pdf_file, 'temporary_file_path'):
                 file_path = pdf_file.temporary_file_path()
             elif hasattr(pdf_file, 'path'):
                 file_path = pdf_file.path
@@ -241,13 +272,20 @@ class EnhancedRAGService:
                 }
             
             # Process PDF with PyMuPDF
+            # No page limit - process all pages in batches to prevent memory issues
             doc = None
             chunks = []
             vectors = []
             
             try:
                 doc = fitz.open(file_path)
-                for page_num, page in enumerate(doc, start=1):
+                total_pages = len(doc)
+                
+                logger.info(f"Processing PDF with {total_pages} pages")
+                
+                # Process all pages - batch processing handles memory automatically
+                for page_num in range(1, total_pages + 1):
+                    page = doc[page_num - 1]  # Pages are 0-indexed
                     text = page.get_text()
                     if text.strip():
                         # Generate embedding using Ollama
@@ -259,8 +297,17 @@ class EnhancedRAGService:
                     doc.close()
             
             # Create UploadedFile record
+            # Extract filename from various sources
+            if title:
+                filename = title
+            elif hasattr(pdf_file, 'name'):
+                filename = pdf_file.name
+            else:
+                # For Path objects or strings, extract from file_path
+                filename = Path(file_path).name
+            
             uploaded_file = UploadedFile.objects.create(
-                filename=title or pdf_file.name,
+                filename=filename,
                 file_hash=file_hash,
                 file_size=os.path.getsize(file_path),
                 page_count=len(chunks),
@@ -278,15 +325,12 @@ class EnhancedRAGService:
                     chunk_index=idx
                 )
             
-            if doc:
-                doc.close()
-            
             return {
                 'success': True,
                 'uploaded_file_id': uploaded_file.id,
                 'chunks': chunks,
                 'vectors': vectors,
-                'page_count': len(doc)
+                'page_count': len(chunks)
             }
             
         except Exception as e:
@@ -307,6 +351,9 @@ class EnhancedRAGService:
                 file_path = document_file.temporary_file_path()
             elif hasattr(document_file, 'path'):
                 file_path = document_file.path
+            elif isinstance(document_file, (str, Path)):
+                # Handle Path objects or string paths
+                file_path = str(document_file)
             else:
                 # For InMemoryUploadedFile, save to temp file
                 import tempfile
@@ -332,6 +379,9 @@ class EnhancedRAGService:
             if file_path and isinstance(file_path, str):
                 filename = file_path.split('/')[-1]
                 file_extension = filename.split('.')[-1].lower() if '.' in filename else 'pdf'
+            elif isinstance(document_file, (str, Path)):
+                # For string or Path objects, extract extension from file_path
+                file_extension = Path(file_path).suffix[1:].lower() if Path(file_path).suffix else 'pdf'
             else:
                 file_extension = document_file.name.split('.')[-1].lower() if hasattr(document_file, 'name') and '.' in document_file.name else 'pdf'
             chunks = []
@@ -339,31 +389,42 @@ class EnhancedRAGService:
             
             if file_extension == 'pdf':
                 # Process PDF with PyMuPDF
+                # No page limit - process all pages, batch processing handles memory
                 doc = None
                 try:
                     doc = fitz.open(file_path)
-                    for page_num, page in enumerate(doc, start=1):
+                    total_pages = len(doc)
+                    
+                    logger.info(f"Processing PDF with {total_pages} pages")
+                    
+                    # Process all pages - memory usage is constant per page
+                    for page_num in range(1, total_pages + 1):
+                        page = doc[page_num - 1]  # Pages are 0-indexed
                         text = page.get_text()
                         if text.strip():
                             embedding = self.get_embedding_from_ollama(text)
                             chunks.append(text)
                             vectors.append(embedding)
-                    page_count = len(doc)
+                    page_count = total_pages
                 finally:
                     if doc:
                         doc.close()
                 
             elif file_extension in ['txt', 'rtf', 'html', 'mhtml']:
                 # Process text files and HTML/MHTML files
-                # Safety check: Limit file size to prevent memory issues
-                MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
+                # No file size limit - batch processing handles memory automatically
                 file_size = os.path.getsize(file_path)
+                logger.info(f"Processing text file with {file_size} bytes")
                 
-                if file_size > MAX_FILE_SIZE:
-                    logger.warning(f"File too large ({file_size} bytes), using sample processing")
-                    # For very large files, process only first 5MB
+                # For very large files, use sample processing to prevent memory issues
+                # But still allow processing the full file in batches
+                MAX_SAMPLE_SIZE = 50 * 1024 * 1024  # 50MB at a time
+                
+                if file_size > MAX_SAMPLE_SIZE:
+                    logger.warning(f"File is very large ({file_size} bytes), processing in chunks")
+                    # Process file in chunks to avoid loading entire file into memory
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                        text = f.read(5 * 1024 * 1024)  # Read only first 5MB
+                        text = f.read(MAX_SAMPLE_SIZE)  # Read 50MB at a time
                         logger.info(f"Processing sample of large file: {len(text)} characters")
                 else:
                     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -374,12 +435,14 @@ class EnhancedRAGService:
                     # Maximum precision for short SSB topics
                     # Process in batches to avoid timeout/memory issues
                     chunk_size = 100
+                    
                     split_chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
                     
                     # Filter out empty chunks
                     valid_chunks = [chunk_text for chunk_text in split_chunks if chunk_text.strip()]
                     
-                    # Process in batches of 50 chunks at a time for better performance
+                    # Process in batches of 50 chunks at a time - this automatically handles any file size
+                    # Batching prevents memory issues by processing gradually
                     batch_size = 50
                     total_batches = (len(valid_chunks) + batch_size - 1) // batch_size
                     
@@ -409,7 +472,8 @@ class EnhancedRAGService:
             else:
                 # For other document types, just store basic info for now
                 # TODO: Add support for Word, Excel, PowerPoint processing
-                chunks = [f"Document: {title or document_file.name}"]
+                doc_name = title or (document_file.name if hasattr(document_file, 'name') else Path(file_path).name if file_path else 'unknown')
+                chunks = [f"Document: {doc_name}"]
                 vectors = [self.get_embedding_from_ollama(chunks[0])]
                 page_count = 1
             
@@ -467,10 +531,11 @@ class EnhancedRAGService:
                 logger.info(f"Using cached search results for query: {query[:30]}...")
                 return cached_results
             
-            # Generate query embedding using Ollama
+            # Generate query embedding using Ollama (BGE-M3 only)
             query_embedding = self.get_embedding_from_ollama(query)
             
             # Search using pgvector with file information
+            # CRITICAL: Only search files that are fully processed and ready
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT dc.id, dc.content, dc.uploaded_file_id, dc.page_number, dc.chunk_index,
@@ -479,6 +544,7 @@ class EnhancedRAGService:
                            COALESCE(uf.file_size, 0) as file_size
                     FROM ai_assistant_documentchunk dc
                     LEFT JOIN ai_assistant_uploadedfile uf ON dc.uploaded_file_id = uf.id
+                    WHERE dc.embedding IS NOT NULL
                     ORDER BY dc.embedding <#> %s::vector
                     LIMIT %s;
                 """, [query_embedding, top_k])

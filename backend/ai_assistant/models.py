@@ -7,19 +7,99 @@ import hashlib
 
 class UploadedFile(models.Model):
     """Enhanced file storage with hash-based deduplication"""
-    filename = models.CharField(max_length=255)
+    filename = models.CharField(max_length=255, db_index=True)
     file_hash = models.CharField(max_length=64, unique=True, db_index=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     intro = models.TextField(null=True, blank=True)
-    file_size = models.BigIntegerField(default=0)
+    file_size = models.BigIntegerField(default=0, db_index=True)  # Indexed for duplicate detection
     page_count = models.IntegerField(default=0)
-
+    
+    # NEW: Processing status tracking for automatic processing
+    PROCESSING_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('metadata_extracting', 'Extracting Metadata'),
+        ('chunking', 'Generating Chunks'),
+        ('embedding', 'Creating Embeddings'),
+        ('ready', 'Ready for Search'),
+        ('failed', 'Processing Failed'),
+    ]
+    
+    processing_status = models.CharField(
+        max_length=20,
+        choices=PROCESSING_STATUS_CHOICES,
+        default='pending',
+        db_index=True
+    )
+    
+    # Track processing completion stages
+    metadata_extracted = models.BooleanField(default=False)
+    chunks_created = models.BooleanField(default=False)
+    embeddings_created = models.BooleanField(default=False)
+    
+    # Error tracking
+    processing_error = models.TextField(null=True, blank=True)
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    processing_completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Quality metrics (maintain performance standards)
+    chunk_count = models.IntegerField(default=0)  # Actual chunks created
+    embedding_count = models.IntegerField(default=0)  # Actual embeddings created
+    
+    def is_ready_for_search(self):
+        """Check if file is fully processed and ready for RAG/search"""
+        return (
+            self.processing_status == 'ready' and
+            self.metadata_extracted and
+            self.chunks_created and
+            self.embeddings_created and
+            self.chunk_count > 0 and
+            self.embedding_count > 0
+        )
+    
+    @classmethod
+    def find_duplicates(cls, file_hash=None, filename=None, file_size=None):
+        """
+        Enhanced duplicate detection
+        
+        Checks BOTH file hash AND filename for better deduplication
+        """
+        duplicates = []
+        
+        # Check by hash first (most reliable)
+        if file_hash:
+            hash_matches = cls.objects.filter(file_hash=file_hash)
+            duplicates.extend(list(hash_matches))
+        
+        # Also check by filename and size (catches re-uploads with same name)
+        if filename and file_size:
+            filename_matches = cls.objects.filter(
+                filename=filename,
+                file_size=file_size
+            )
+            duplicates.extend(list(filename_matches))
+        
+        # Remove duplicates from list
+        seen_ids = set()
+        unique_duplicates = []
+        for dup in duplicates:
+            if dup.id not in seen_ids:
+                seen_ids.add(dup.id)
+                unique_duplicates.append(dup)
+        
+        return unique_duplicates
+    
     def __str__(self):
         return self.filename
 
     class Meta:
         ordering = ['-uploaded_at']
+        indexes = [
+            models.Index(fields=['processing_status']),
+            models.Index(fields=['metadata_extracted', 'chunks_created', 'embeddings_created']),
+            # Performance index for duplicate detection
+            models.Index(fields=['filename', 'file_size']),
+        ]
 
 class DocumentFile(models.Model):
     """Document model for storing various file types"""
@@ -145,3 +225,60 @@ class QueryHistory(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class HelpPortalDocument(models.Model):
+    """Track help portal documents and their processing status"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('skipped', 'Skipped'),
+    ]
+    
+    CATEGORY_CHOICES = [
+        ('cds', 'OpenLab CDS'),
+        ('ecm', 'OpenLab Server/ECM XT'),
+        ('shared', 'Shared Services'),
+        ('services', 'Test Services'),
+        ('other', 'Other'),
+    ]
+    
+    filename = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=512)
+    file_size = models.BigIntegerField(default=0)
+    file_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    
+    # Classification
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
+    document_type = models.CharField(max_length=100, blank=True)  # e.g., 'Installation Guide', 'Release Notes'
+    version = models.CharField(max_length=50, blank=True)  # e.g., 'v2.8', 'v3.6'
+    
+    # Processing status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Tracking
+    uploaded_file = models.ForeignKey(UploadedFile, on_delete=models.SET_NULL, null=True, blank=True)
+    chunk_count = models.IntegerField(default=0)
+    
+    # Timestamps
+    discovered_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Error tracking
+    error_message = models.TextField(blank=True)
+    
+    # Metadata
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    def __str__(self):
+        return self.filename
+    
+    class Meta:
+        ordering = ['category', 'filename']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['category']),
+            models.Index(fields=['file_hash']),
+        ]

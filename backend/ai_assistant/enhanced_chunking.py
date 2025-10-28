@@ -22,9 +22,9 @@ class SemanticChunker:
     """Advanced text chunking with semantic awareness"""
     
     def __init__(self, 
-                 chunk_size: int = 500,
-                 chunk_overlap: int = 50,
-                 max_chunks_per_doc: int = 100):
+                 chunk_size: int = 100,  # Optimal size for RAG quality
+                 chunk_overlap: int = 10,
+                 max_chunks_per_doc: int = 10000):  # REMOVED LIMIT - Quality over speed
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.max_chunks_per_doc = max_chunks_per_doc
@@ -86,7 +86,13 @@ class SemanticChunker:
         chunk_start = 0
         chunk_index = 0
         
-        while chunk_start < len(clean_text) and chunk_index < self.max_chunks_per_doc:
+        # NO LIMIT - Process all content for maximum RAG quality
+        while chunk_start < len(clean_text):
+            # Only limit if we exceed safety threshold (10k chunks)
+            if chunk_index >= self.max_chunks_per_doc:
+                logger.warning(f"Document has {len(chunks)} chunks, which is very large. Consider document size.")
+                break
+            
             # Find end position for this chunk
             chunk_end = min(chunk_start + self.chunk_size, len(clean_text))
             
@@ -129,10 +135,10 @@ class SemanticChunker:
             page_chunks = self.chunk_by_sentences(page_text, page_number=page_num)
             all_chunks.extend(page_chunks)
             
-            # Safety check to prevent memory issues
-            if len(all_chunks) >= self.max_chunks_per_doc:
-                logger.warning(f"Reached maximum chunks ({self.max_chunks_per_doc}), truncating document")
-                break
+            # Quality-focused: Process all pages without truncation
+            # Log large documents but continue processing for maximum quality
+            if len(all_chunks) > 5000:
+                logger.info(f"Processing large document with {len(all_chunks)} chunks - maximizing RAG quality")
         
         return all_chunks
     
@@ -185,14 +191,15 @@ class AdvancedChunker(SemanticChunker):
         return chunks
 
 # Global chunker instances
+# QUALITY FOCUS: No chunk limits, 100 char chunks for maximum RAG precision
 semantic_chunker = SemanticChunker(
-    chunk_size=500,
-    chunk_overlap=50,
-    max_chunks_per_doc=100
+    chunk_size=100,           # Optimal size for semantic understanding
+    chunk_overlap=10,         # Maintain context between chunks
+    max_chunks_per_doc=10000  # NO PRACTICAL LIMIT - Process entire document
 )
 
 advanced_chunker = AdvancedChunker(
-    chunk_size=500,
-    chunk_overlap=50,
-    max_chunks_per_doc=100
+    chunk_size=100,           # Optimal size for semantic understanding
+    chunk_overlap=10,         # Maintain context between chunks
+    max_chunks_per_doc=10000  # NO PRACTICAL LIMIT - Process entire document
 )

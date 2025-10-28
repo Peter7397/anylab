@@ -17,7 +17,12 @@ import {
   Presentation,
   FileCode,
   Edit,
-  Wand2
+  Wand2,
+  FolderInput,
+  FolderOpen,
+  Filter,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { apiClient } from '../../services/api';
 
@@ -36,6 +41,9 @@ interface DocumentFile {
   page_count?: number;
   file_size_mb: string;
   file_url?: string;
+  product_category?: string;
+  content_type?: string;
+  processing_status?: string;
 }
 
 interface DocumentSearchParams {
@@ -45,7 +53,7 @@ interface DocumentSearchParams {
 }
 
 interface DocumentManagerProps {
-  onOpenInViewer?: (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx' }) => void;
+  onOpenInViewer?: (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html' }) => void;
   defaultDocType?: string;
 }
 
@@ -57,6 +65,21 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     query: '',
     search_type: 'both',
     document_type: defaultDocType
+  });
+  
+  // NEW: Advanced filter state
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState({
+    product_category: '',
+    content_type: '',
+    processing_status: '',
+    uploaded_by: '',
+    date_from: '',
+    date_to: '',
+    file_size_min: '',
+    file_size_max: '',
+    sort_by: 'uploaded_at',
+    sort_order: 'desc'
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadForm, setUploadForm] = useState({
@@ -79,6 +102,18 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     version: ''
   });
   const [extracting, setExtracting] = useState(false);
+  
+  // NEW: Bulk import state
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [bulkFiles, setBulkFiles] = useState<{ path: string; filename: string; size: number }[]>([]);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkResults, setBulkResults] = useState<any>(null);
+  const [selectedFolder, setSelectedFolder] = useState('');
+  
+  // NEW: Progress tracking state
+  const [importStatus, setImportStatus] = useState<any>(null);
+  const [progressInterval, setProgressInterval] = useState<NodeJS.Timeout | null>(null);
+  const [jobMonitoring, setJobMonitoring] = useState(false);
 
   // Document type configurations
   const documentTypes = [
@@ -286,25 +321,117 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   };
 
   const handleSearch = async () => {
-    if (!searchParams.query.trim()) {
-      loadDocuments();
-      return;
-    }
-
     setLoading(true);
     try {
-      const response = await apiClient.searchDocuments(
-        searchParams.query, 
-        searchParams.search_type, 
-        searchParams.document_type
-      );
-      setDocuments(response.results || []);
+      let results: DocumentFile[] = [];
+      
+      // If there's a search query, perform search
+      if (searchParams.query.trim()) {
+        const response = await apiClient.searchDocuments(
+          searchParams.query, 
+          searchParams.search_type, 
+          searchParams.document_type
+        );
+        results = response.results || [];
+      } else {
+        // Otherwise, load all documents
+        const response = await apiClient.getDocuments();
+        results = response.documents || [];
+      }
+      
+      // Apply advanced filters
+      let filteredResults = results;
+      
+      if (advancedFilters.product_category) {
+        filteredResults = filteredResults.filter(doc => 
+          doc.product_category === advancedFilters.product_category
+        );
+      }
+      
+      if (advancedFilters.content_type) {
+        filteredResults = filteredResults.filter(doc => 
+          doc.content_type === advancedFilters.content_type
+        );
+      }
+      
+      if (advancedFilters.processing_status) {
+        // Note: This requires the backend to return processing_status
+        // For now, we'll skip this filter if not available
+        // filteredResults = filteredResults.filter(doc => 
+        //   doc.processing_status === advancedFilters.processing_status
+        // );
+      }
+      
+      if (advancedFilters.date_from) {
+        const fromDate = new Date(advancedFilters.date_from);
+        filteredResults = filteredResults.filter(doc => {
+          const docDate = new Date(doc.uploaded_date);
+          return docDate >= fromDate;
+        });
+      }
+      
+      if (advancedFilters.date_to) {
+        const toDate = new Date(advancedFilters.date_to);
+        filteredResults = filteredResults.filter(doc => {
+          const docDate = new Date(doc.uploaded_date);
+          return docDate <= toDate;
+        });
+      }
+      
+      if (advancedFilters.file_size_min) {
+        const minSizeMB = parseFloat(advancedFilters.file_size_min);
+        filteredResults = filteredResults.filter(doc => {
+          const sizeMB = parseFloat(doc.file_size_mb);
+          return sizeMB >= minSizeMB;
+        });
+      }
+      
+      if (advancedFilters.file_size_max) {
+        const maxSizeMB = parseFloat(advancedFilters.file_size_max);
+        filteredResults = filteredResults.filter(doc => {
+          const sizeMB = parseFloat(doc.file_size_mb);
+          return sizeMB <= maxSizeMB;
+        });
+      }
+      
+      // Sort results
+      filteredResults.sort((a, b) => {
+        const aVal = getFieldValue(a, advancedFilters.sort_by);
+        const bVal = getFieldValue(b, advancedFilters.sort_by);
+        
+        if (advancedFilters.sort_order === 'asc') {
+          return aVal > bVal ? 1 : -1;
+        } else {
+          return aVal < bVal ? 1 : -1;
+        }
+      });
+      
+      setDocuments(filteredResults);
       setError(null);
     } catch (err) {
       setError('Failed to search documents');
       console.error('Error searching documents:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Helper function to get field value for sorting
+  const getFieldValue = (doc: DocumentFile, field: string): any => {
+    switch (field) {
+      case 'uploaded_at':
+      case 'uploaded_date':
+        return new Date(doc.uploaded_date).getTime();
+      case 'title':
+        return doc.title.toLowerCase();
+      case 'filename':
+        return doc.filename.toLowerCase();
+      case 'file_size':
+        return parseFloat(doc.file_size_mb);
+      case 'page_count':
+        return doc.page_count || 0;
+      default:
+        return '';
     }
   };
 
@@ -342,7 +469,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     // For all document types, use the embedded viewer
     if (onOpenInViewer && doc.file_url) {
       // Determine document type for viewer
-      let docType: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx' = 'pdf';
+      let docType: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html' = 'pdf';
       const type = doc.document_type || '';
       if (type === 'doc' || type === 'docx') docType = 'docx';
       else if (type === 'xls') docType = 'xls';
@@ -350,6 +477,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       else if (type === 'ppt') docType = 'ppt';
       else if (type === 'pptx') docType = 'pptx';
       else if (type === 'txt') docType = 'txt';
+      else if (type === 'SSB_KPR') docType = 'html'; // Treat SSB_KPR as HTML for iframe rendering
       else docType = 'pdf';
       
       // Open in the embedded DocumentViewer component
@@ -431,6 +559,123 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     }
   };
 
+  // NEW: Bulk import functions
+  const handleScanFolder = async () => {
+    if (!selectedFolder) {
+      setError('Please enter a folder path');
+      return;
+    }
+
+    try {
+      setBulkProcessing(true);
+      setError(null);
+
+      const result = await apiClient.scanFolder(selectedFolder);
+      
+      if (result.success && result.files) {
+        setBulkFiles(result.files);
+        setSuccess(`Found ${result.files.length} files in folder`);
+      } else {
+        setError('No files found in folder');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to scan folder');
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const handleBulkImport = async () => {
+    if (bulkFiles.length === 0) {
+      setError('Please scan a folder first');
+      return;
+    }
+
+    try {
+      setBulkProcessing(true);
+      setJobMonitoring(true);
+      setError(null);
+
+      const filesToImport = bulkFiles.map(file => ({
+        file_path: file.path,
+        filename: file.filename
+      }));
+
+      const result = await apiClient.bulkImportFiles(filesToImport);
+      
+      setBulkResults(result.results);
+      
+      // Start polling for status
+      startStatusPolling();
+      
+      setSuccess(
+        `Bulk import initiated! Processing ${result.results.total} files...`
+      );
+      
+      // Don't close modal yet - keep monitoring progress
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to import files');
+      setBulkProcessing(false);
+      setJobMonitoring(false);
+    }
+  };
+
+  // NEW: Start polling for import status
+  const startStatusPolling = () => {
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        const status = await apiClient.getBulkImportStatus();
+        setImportStatus(status);
+
+        // Check if all files are done processing
+        const { pending, metadata_extracting, chunking, embedding } = status.statistics;
+        
+        if (pending === 0 && metadata_extracting === 0 && chunking === 0 && embedding === 0) {
+          // All done!
+          clearInterval(interval);
+          setJobMonitoring(false);
+          setBulkProcessing(false);
+          
+          const ready = status.statistics.ready || 0;
+          const failed = status.statistics.failed || 0;
+          
+          setSuccess(
+            `Import completed! ` +
+            `Ready: ${ready}, ` +
+            `Failed: ${failed}`
+          );
+          
+          // Show detailed results
+          setBulkResults({
+            successful: ready,
+            failed: failed,
+            skipped: 0
+          });
+          
+          loadDocuments();
+        }
+      } catch (err: any) {
+        console.error('Failed to fetch status:', err);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    setProgressInterval(interval);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+    };
+  }, [progressInterval]);
+
   console.log('Rendering DocumentManager with extract button visible. extracting state:', extracting);
 
   return (
@@ -450,6 +695,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           >
             <Wand2 size={20} />
             {extracting ? 'Extracting...' : 'Auto-Extract Metadata'}
+          </button>
+          <button
+            onClick={() => setShowBulkUploadModal(true)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            title="Bulk import from folder"
+          >
+            <FolderInput size={20} />
+            Bulk Import
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
@@ -532,8 +785,194 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             <Search size={20} />
             Search
           </button>
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
+            <Filter size={20} />
+            {showAdvancedFilters ? 'Hide Filters' : 'Advanced Filters'}
+            {showAdvancedFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
         </div>
       </div>
+
+      {/* NEW: Advanced Filters Section */}
+      {showAdvancedFilters && (
+        <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {/* Product Category Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Product Category
+              </label>
+              <select
+                value={advancedFilters.product_category}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, product_category: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              >
+                <option value="">All Products</option>
+                {productCategories.filter(cat => cat.value).map(category => (
+                  <option key={category.value} value={category.value}>{category.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Content Type Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Content Type
+              </label>
+              <select
+                value={advancedFilters.content_type}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, content_type: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              >
+                <option value="">All Types</option>
+                {contentTypes.map(type => (
+                  <option key={type.value} value={type.value}>{type.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Processing Status Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Processing Status
+              </label>
+              <select
+                value={advancedFilters.processing_status}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, processing_status: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              >
+                <option value="">All Status</option>
+                <option value="ready">Ready</option>
+                <option value="pending">Pending</option>
+                <option value="metadata_extracting">Extracting Metadata</option>
+                <option value="chunking">Chunking</option>
+                <option value="embedding">Embedding</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+
+            {/* Sort By */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Sort By
+              </label>
+              <select
+                value={advancedFilters.sort_by}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, sort_by: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              >
+                <option value="uploaded_at">Upload Date</option>
+                <option value="title">Title</option>
+                <option value="filename">Filename</option>
+                <option value="file_size">File Size</option>
+                <option value="page_count">Page Count</option>
+              </select>
+            </div>
+
+            {/* Sort Order */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Order
+              </label>
+              <select
+                value={advancedFilters.sort_order}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, sort_order: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              >
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </select>
+            </div>
+
+            {/* Date From */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                From Date
+              </label>
+              <input
+                type="date"
+                value={advancedFilters.date_from}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, date_from: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            {/* Date To */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                To Date
+              </label>
+              <input
+                type="date"
+                value={advancedFilters.date_to}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, date_to: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            {/* File Size Min */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Min Size (MB)
+              </label>
+              <input
+                type="number"
+                value={advancedFilters.file_size_min}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, file_size_min: e.target.value }))}
+                placeholder="0"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            {/* File Size Max */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Max Size (MB)
+              </label>
+              <input
+                type="number"
+                value={advancedFilters.file_size_max}
+                onChange={(e) => setAdvancedFilters(prev => ({ ...prev, file_size_max: e.target.value }))}
+                placeholder="Unlimited"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Filter Actions */}
+          <div className="flex gap-3 mt-4 pt-4 border-t border-indigo-200">
+            <button
+              onClick={() => {
+                setAdvancedFilters({
+                  product_category: '',
+                  content_type: '',
+                  processing_status: '',
+                  uploaded_by: '',
+                  date_from: '',
+                  date_to: '',
+                  file_size_min: '',
+                  file_size_max: '',
+                  sort_by: 'uploaded_at',
+                  sort_order: 'desc'
+                });
+                handleSearch();
+              }}
+              className="px-4 py-2 text-indigo-700 border border-indigo-300 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium"
+            >
+              Clear Filters
+            </button>
+            <button
+              onClick={handleSearch}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+            >
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Error/Success Messages */}
       {error && (
@@ -563,7 +1002,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       )}
 
       {/* Document List */}
-      <div className="space-y-4">
+      <div 
+        className="space-y-4 max-h-[600px] overflow-y-auto pr-2" 
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#cbd5e1 #f1f5f9'
+        }}
+      >
         {loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -908,6 +1353,250 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 >
                   Save
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Bulk Upload Modal */}
+      {showBulkUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Bulk Import from Folder</h3>
+              <button
+                onClick={() => setShowBulkUploadModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Folder Path
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={selectedFolder}
+                    onChange={(e) => setSelectedFolder(e.target.value)}
+                    placeholder="e.g., /path/to/documents"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={handleScanFolder}
+                    disabled={bulkProcessing}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                  >
+                    <FolderOpen size={20} />
+                    {bulkProcessing ? 'Scanning...' : 'Scan Folder'}
+                  </button>
+                </div>
+              </div>
+
+              {/* NEW: Real-time Status Display */}
+              {jobMonitoring && importStatus && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-semibold mb-2 flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                    Processing Status
+                  </h4>
+                  <div className="grid grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <div className="text-gray-600">Pending</div>
+                      <div className="text-gray-800 font-bold">{importStatus.statistics?.pending || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-blue-600">Processing</div>
+                      <div className="text-blue-800 font-bold">
+                        {(importStatus.statistics?.metadata_extracting || 0) + 
+                         (importStatus.statistics?.chunking || 0) + 
+                         (importStatus.statistics?.embedding || 0)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-green-600">Ready</div>
+                      <div className="text-green-800 font-bold">{importStatus.statistics?.ready || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-red-600">Failed</div>
+                      <div className="text-red-800 font-bold">{importStatus.statistics?.failed || 0}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* File List with Status Indicators */}
+              {bulkFiles.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Files ({bulkFiles.length})
+                  </label>
+                  <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Status</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Filename</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Size</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkFiles.map((file, idx) => {
+                          // Find this file in importStatus if monitoring
+                          const fileStatus = jobMonitoring && importStatus?.files 
+                            ? importStatus.files.find((f: any) => f.filename === file.filename)
+                            : null;
+                          
+                          const getStatusBadge = () => {
+                            if (!fileStatus) {
+                              return <span className="text-gray-500 text-xs">⏳ Pending</span>;
+                            }
+                            
+                            const status = fileStatus.processing_status;
+                            const isReady = fileStatus.is_ready;
+                            
+                            if (isReady) {
+                              return <span className="text-green-600 text-xs">✓ Ready</span>;
+                            }
+                            if (status === 'failed') {
+                              return <span className="text-red-600 text-xs">✗ Failed</span>;
+                            }
+                            if (status === 'metadata_extracting') {
+                              return <span className="text-blue-600 text-xs">📄 Metadata</span>;
+                            }
+                            if (status === 'chunking') {
+                              return <span className="text-blue-600 text-xs">✂️ Chunking</span>;
+                            }
+                            if (status === 'embedding') {
+                              return <span className="text-blue-600 text-xs">🔢 Embedding</span>;
+                            }
+                            return <span className="text-yellow-600 text-xs">⏳ Waiting</span>;
+                          };
+                          
+                          return (
+                            <tr key={idx} className="border-t border-gray-200">
+                              <td className="px-3 py-2">{getStatusBadge()}</td>
+                              <td className="px-3 py-2">{file.filename}</td>
+                              <td className="px-3 py-2 text-gray-600">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Enhanced Results with Error Reporting */}
+              {bulkResults && (
+                <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                  <h4 className="font-semibold mb-2">Import Results</h4>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <div className="text-gray-600">Successful</div>
+                      <div className="text-green-600 font-bold">{bulkResults.successful}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">Failed</div>
+                      <div className="text-red-600 font-bold">{bulkResults.failed}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-600">Skipped</div>
+                      <div className="text-yellow-600 font-bold">{bulkResults.skipped}</div>
+                    </div>
+                  </div>
+
+                  {/* Show failed files with errors */}
+                  {bulkResults.details && bulkResults.details.length > 0 && (
+                    <div className="mt-4">
+                      <h5 className="font-semibold text-sm mb-2">Failed Files:</h5>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {bulkResults.details
+                          .filter((detail: any) => detail.status === 'failed')
+                          .map((detail: any, idx: number) => (
+                            <div key={idx} className="bg-red-50 border border-red-200 rounded p-2 text-xs">
+                              <div className="font-medium text-red-900">{detail.filename}</div>
+                              <div className="text-red-700 mt-1">{detail.error}</div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show skipped files */}
+                  {bulkResults.details && bulkResults.details.length > 0 && (
+                    <div className="mt-4">
+                      <h5 className="font-semibold text-sm mb-2">Skipped Files (Duplicates):</h5>
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {bulkResults.details
+                          .filter((detail: any) => detail.status === 'skipped')
+                          .map((detail: any, idx: number) => (
+                            <div key={idx} className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs">
+                              <div className="font-medium text-yellow-900">{detail.filename}</div>
+                              <div className="text-yellow-700 mt-1">{detail.error}</div>
+                              {detail.existing_file_id && (
+                                <div className="text-yellow-600 mt-1">
+                                  Already exists (ID: {detail.existing_file_id})
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    // Stop monitoring if running
+                    if (progressInterval) {
+                      clearInterval(progressInterval);
+                      setProgressInterval(null);
+                    }
+                    setJobMonitoring(false);
+                    setShowBulkUploadModal(false);
+                    // Reset state
+                    setBulkFiles([]);
+                    setBulkResults(null);
+                    setImportStatus(null);
+                    setSelectedFolder('');
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+                {!jobMonitoring && bulkFiles.length > 0 && (
+                  <button
+                    onClick={handleBulkImport}
+                    disabled={bulkProcessing}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {bulkProcessing ? `Importing ${bulkFiles.length} files...` : `Import ${bulkFiles.length} files`}
+                  </button>
+                )}
+                {jobMonitoring && (
+                  <button
+                    onClick={() => {
+                      // Stop monitoring but keep modal open
+                      if (progressInterval) {
+                        clearInterval(progressInterval);
+                        setProgressInterval(null);
+                      }
+                      setJobMonitoring(false);
+                    }}
+                    className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  >
+                    Stop Monitoring
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -6,7 +6,7 @@ const SSBDatabase: React.FC = () => {
   const [showViewer, setShowViewer] = React.useState(false);
   const [viewerProps, setViewerProps] = React.useState<{ title: string; url: string; docType: any } | null>(null);
 
-  const handleOpenInViewer = (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx' }) => {
+  const handleOpenInViewer = (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html' }) => {
     setViewerProps({
       title: args.title,
       url: args.url,

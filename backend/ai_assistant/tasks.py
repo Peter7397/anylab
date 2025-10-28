@@ -7,7 +7,8 @@ from celery import shared_task
 from django.core.management import call_command
 from django.utils import timezone
 from django.core.cache import cache
-from .models import DocumentFile
+from .models import DocumentFile, UploadedFile
+from .automatic_file_processor import automatic_file_processor
 
 logger = logging.getLogger(__name__)
 
@@ -158,4 +159,128 @@ def process_document_queue():
             
     except Exception as e:
         logger.error(f'Document queue processing failed: {e}', exc_info=True)
+
+
+@shared_task(bind=True, name='ai_assistant.tasks.process_file_automatically')
+def process_file_automatically(self, uploaded_file_id):
+    """
+    Background task for automatic file processing
+    
+    QUALITY FOCUS: Uses automatic processor with full quality guarantees
+    - Unlimited chunks
+    - BGE-M3 only
+    - 3 retry attempts
+    - Performance over speed
+    """
+    try:
+        logger.info(f'Processing file {uploaded_file_id} in background')
+        
+        # Use the automatic processor with all quality guarantees
+        result = automatic_file_processor.process_file_fully(uploaded_file_id)
+        
+        logger.info(f'File {uploaded_file_id} processed successfully: {result}')
+        
+        return {
+            'status': 'success',
+            'uploaded_file_id': uploaded_file_id,
+            'result': result
+        }
+        
+    except Exception as e:
+        logger.error(f'Background processing failed for file {uploaded_file_id}: {e}', exc_info=True)
+        
+        # Mark as failed in database
+        try:
+            uploaded_file = UploadedFile.objects.get(id=uploaded_file_id)
+            uploaded_file.processing_status = 'failed'
+            uploaded_file.processing_error = str(e)
+            uploaded_file.save()
+        except UploadedFile.DoesNotExist:
+            logger.error(f'UploadedFile {uploaded_file_id} not found')
+        
+        raise
+
+
+@shared_task(bind=True, name='ai_assistant.tasks.process_bulk_upload')
+def process_bulk_upload(self, uploaded_file_ids):
+    """
+    Process multiple files in background
+    
+    QUALITY FOCUS: Process ALL files with full quality guarantees
+    - No compromises on chunking
+    - BGE-M3 only for embeddings
+    - Performance over speed
+    """
+    try:
+        logger.info(f'Processing {len(uploaded_file_ids)} files in bulk')
+        
+        results = {
+            'successful': 0,
+            'failed': 0,
+            'details': []
+        }
+        
+        for uploaded_file_id in uploaded_file_ids:
+            try:
+                # Process each file using automatic processor
+                result = automatic_file_processor.process_file_fully(uploaded_file_id)
+                
+                results['successful'] += 1
+                results['details'].append({
+                    'uploaded_file_id': uploaded_file_id,
+                    'status': 'success',
+                    'chunk_count': result.get('chunk_count', 0),
+                    'embedding_count': result.get('embedding_count', 0)
+                })
+                
+            except Exception as e:
+                logger.error(f'Error processing file {uploaded_file_id}: {e}', exc_info=True)
+                results['failed'] += 1
+                results['details'].append({
+                    'uploaded_file_id': uploaded_file_id,
+                    'status': 'failed',
+                    'error': str(e)
+                })
+        
+        logger.info(f'Bulk processing completed: {results["successful"]} successful, {results["failed"]} failed')
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f'Bulk processing failed: {e}', exc_info=True)
+        raise
+
+
+@shared_task(name='ai_assistant.tasks.process_pending_files')
+def process_pending_files():
+    """
+    Process any pending files in the queue
+    
+    Runs periodically to process files that are stuck in pending state
+    """
+    try:
+        # Get files stuck in pending for more than 1 minute
+        from datetime import timedelta
+        cutoff = timezone.now() - timedelta(minutes=1)
+        
+        pending_files = UploadedFile.objects.filter(
+            processing_status='pending',
+            uploaded_at__lt=cutoff
+        )[:10]
+        
+        if pending_files.exists():
+            logger.info(f'Processing {pending_files.count()} pending files')
+            
+            for uploaded_file in pending_files:
+                try:
+                    # Trigger processing
+                    process_file_automatically.delay(uploaded_file.id)
+                    
+                except Exception as e:
+                    logger.error(f'Error triggering processing for file {uploaded_file.id}: {e}')
+        else:
+            logger.debug('No pending files to process')
+            
+    except Exception as e:
+        logger.error(f'Error processing pending files: {e}', exc_info=True)
 

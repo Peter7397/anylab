@@ -31,6 +31,9 @@ urlpatterns = [
     
     # Product endpoints
     path('products/', include('ai_assistant.urls.product_urls')),
+    
+    # Help Portal endpoints
+    path('help-portal/', include('ai_assistant.urls.help_portal_urls')),
 ]
 
 # Optional endpoints (may fail if dependencies not installed)

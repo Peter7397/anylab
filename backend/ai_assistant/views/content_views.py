@@ -182,12 +182,13 @@ def list_filter_presets(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_document_metadata(request):
+def get_document_metadata(request, document_id):
     """Get metadata for a specific document"""
     try:
         BaseViewMixin.log_request(request, 'get_document_metadata')
         
-        document_id = request.GET.get('document_id')
+        logger.info(f"get_document_metadata called with document_id: {document_id}")
+        
         if not document_id:
             return bad_request_response('Document ID is required')
         
@@ -197,8 +198,16 @@ def get_document_metadata(request):
         except DocumentFile.DoesNotExist:
             return error_response("Document not found", status.HTTP_404_NOT_FOUND)
         
-        # Parse metadata
-        metadata = json.loads(document.metadata) if document.metadata else {}
+        # Parse metadata - Django JSONField auto-converts JSON to dict
+        # So document.metadata is already a dict (or None)
+        if document.metadata is None:
+            metadata = {}
+        elif isinstance(document.metadata, dict):
+            metadata = document.metadata
+        elif isinstance(document.metadata, str):
+            metadata = json.loads(document.metadata) if document.metadata else {}
+        else:
+            metadata = {}
         
         result = {
             'document_id': document.id,
@@ -219,16 +228,17 @@ def get_document_metadata(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def update_document_metadata(request):
+def update_document_metadata(request, document_id):
     """Update metadata for a specific document"""
     try:
         BaseViewMixin.log_request(request, 'update_document_metadata')
         
         # Debug: Log the request path
         logger.info(f"update_document_metadata called with path: {request.path}")
+        logger.info(f"Document ID from URL: {document_id}")
         logger.info(f"Request data: {request.data}")
         
-        document_id = request.data.get('document_id')
+        # Get metadata updates from request body
         metadata_updates = request.data.get('metadata_updates', {})
         
         if not document_id:

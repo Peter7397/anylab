@@ -6,7 +6,18 @@ It maintains backward compatibility while organizing views into logical modules.
 """
 
 # Import all views for backward compatibility
-from .rag_views import *
+from .rag_views import (
+    chat_with_ollama, rag_search, advanced_rag_search, 
+    comprehensive_rag_search, vector_search, upload_pdf_enhanced, 
+    upload_document_enhanced, extract_documents_metadata,
+    documents, document_download, document_delete, document_search,
+    pdf_view, pdf_download, pdf_delete, pdf_search,
+    document_html_view
+)
+from .legacy_views import (
+    pdf_documents, get_query_history, get_index_info, 
+    list_uploaded_files, get_performance_stats, get_search_analytics
+)
 from .ssb_views import *
 from .forum_views import *
 from .github_views import *
@@ -30,6 +41,9 @@ except ImportError as e:
 
 # Import product views
 from . import product_views
+
+# Import help portal views
+from . import help_portal_views
 
 from .legacy_views import *
 

@@ -9,6 +9,7 @@ import logging
 import hashlib
 import os
 import fitz  # PyMuPDF
+import re
 from django.conf import settings
 from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
@@ -18,6 +19,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from django.http import HttpResponse, Http404
 import requests
 
 from ..utils.version_detector import detect_version
@@ -624,3 +626,71 @@ def pdf_search(request):
         
     except Exception as e:
         return BaseViewMixin.handle_error(e, 'pdf_search')
+
+
+def extract_html_from_mhtml(content: str) -> str:
+    """Extract HTML content from MHTML format"""
+    try:
+        # Look for Content-Type: text/html boundaries
+        html_start_pattern = r'Content-Type:\s*text/html.*?\r\n\r\n'
+        html_match = re.search(html_start_pattern, content, re.IGNORECASE | re.DOTALL)
+        
+        if html_match:
+            # Find the position where HTML starts
+            html_start = html_match.end()
+            # Look for the next boundary marker
+            boundary_pattern = r'\r\n\r\n------Multipart'
+            boundary_match = re.search(boundary_pattern, content[html_start:])
+            
+            if boundary_match:
+                html_content = content[html_start:html_start + boundary_match.start()]
+                # Decode quoted-printable encoding if present
+                html_content = html_content.replace('=\r\n', '').replace('=\n', '')
+                html_content = html_content.replace('=3D', '=').replace('=0D', '\r').replace('=0A', '\n')
+                return html_content
+            else:
+                # No boundary found, return everything after HTML marker
+                return content[html_start:]
+        
+        # If no HTML section found, return the original content
+        return content
+    except Exception as e:
+        logger.error(f"Error extracting HTML from MHTML: {e}")
+        return content
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def document_html_view(request, doc_id):
+    """Extract and serve HTML content from documents (handles MHTML)"""
+    try:
+        doc = DocumentFile.objects.get(id=doc_id)
+        
+        if not doc.file:
+            raise Http404("Document file not found")
+        
+        # Read file content
+        doc.file.open('r')
+        content = doc.file.read()
+        doc.file.close()
+        
+        # Check if it's MHTML
+        if 'multipart/related' in content[:2000].lower() or 'multipartboundary' in content[:2000].lower():
+            # Extract HTML from MHTML
+            html_content = extract_html_from_mhtml(content)
+        else:
+            # Regular HTML file
+            html_content = content
+        
+        # Return HTML response
+        response = HttpResponse(html_content, content_type='text/html; charset=utf-8')
+        # Allow same-origin iframe embedding
+        response['X-Frame-Options'] = 'SAMEORIGIN'
+        return response
+        
+    except DocumentFile.DoesNotExist:
+        raise Http404("Document not found")
+    except Exception as e:
+        logger.error(f"Error serving document HTML: {e}")
+        raise Http404("Error processing document")
+

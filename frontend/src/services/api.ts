@@ -283,8 +283,9 @@ class ApiClient {
 
   // Users API
   async getUsers(): Promise<User[]> {
-    const response = await this.request<User[]>('/users/');
-    return response.data;
+    const response = await this.request<{users: User[]}>('/users/');
+    // Backend returns {users: [...]} format
+    return response.data.users || [];
   }
 
   async createUser(userData: Partial<User>): Promise<User> {
@@ -311,8 +312,9 @@ class ApiClient {
 
   // Roles API
   async getRoles(): Promise<any[]> {
-    const response = await this.request('/users/roles/');
-    return response.data as any[];
+    const response = await this.request<any[]>('/users/roles/');
+    // Backend returns array directly
+    return Array.isArray(response.data) ? response.data : [];
   }
 
   async createRole(roleData: any): Promise<any> {
@@ -353,8 +355,9 @@ class ApiClient {
   }
 
   async getUserRoles(userId: number): Promise<any[]> {
-    const response = await this.request(`/users/${userId}/roles/`);
-    return response.data as any[];
+    const response = await this.request<any[]>(`/users/${userId}/roles/`);
+    // Backend returns array directly
+    return Array.isArray(response.data) ? response.data : [];
   }
 
   // Analytics API
@@ -738,38 +741,20 @@ class ApiClient {
 
   // License Management
   async getLicenseStatus(): Promise<any> {
-    const response = await this.request('/admin/licenses/status/');
-    return response.data;
+    // TODO: Implement license status endpoint
+    // Temporarily return mock data until endpoint is implemented
+    return { status: 'active', expired_at: null };
   }
 
   async listLicenses(): Promise<any> {
-    const response = await this.request('/admin/licenses/');
-    return response.data;
+    // TODO: Implement license list endpoint
+    // Temporarily return empty list until endpoint is implemented
+    return [];
   }
 
   async importLicense(file: File): Promise<any> {
-    const formData = new FormData();
-    formData.append('license_file', file);
-    
-    const url = `${this.baseURL}/admin/licenses/import/`;
-    const headers: HeadersInit = {};
-    const token = this.getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Import failed: ${response.status}`);
-    }
-
-    return response.json();
+    // TODO: Implement license import endpoint
+    throw new Error('License import not yet implemented');
   }
 
   async activateLicense(key: string): Promise<any> {
@@ -989,7 +974,7 @@ class ApiClient {
   async updateDocumentMetadata(docId: number, metadataUpdates: any): Promise<any> {
     const response = await this.request('/ai/content/metadata/' + docId + '/update/', {
       method: 'POST',
-      body: JSON.stringify({ document_id: docId, metadata_updates: metadataUpdates }),
+      body: JSON.stringify({ metadata_updates: metadataUpdates }),
     });
     return response.data;
   }
@@ -1018,9 +1003,55 @@ class ApiClient {
     return response.data;
   }
 
+  // NEW: Bulk Import API Methods
+  async scanFolder(folderPath: string): Promise<any> {
+    const response = await this.request('/ai/process/bulk/scan-folder/', {
+      method: 'POST',
+      body: JSON.stringify({ folder_path: folderPath }),
+    });
+    return response.data;
+  }
+
+  async bulkImportFiles(files: Array<{ file_path: string; filename: string }>): Promise<any> {
+    const response = await this.request('/ai/process/bulk/import-files/', {
+      method: 'POST',
+      body: JSON.stringify({ files }),
+    });
+    return response.data;
+  }
+
+  async getBulkImportStatus(status?: string): Promise<any> {
+    let url = '/ai/process/bulk/status/';
+    if (status) {
+      url += `?status=${status}`;
+    }
+    const response = await this.request(url);
+    return response.data;
+  }
+
   // Performance monitoring
   async getPerformanceStats(): Promise<any> {
     const response = await this.request('/ai/performance/stats/');
+    return response.data;
+  }
+
+  // Dashboard API
+  async getDashboardStats(): Promise<any> {
+    const response = await this.request('/dashboard/stats/');
+    return response.data;
+  }
+
+  // System Settings API
+  async getSystemSettings(): Promise<any> {
+    const response = await this.request('/admin/settings/');
+    return response.data;
+  }
+
+  async testConnection(type: string, config: any): Promise<any> {
+    const response = await this.request('/admin/settings/test-connection/', {
+      method: 'POST',
+      body: JSON.stringify({ type, config })
+    });
     return response.data;
   }
 }

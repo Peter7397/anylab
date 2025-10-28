@@ -13,7 +13,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from datetime import datetime, timedelta
 
-from ..models import DocumentFile, UploadedFile, QueryHistory, UserRole
+from ..models import DocumentFile, UploadedFile, QueryHistory
+from ..user_contribution_dashboard import UserRole
 from ..contribution_analytics_system import ContributionAnalyticsSystem
 from ..user_behavior_tracking import UserBehaviorTracking
 from .base_views import (

@@ -6,6 +6,7 @@ import Login from './components/Auth/Login';
 import UsersRoles from './components/Administration/UsersRoles';
 import License from './components/Administration/License';
 import Analytics from './components/Administration/Analytics';
+import SystemSettings from './components/Administration/SystemSettings';
 import ChatAssistant from './components/AI/ChatAssistant';
 import KnowledgeLibrary from './components/AI/KnowledgeLibrary';
 import DocumentViewerPage from './components/AI/DocumentViewerPage';
@@ -22,6 +23,7 @@ import SSBDatabase from './components/AI/SSBDatabase';
 import SystemOverview from './components/Troubleshooting/SystemOverview';
 import LogCollection from './components/Troubleshooting/LogCollection';
 import ProductDocumentGrid from './components/Products/ProductDocumentGrid';
+import HelpPortal from './components/AI/HelpPortal';
 
 function App() {
         return (
@@ -48,6 +50,7 @@ function App() {
                         <Route path="/ai/knowledge/viewer" element={<DocumentViewerPage />} />
                         <Route path="/ai/knowledge/manager" element={<DocumentManagerPage />} />
                         <Route path="/ai/knowledge/ssb" element={<SSBDatabase />} />
+                        <Route path="/ai/knowledge/help-portal" element={<HelpPortal />} />
                         <Route path="/ai/knowledge/links" element={<UsefulLinksPage />} />
                         <Route path="/ai/knowledge/sharing" element={<SharingCollaborationPage />} />
 
@@ -62,6 +65,7 @@ function App() {
                         <Route path="/admin/users" element={<UsersRoles />} />
                         <Route path="/admin/analytics" element={<Analytics />} />
                         <Route path="/admin/licenses" element={<License />} />
+                        <Route path="/admin/settings" element={<SystemSettings />} />
 
                                         {/* Product Documentation */}
                                 <Route path="/lab-informatics/:suite/:product" element={<ProductDocumentGrid />} />

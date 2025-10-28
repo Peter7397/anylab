@@ -68,8 +68,8 @@ class FileValidationResult(Enum):
 @dataclass
 class FileUploadConfig:
     """File upload configuration"""
-    max_file_size: int = 100 * 1024 * 1024  # 100MB
-    max_total_size: int = 1024 * 1024 * 1024  # 1GB
+    max_file_size: int = 500 * 1024 * 1024  # 500MB - increased for large manuals and documents
+    max_total_size: int = 5 * 1024 * 1024 * 1024  # 5GB
     allowed_extensions: List[str] = field(default_factory=lambda: [
         '.pdf', '.doc', '.docx', '.txt', '.rtf',
         '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg',

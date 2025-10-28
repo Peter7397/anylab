@@ -19,6 +19,7 @@ import hashlib
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
+from django.core.files.base import ContentFile
 
 from .metadata_schema import OrganizationMode, DocumentType, SeverityLevel, DualModeMetadata
 from .models import DocumentFile, DocumentChunk, UploadedFile
@@ -765,17 +766,27 @@ class SSBProcessor:
                 'keywords': self._extract_keywords(ssb_entry)
             }
             
+            # Create HTML file from HTML content
+            html_filename = f"SSB_{ssb_entry.kpr_number}.html"
+            try:
+                html_bytes = ssb_entry.html_content.encode('utf-8')
+                html_file = ContentFile(html_bytes, name=html_filename)
+                logger.info(f"Created HTML file for SSB {ssb_entry.kpr_number}, size: {len(html_bytes)} bytes")
+            except Exception as e:
+                logger.error(f"Error creating HTML file for SSB {ssb_entry.kpr_number}: {e}")
+                html_file = None
+            
             # Create document file
             document = DocumentFile.objects.create(
                 title=f"SSB {ssb_entry.kpr_number}: {ssb_entry.title}",
-                filename=f"SSB_{ssb_entry.kpr_number}.html",
-                file_type="HTML",
-                file_size=len(ssb_entry.html_content),
-                description=ssb_entry.description,
+                filename=html_filename,
+                file=html_file,  # Save the HTML file
                 document_type="SSB_KPR",
-                metadata=json.dumps(metadata),
+                description=ssb_entry.description,
+                metadata=metadata,  # Django JSONField stores dict directly
                 uploaded_by=None,  # System upload
                 page_count=1,
+                file_size=len(html_bytes) if html_file else 0,
                 created_at=ssb_entry.created_date,
                 updated_at=ssb_entry.updated_date
             )
@@ -798,8 +809,26 @@ class SSBProcessor:
             document.description = ssb_entry.description
             document.updated_at = ssb_entry.updated_date
             
+            # Update HTML file if it exists or create new one
+            html_filename = f"SSB_{ssb_entry.kpr_number}.html"
+            try:
+                html_bytes = ssb_entry.html_content.encode('utf-8')
+                html_file = ContentFile(html_bytes, name=html_filename)
+                
+                # Delete old file if it exists
+                if document.file:
+                    document.file.delete(save=False)
+                
+                # Save new file
+                document.file = html_file
+                document.file_size = len(html_bytes)
+                document.filename = html_filename
+                logger.info(f"Updated HTML file for SSB {ssb_entry.kpr_number}, size: {len(html_bytes)} bytes")
+            except Exception as e:
+                logger.error(f"Error updating HTML file for SSB {ssb_entry.kpr_number}: {e}")
+            
             # Update metadata
-            metadata = json.loads(document.metadata) if document.metadata else {}
+            metadata = json.loads(document.metadata) if isinstance(document.metadata, str) else document.metadata or {}
             metadata.update({
                 'kpr_number': ssb_entry.kpr_number,
                 'severity_level': ssb_entry.severity.value if ssb_entry.severity else 'medium',
@@ -812,7 +841,7 @@ class SSBProcessor:
                 'quality_score': self._calculate_quality_score(ssb_entry),
             })
             
-            document.metadata = json.dumps(metadata)
+            document.metadata = metadata  # Django JSONField stores dict directly
             document.save()
             
             # Update content chunks

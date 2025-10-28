@@ -144,6 +144,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom user model
 AUTH_USER_MODEL = 'users.User'
 
+# X-Frame-Options: Allow same-origin iframe embedding for document viewer
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
 # REST Framework settings
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -255,6 +258,12 @@ OLLAMA_SYSTEM_PROMPT = os.getenv('OLLAMA_SYSTEM_PROMPT', 'You are a helpful, exp
 # Cache TTL settings for AI responses
 EMBEDDING_CACHE_TTL = int(os.getenv('EMBEDDING_CACHE_TTL', '3600'))  # 1 hour
 RESPONSE_CACHE_TTL = int(os.getenv('RESPONSE_CACHE_TTL', '1800'))  # 30 minutes
+SEARCH_CACHE_TTL = int(os.getenv('SEARCH_CACHE_TTL', '3600'))  # 1 hour
+
+# File Processing Settings
+# Set to True to use Celery for async processing (recommended for production)
+# Set to False to use synchronous processing (faster for development)
+ENABLE_ASYNC_FILE_PROCESSING = os.getenv('ENABLE_ASYNC_FILE_PROCESSING', 'false').lower() == 'true'
 
 # Embedding Model Settings
 EMBEDDING_MODEL_NAME = os.getenv('EMBEDDING_MODEL_NAME', 'bge-m3:latest')

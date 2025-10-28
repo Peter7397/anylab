@@ -29,8 +29,8 @@ def _create_ssb_chunks(document_file: DocumentFile, file_content: str):
     try:
         from ai_assistant.services import EmbeddingService
         
-        # Split content into chunks (simple approach - 1000 chars per chunk)
-        chunk_size = 1000
+        # Split content into chunks (simple approach - 100 chars per chunk for better accuracy)
+        chunk_size = 100
         chunks = []
         for i in range(0, len(file_content), chunk_size):
             chunk_text = file_content[i:i+chunk_size]

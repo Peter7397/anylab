@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from .models import (
     PDFDocument, WebLink, KnowledgeShare, 
-    UploadedFile, DocumentChunk, DocumentFile, QueryHistory
+    UploadedFile, DocumentChunk, DocumentFile, QueryHistory,
+    HelpPortalDocument
 )
 
 
@@ -135,7 +136,11 @@ class DocumentSerializer(serializers.ModelSerializer):
         if obj.file:
             request = self.context.get('request')
             if request:
-                return request.build_absolute_uri(obj.file.url)
+                # For SSB_KPR documents (MHTML), use the HTML view endpoint
+                if obj.document_type == 'SSB_KPR':
+                    return request.build_absolute_uri(f'/api/ai/documents/{obj.id}/html/')
+                else:
+                    return request.build_absolute_uri(obj.file.url)
         return None
 
 
@@ -144,3 +149,37 @@ class QueryHistorySerializer(serializers.ModelSerializer):
         model = QueryHistory
         fields = '__all__'
         read_only_fields = ('created_at', 'user')
+
+
+class HelpPortalDocumentSerializer(serializers.ModelSerializer):
+    """Serializer for Help Portal Document model"""
+    
+    file_size_mb = serializers.SerializerMethodField()
+    discovered_date = serializers.SerializerMethodField()
+    processed_date = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    
+    class Meta:
+        model = HelpPortalDocument
+        fields = [
+            'id', 'filename', 'file_path', 'file_size', 'file_size_mb', 'file_hash',
+            'category', 'category_display', 'document_type', 'version',
+            'status', 'status_display', 'chunk_count', 'error_message',
+            'discovered_at', 'discovered_date', 'processed_at', 'processed_date',
+            'metadata'
+        ]
+        read_only_fields = [
+            'id', 'file_hash', 'chunk_count', 'discovered_at', 'processed_at'
+        ]
+    
+    def get_file_size_mb(self, obj):
+        if obj.file_size:
+            return f"{obj.file_size / (1024*1024):.2f} MB"
+        return "0 MB"
+    
+    def get_discovered_date(self, obj):
+        return obj.discovered_at.strftime("%Y-%m-%d %H:%M:%S") if obj.discovered_at else ""
+    
+    def get_processed_date(self, obj):
+        return obj.processed_at.strftime("%Y-%m-%d %H:%M:%S") if obj.processed_at else ""

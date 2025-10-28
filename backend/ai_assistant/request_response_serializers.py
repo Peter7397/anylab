@@ -75,9 +75,9 @@ class DocumentUploadRequestSerializer(serializers.Serializer):
         if not isinstance(value, InMemoryUploadedFile):
             raise serializers.ValidationError("Invalid file type")
         
-        # Check file size (max 100MB)
-        if value.size > 100 * 1024 * 1024:
-            raise serializers.ValidationError("File size must be less than 100MB")
+        # Check file size (max 500MB to allow large manuals and documents)
+        if value.size > 500 * 1024 * 1024:
+            raise serializers.ValidationError("File size must be less than 500MB")
         
         # Check file extension
         allowed_extensions = ['.pdf', '.txt', '.doc', '.docx', '.html', '.htm']

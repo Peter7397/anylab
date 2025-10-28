@@ -15,8 +15,15 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from ..models import DocumentFile, UploadedFile, DocumentChunk
-from ..video_transcript_extractor import VideoTranscriptExtractor
-from ..image_ocr_processor import ImageOCRProcessor
+try:
+    from ..video_transcript_extractor import VideoTranscriptExtractor
+    from ..image_ocr_processor import ImageOCRProcessor
+    VIDEO_PROCESSING_AVAILABLE = True
+except ImportError:
+    VIDEO_PROCESSING_AVAILABLE = False
+    VideoTranscriptExtractor = None
+    ImageOCRProcessor = None
+
 from .base_views import (
     BaseViewMixin, success_response, error_response, bad_request_response
 )
@@ -24,14 +31,21 @@ from .base_views import (
 logger = logging.getLogger(__name__)
 
 # Initialize processors
-video_processor = VideoTranscriptExtractor()
-image_processor = ImageOCRProcessor()
+if VIDEO_PROCESSING_AVAILABLE:
+    video_processor = VideoTranscriptExtractor()
+    image_processor = ImageOCRProcessor()
+else:
+    video_processor = None
+    image_processor = None
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def process_video(request):
     """Extract transcript from video file"""
+    if not VIDEO_PROCESSING_AVAILABLE:
+        return error_response('Video processing is not available. Install librosa and whisper.')
+    
     try:
         BaseViewMixin.log_request(request, 'process_video')
         
@@ -50,6 +64,8 @@ def process_video(request):
         try:
             # Extract transcript
             logger.info(f"Processing video: {file_path}")
+            if not video_processor:
+                return error_response('Video processor not initialized')
             transcript_result = video_processor.extract_transcript(file_path)
             
             if not transcript_result or not transcript_result.segments:
@@ -108,6 +124,9 @@ def process_video(request):
 @permission_classes([IsAuthenticated])
 def process_image(request):
     """Extract text from image using OCR"""
+    if not VIDEO_PROCESSING_AVAILABLE:
+        return error_response('Image processing is not available. Install required dependencies.')
+    
     try:
         BaseViewMixin.log_request(request, 'process_image')
         
@@ -122,6 +141,9 @@ def process_image(request):
         fs = FileSystemStorage()
         filename = fs.save(f'images/{image_file.name}', image_file)
         file_path = os.path.join(settings.MEDIA_ROOT, filename)
+        
+        if not image_processor:
+            return error_response('Image processor not initialized')
         
         try:
             # Process image with OCR

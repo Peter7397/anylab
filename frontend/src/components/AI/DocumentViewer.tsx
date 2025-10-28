@@ -6,7 +6,7 @@ import { Download, FileText, Search, ZoomIn, ZoomOut, RotateCcw } from 'lucide-r
 // Use worker from public/ to avoid dynamic import issues
 GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
-type DocType = 'pdf' | 'docx' | 'txt' | 'xls' | 'xlsx' | 'ppt' | 'pptx';
+type DocType = 'pdf' | 'docx' | 'txt' | 'xls' | 'xlsx' | 'ppt' | 'pptx' | 'html';
 
 interface DocumentViewerProps {
   title: string;
@@ -721,6 +721,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         {!error && docType === 'txt' && (
           <TxtRenderer url={url} />
         )}
+        {!error && docType === 'html' && (
+          <HtmlRenderer url={url} />
+        )}
         {!error && (docType === 'xls' || docType === 'xlsx') && (
           <XlsRenderer url={url} />
         )}
@@ -941,22 +944,38 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
     return () => { cancelled = true; };
   }, [url]);
 
+  // Update search results count when search query or text changes
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults(0);
+      return;
+    }
+
+    try {
+      const regex = new RegExp(`(${searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      const matches = text.match(regex);
+      setSearchResults(matches ? matches.length : 0);
+    } catch (e) {
+      setSearchResults(0);
+    }
+  }, [searchQuery, text]);
+
   const getHighlightedText = (text: string, query: string) => {
     if (!query.trim()) {
-      setSearchResults(0);
       return text;
     }
 
-    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    const matches = text.match(regex);
-    setSearchResults(matches ? matches.length : 0);
-
-    return text.split(regex).map((part, index) => {
-      if (part.toLowerCase() === query.toLowerCase()) {
-        return `<mark class="bg-yellow-300 px-1 rounded">${part}</mark>`;
-      }
-      return part;
-    }).join('');
+    try {
+      const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      return text.split(regex).map((part, index) => {
+        if (part.toLowerCase() === query.toLowerCase()) {
+          return `<mark class="bg-yellow-300 px-1 rounded">${part}</mark>`;
+        }
+        return part;
+      }).join('');
+    } catch (e) {
+      return text;
+    }
   };
 
   const downloadTxt = async () => {
@@ -1021,6 +1040,77 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
           dangerouslySetInnerHTML={{ 
             __html: getHighlightedText(text, searchQuery) 
           }}
+        />
+      </div>
+    </div>
+  );
+};
+
+const HtmlRenderer: React.FC<{ url: string }> = ({ url }) => {
+  const [error, setError] = useState<string | null>(null);
+
+  const handleIframeError = () => {
+    setError('Failed to load HTML content');
+  };
+
+  const downloadHtml = async () => {
+    try {
+      const headers: Record<string, string> = {};
+      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+      if (token) headers.Authorization = `Bearer ${token}`;
+      
+      const res = await fetch(url, { headers });
+      const blob = await res.blob();
+      const filename = url.split('/').pop() || 'document.html';
+      saveAs(blob, filename);
+    } catch (e: any) {
+      console.error('Download failed:', e);
+    }
+  };
+
+  if (error) {
+    return (
+      <div className="p-6 text-red-600">
+        <p>{error}</p>
+        <button
+          onClick={() => setError(null)}
+          className="mt-2 px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between p-4 border-b bg-gray-50">
+        <div className="flex items-center space-x-4">
+          <FileText size={20} className="text-gray-600" />
+          <span className="text-sm font-medium text-gray-700">HTML Document</span>
+        </div>
+        
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={downloadHtml}
+            className="flex items-center space-x-1 px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            <Download size={16} />
+            <span>Download</span>
+          </button>
+        </div>
+      </div>
+
+      {/* HTML content in iframe */}
+      <div className="flex-1 overflow-hidden">
+        <iframe
+          src={url}
+          className="w-full h-full border-0"
+          sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+          title="HTML Document"
+          onError={handleIframeError}
+          onLoad={() => setError(null)}
         />
       </div>
     </div>

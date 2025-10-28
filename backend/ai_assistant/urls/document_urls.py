@@ -10,7 +10,7 @@ from ..views import (
     get_search_analytics, documents, document_download, document_delete,
     document_search, pdf_view, pdf_download, pdf_delete, pdf_search,
     upload_document_enhanced, pdf_documents, upload_pdf_enhanced,
-    extract_documents_metadata
+    extract_documents_metadata, document_html_view
 )
 
 urlpatterns = [
@@ -21,6 +21,7 @@ urlpatterns = [
     path('extract-metadata/', extract_documents_metadata, name='documents_extract_metadata'),
     path('<int:doc_id>/download/', document_download, name='documents_download'),
     path('<int:doc_id>/delete/', document_delete, name='documents_delete'),
+    path('<int:doc_id>/html/', document_html_view, name='documents_html_view'),
     path('search/', document_search, name='documents_search'),
     
     # PDF management endpoints

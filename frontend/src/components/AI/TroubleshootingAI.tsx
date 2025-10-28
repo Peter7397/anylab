@@ -16,7 +16,7 @@ import {
 import { apiClient } from '../../services/api';
 
 interface TroubleshootingAIProps {
-  onOpenInViewer?: (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx' }) => void;
+  onOpenInViewer?: (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html' }) => void;
 }
 
 interface Message {
