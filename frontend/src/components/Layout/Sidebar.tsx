@@ -52,6 +52,30 @@ const generalAgilentNavigation = [
                 icon: Home,
         },
         {
+                name: 'Knowledge Library',
+                href: '/ai/knowledge',
+                icon: Library,
+                children: [
+                        { name: 'Library Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
+                        { name: 'Product Manuals', href: '/ai/knowledge/manuals', icon: FileText },
+                        { name: 'Technical Specs', href: '/ai/knowledge/specs', icon: FileText },
+                        { name: 'Community Solutions', href: '/ai/knowledge/community', icon: Users },
+                        { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
+                ],
+        },
+        {
+                name: 'AI Assistant',
+                href: '/ai/chat',
+                icon: MessageSquare,
+                children: [
+                        { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
+                        { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
+                        { name: 'Advanced RAG', href: '/ai/rag', icon: Search },
+                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Brain },
+                        { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
+                ],
+        },
+        {
                 name: 'Gas Chromatography',
                 href: '/products/gc',
                 icon: FlaskConical,
@@ -104,29 +128,6 @@ const generalAgilentNavigation = [
                 ],
         },
         {
-                name: 'Knowledge Library',
-                href: '/ai/knowledge',
-                icon: Library,
-                children: [
-                        { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
-                        { name: 'Document Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
-                        { name: 'Product Manuals', href: '/ai/knowledge/manuals', icon: FileText },
-                        { name: 'Technical Specs', href: '/ai/knowledge/specs', icon: FileText },
-                ],
-        },
-        {
-                name: 'AI Assistant',
-                href: '/ai/chat',
-                icon: MessageSquare,
-                children: [
-                        { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
-                        { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
-                        { name: 'Advanced RAG', href: '/ai/rag', icon: Search },
-                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Brain },
-                        { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
-                ],
-        },
-        {
                 name: 'Administration',
                 href: '/admin/users',
                 icon: Settings,
@@ -142,6 +143,30 @@ const labInformaticsNavigation = [
                 name: 'Dashboard',
                 href: '/',
                 icon: Home,
+        },
+        {
+                name: 'Knowledge Library',
+                href: '/ai/knowledge',
+                icon: Library,
+                children: [
+                        { name: 'Library Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
+                        { name: 'SSB Database', href: '/ai/knowledge/ssb', icon: Database },
+                        { name: 'Help Portal', href: '/ai/knowledge/help-portal', icon: Globe },
+                        { name: 'Community Solutions', href: '/ai/knowledge/community', icon: Users },
+                        { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
+                ],
+        },
+        {
+                name: 'AI Assistant',
+                href: '/ai/chat',
+                icon: MessageSquare,
+                children: [
+                        { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
+                        { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
+                        { name: 'Advanced RAG', href: '/ai/rag', icon: Search },
+                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Brain },
+                        { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
+                ],
         },
         {
                 name: 'OpenLab Software Suite',
@@ -186,30 +211,6 @@ const labInformaticsNavigation = [
                         { name: 'Error Codes', href: '/troubleshooting/error-codes', icon: FileSearch },
                         { name: 'KPR Database', href: '/troubleshooting/kpr', icon: Database },
                         { name: 'Solution Finder', href: '/troubleshooting/solutions', icon: Search },
-                ],
-        },
-        {
-                name: 'Knowledge Library',
-                href: '/ai/knowledge',
-                icon: Library,
-                children: [
-                        { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
-                        { name: 'Document Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
-                        { name: 'SSB Database', href: '/ai/knowledge/ssb', icon: Database },
-                        { name: 'Help Portal', href: '/ai/knowledge/help-portal', icon: Globe },
-                        { name: 'Community Solutions', href: '/ai/knowledge/community', icon: Users },
-                ],
-        },
-        {
-                name: 'AI Assistant',
-                href: '/ai/chat',
-                icon: MessageSquare,
-                children: [
-                        { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
-                        { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
-                        { name: 'Advanced RAG', href: '/ai/rag', icon: Search },
-                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Brain },
-                        { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
         },
         {

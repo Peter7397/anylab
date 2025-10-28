@@ -73,6 +73,17 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
           })}
         </div>
 
+        {/* Persistent AI Assistant Button */}
+        <div className="flex items-center">
+          <button
+            onClick={() => navigate('/ai/chat')}
+            className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+            title="Open AI Assistant"
+          >
+            AI Assistant
+          </button>
+        </div>
+
         {/* AI Mode Toggle and User Menu */}
         <div className="flex items-center space-x-4">
           {/* AI Mode Toggle */}

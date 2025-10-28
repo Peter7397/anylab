@@ -13,7 +13,7 @@ const DocumentManagerPage: React.FC = () => {
               <FolderOpen className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Document Manager</h1>
+              <h1 className="text-xl font-semibold text-gray-900">Library Manager</h1>
               <p className="text-sm text-gray-500">Upload, organize, and manage your knowledge base documents</p>
             </div>
           </div>

@@ -1037,18 +1037,18 @@ class ApiClient {
 
   // Dashboard API
   async getDashboardStats(): Promise<any> {
-    const response = await this.request('/dashboard/stats/');
+    const response = await this.request('/ai/dashboard/stats/');
     return response.data;
   }
 
   // System Settings API
   async getSystemSettings(): Promise<any> {
-    const response = await this.request('/admin/settings/');
+    const response = await this.request('/ai/admin/settings/');
     return response.data;
   }
 
   async testConnection(type: string, config: any): Promise<any> {
-    const response = await this.request('/admin/settings/test-connection/', {
+    const response = await this.request('/ai/admin/settings/test-connection/', {
       method: 'POST',
       body: JSON.stringify({ type, config })
     });

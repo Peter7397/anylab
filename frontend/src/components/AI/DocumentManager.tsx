@@ -714,25 +714,6 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         </div>
       </div>
 
-      {/* Auto-Extract Button - Standalone */}
-      <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-purple-900 mb-1">Auto-Extract Metadata</h3>
-            <p className="text-xs text-purple-700">Automatically detect product, content type, and version from existing documents</p>
-          </div>
-          <button
-            onClick={handleExtractMetadata}
-            disabled={extracting}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-            title="Automatically extract product/content/version from existing documents"
-          >
-            <Wand2 size={18} />
-            {extracting ? 'Extracting...' : 'Extract Now'}
-          </button>
-        </div>
-      </div>
-
       {/* Search Bar */}
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
         <div className="flex gap-4 items-end">

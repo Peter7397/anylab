@@ -62,30 +62,7 @@ const Dashboard: React.FC = () => {
     { name: 'Pending Maintenance', value: '5', icon: Clock, change: '+2', changeType: 'neutral' },
   ];
 
-  const recentActivity = [
-    { id: '1', type: 'scan', message: 'System scan completed', time: '2 minutes ago', status: 'success' },
-    { id: '2', type: 'alert', message: 'High CPU usage detected on LAB-SERVER-01', time: '15 minutes ago', status: 'warning' },
-    { id: '3', type: 'maintenance', message: 'Scheduled maintenance completed', time: '1 hour ago', status: 'success' },
-    { id: '4', type: 'ai', message: 'AI analysis completed for 15 log files', time: '2 hours ago', status: 'success' },
-  ];
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'status-ok';
-      case 'warning': return 'status-warning';
-      case 'offline': return 'status-critical';
-      default: return 'status-ok';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'online': return 'Online';
-      case 'warning': return 'Warning';
-      case 'offline': return 'Offline';
-      default: return 'Unknown';
-    }
-  };
 
   if (loading && !stats) {
     return (
@@ -207,29 +184,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
-            <button className="text-sm text-primary-600 hover:text-primary-700">
-              View All
-            </button>
-          </div>
-          <div className="space-y-3">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-start space-x-3">
-                <div className={`w-2 h-2 rounded-full mt-2 ${
-                  activity.status === 'success' ? 'bg-success-500' :
-                  activity.status === 'warning' ? 'bg-warning-500' : 'bg-danger-500'
-                }`} />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-900">{activity.message}</p>
-                  <p className="text-xs text-gray-500">{activity.time}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Quick Actions */}

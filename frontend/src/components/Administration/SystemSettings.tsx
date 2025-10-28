@@ -19,7 +19,7 @@ const SystemSettings: React.FC = () => {
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState<string | null>(null);
-  const [testResults, setTestResults] = useState<any>({});
+  const [testResults, setTestResults] = useState<Record<string, any>>({});
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
@@ -40,13 +40,13 @@ const SystemSettings: React.FC = () => {
 
   const testConnection = async (type: 'ollama' | 'redis') => {
     setTesting(type);
-    setTestResults(prev => ({ ...prev, [type]: null }));
+    setTestResults((prev: Record<string, any>) => ({ ...prev, [type]: null }));
     try {
       const result = await apiClient.testConnection(type, settings?.rag || settings?.cache || {});
-      setTestResults(prev => ({ ...prev, [type]: result }));
+      setTestResults((prev: Record<string, any>) => ({ ...prev, [type]: result }));
       setMessage({ type: result.ok ? 'success' : 'error', text: result.ok ? 'Connection successful' : result.error });
     } catch (error: any) {
-      setTestResults(prev => ({ ...prev, [type]: { ok: false, error: error.message } }));
+      setTestResults((prev: Record<string, any>) => ({ ...prev, [type]: { ok: false, error: error.message } }));
       setMessage({ type: 'error', text: 'Connection test failed' });
     } finally {
       setTesting(null);

@@ -65,7 +65,7 @@ function App() {
                         <Route path="/admin/users" element={<UsersRoles />} />
                         <Route path="/admin/analytics" element={<Analytics />} />
                         <Route path="/admin/licenses" element={<License />} />
-                        <Route path="/admin/settings" element={<SystemSettings />} />
+                        <Route path="/admin/system" element={<SystemSettings />} />
 
                                         {/* Product Documentation */}
                                 <Route path="/lab-informatics/:suite/:product" element={<ProductDocumentGrid />} />

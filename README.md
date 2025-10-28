@@ -205,10 +205,10 @@ For support and questions:
 
 ## 🔄 Version History
 
-- **v1.0.0** - Initial release with core features
-- **v1.1.0** - Enhanced RAG system and monitoring
-- **v1.2.0** - UI improvements and performance optimizations
-- **v1.3.0** - **CURRENT** - Fully functional RAG system with multiple search modes
+- **v1.0.0 (build 1)** - CURRENT - Initial release with core features
+- v1.1.0 - Enhanced RAG system and monitoring
+- v1.2.0 - UI improvements and performance optimizations
+- v1.3.0 - Fully functional RAG system with multiple search modes
 
 ---
 

@@ -34,6 +34,12 @@ urlpatterns = [
     
     # Help Portal endpoints
     path('help-portal/', include('ai_assistant.urls.help_portal_urls')),
+
+    # Dashboard endpoints
+    path('dashboard/', include('ai_assistant.urls.dashboard_urls')),
+
+    # Admin settings endpoints
+    path('admin/', include('ai_assistant.urls.admin_settings_urls')),
 ]
 
 # Optional endpoints (may fail if dependencies not installed)
