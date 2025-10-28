@@ -2,7 +2,11 @@
 
 ## Overview
 
-AnyLab0812 is a modern, full-stack laboratory management system that combines AI-powered document processing, system monitoring, and comprehensive laboratory operations management. Built with Django, React, and Docker, it provides a complete solution for laboratory environments.
+AnyLab0812 is a practical, end-to-end knowledge platform for labs. It helps teams centralize technical documents, search them with AI (RAG), and collaborate through a streamlined, modern web UI. Built with Django + PostgreSQL (pgvector) and React, it’s designed to run locally or on-prem—no external LLM dependency required—so your content stays in your environment.
+
+- **What it does**: Ingests PDFs and other artifacts, extracts and chunks content, builds embeddings, and enables fast, accurate retrieval/QA.
+- **Why it matters**: Reduces time spent searching manuals, policies, and SOPs; improves consistency and onboarding; raises confidence in answers.
+- **How it’s used**: Upload content, manage it in the Knowledge Library, then use RAG search or the AI Assistant to ask questions with traceable sources.
 
 **Slogan: AI Next to Your Lab**
 
