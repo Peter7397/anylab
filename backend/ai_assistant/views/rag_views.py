@@ -283,7 +283,8 @@ def upload_document_enhanced(request):
                 metadata=metadata,  # Django JSONField can store dict directly
                 uploaded_by=request.user,
                 page_count=result['data'].get('page_count', 1),
-                file_size=file.size
+                file_size=file.size,
+                uploaded_file=uploaded_file  # Link to UploadedFile for processing status tracking
             )
             
             # Link all chunks from UploadedFile to DocumentFile
@@ -296,6 +297,7 @@ def upload_document_enhanced(request):
             
             result['data']['document_id'] = document_file.id
             result['data']['metadata'] = metadata
+            result['data']['uploaded_file_id'] = uploaded_file.id if uploaded_file else None
             
             BaseViewMixin.log_response(result['data'], 'upload_document_enhanced')
             return success_response(result['message'], result['data'])
@@ -305,6 +307,39 @@ def upload_document_enhanced(request):
         
     except Exception as e:
         return BaseViewMixin.handle_error(e, 'upload_document_enhanced')
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def retry_file_processing(request, file_id):
+    """Retry background processing for an UploadedFile"""
+    try:
+        BaseViewMixin.log_request(request, 'retry_file_processing')
+        uploaded_file = UploadedFile.objects.get(id=file_id)
+        # reset state
+        uploaded_file.processing_status = 'pending'
+        uploaded_file.processing_error = None
+        uploaded_file.metadata_extracted = False
+        uploaded_file.chunks_created = False
+        uploaded_file.embeddings_created = False
+        uploaded_file.chunk_count = 0
+        uploaded_file.embedding_count = 0
+        uploaded_file.processing_started_at = None
+        uploaded_file.processing_completed_at = None
+        uploaded_file.save()
+
+        # enqueue
+        from ..tasks import process_file_automatically
+        process_file_automatically.delay(uploaded_file.id)
+
+        return success_response('Retry scheduled', {
+            'uploaded_file_id': uploaded_file.id,
+            'status': uploaded_file.processing_status
+        })
+    except UploadedFile.DoesNotExist:
+        return bad_request_response('Uploaded file not found')
+    except Exception as e:
+        return BaseViewMixin.handle_error(e, 'retry_file_processing')
 
 
 @api_view(['POST'])
@@ -429,14 +464,27 @@ def document_download(request, doc_id):
     """Download a document"""
     try:
         BaseViewMixin.log_request(request, 'document_download')
+        import os
         
         doc = DocumentFile.objects.get(id=doc_id)
-        if doc.file:
+        
+        # Try DocumentFile.file field first (legacy documents)
+        if doc.file and hasattr(doc.file, 'path') and os.path.exists(doc.file.path):
             from django.http import FileResponse
-            import os
             return FileResponse(open(doc.file.path, 'rb'))
-        else:
-            return error_response("File not found")
+        
+        # For uploaded documents, file is stored via UploadedFile in media/uploads/
+        if hasattr(doc, 'uploaded_file') and doc.uploaded_file:
+            from django.http import FileResponse
+            from django.conf import settings
+            
+            # uploaded_file.filename is stored as 'uploads/filename.ext'
+            file_path = os.path.join(settings.MEDIA_ROOT, doc.uploaded_file.filename)
+            
+            if os.path.exists(file_path):
+                return FileResponse(open(file_path, 'rb'))
+        
+        return error_response("File not found")
         
     except DocumentFile.DoesNotExist:
         return error_response("Document not found")
@@ -468,10 +516,21 @@ def document_delete(request, doc_id):
                 chunks_via_uf.delete()
         
         # Delete file if exists
+        file_deleted = False
+        
+        # Try DocumentFile.file field first (legacy documents)
         if doc.file and hasattr(doc.file, 'path'):
-            import os
             if os.path.exists(doc.file.path):
                 os.remove(doc.file.path)
+                file_deleted = True
+        
+        # For uploaded documents, file is stored via UploadedFile in media/uploads/
+        if not file_deleted and hasattr(doc, 'uploaded_file') and doc.uploaded_file:
+            from django.conf import settings
+            file_path = os.path.join(settings.MEDIA_ROOT, doc.uploaded_file.filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                file_deleted = True
         
         doc.delete()
         
@@ -693,4 +752,65 @@ def document_html_view(request, doc_id):
     except Exception as e:
         logger.error(f"Error serving document HTML: {e}")
         raise Http404("Error processing document")
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_file_processing_status(request, file_id):
+    """
+    Get processing status for a specific uploaded file
+    
+    Returns detailed processing status including:
+    - Current processing stage
+    - Completion flags (metadata, chunks, embeddings)
+    - Progress metrics (chunk_count, embedding_count)
+    - Error messages if failed
+    - Timestamps
+    """
+    try:
+        uploaded_file = UploadedFile.objects.get(id=file_id)
+        
+        # Check if user has permission (optional: verify ownership)
+        # if uploaded_file.uploaded_by != request.user:
+        #     return unauthorized_response('You do not have permission to view this file')
+        
+        status_data = {
+            'id': uploaded_file.id,
+            'filename': uploaded_file.filename,
+            'file_size': uploaded_file.file_size,
+            'processing_status': uploaded_file.processing_status,
+            'metadata_extracted': uploaded_file.metadata_extracted,
+            'chunks_created': uploaded_file.chunks_created,
+            'embeddings_created': uploaded_file.embeddings_created,
+            'chunk_count': uploaded_file.chunk_count,
+            'embedding_count': uploaded_file.embedding_count,
+            'is_ready': uploaded_file.is_ready_for_search(),
+            'processing_error': uploaded_file.processing_error,
+            'uploaded_at': uploaded_file.uploaded_at.isoformat() if uploaded_file.uploaded_at else None,
+            'processing_started_at': uploaded_file.processing_started_at.isoformat() if uploaded_file.processing_started_at else None,
+            'processing_completed_at': uploaded_file.processing_completed_at.isoformat() if uploaded_file.processing_completed_at else None,
+        }
+        
+        # Calculate progress percentage if processing
+        if uploaded_file.processing_status in ['metadata_extracting', 'chunking', 'embedding']:
+            stages_complete = sum([
+                uploaded_file.metadata_extracted,
+                uploaded_file.chunks_created,
+                uploaded_file.embeddings_created
+            ])
+            status_data['progress_percentage'] = round((stages_complete / 3) * 100, 2)
+        elif uploaded_file.processing_status == 'ready':
+            status_data['progress_percentage'] = 100
+        elif uploaded_file.processing_status == 'failed':
+            status_data['progress_percentage'] = 0
+        else:
+            status_data['progress_percentage'] = 0
+        
+        return success_response("File status retrieved", status_data)
+        
+    except UploadedFile.DoesNotExist:
+        return error_response('File not found')
+    except Exception as e:
+        logger.error(f"Error getting file status: {e}")
+        return BaseViewMixin.handle_error(e, 'get_file_processing_status')
 

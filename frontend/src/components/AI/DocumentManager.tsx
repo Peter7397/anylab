@@ -44,6 +44,12 @@ interface DocumentFile {
   product_category?: string;
   content_type?: string;
   processing_status?: string;
+  metadata?: {
+    product_category?: string;
+    content_type?: string;
+    version?: string;
+    [key: string]: any;
+  };
 }
 
 interface DocumentSearchParams {
@@ -109,6 +115,11 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [bulkResults, setBulkResults] = useState<any>(null);
   const [selectedFolder, setSelectedFolder] = useState('');
+  const [uploadSource, setUploadSource] = useState<'server' | 'browser'>('browser');
+  
+  // NEW: File type filtering state
+  const [enabledFileTypes, setEnabledFileTypes] = useState<Set<string>>(new Set(['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx', 'html', 'mhtml']));
+  const [filteredOutFiles, setFilteredOutFiles] = useState<File[]>([]);
   
   // NEW: Progress tracking state
   const [importStatus, setImportStatus] = useState<any>(null);
@@ -218,6 +229,62 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     const type = documentTypes.find(t => t.value === documentType);
     return type ? type.extensions.join(',') : '.pdf';
   };
+
+  // NEW: Render processing status badge
+  const renderStatusBadge = (status?: any) => {
+    if (!status) return null;
+    const statusValue: string | undefined = typeof status === 'string' ? status : status?.status;
+    if (!statusValue) return null;
+    const base = 'px-2 py-0.5 text-xs rounded-full';
+    const map: Record<string, string> = {
+      ready: 'bg-green-100 text-green-800',
+      failed: 'bg-red-100 text-red-800',
+      pending: 'bg-yellow-100 text-yellow-800',
+      metadata_extracting: 'bg-indigo-100 text-indigo-800',
+      chunking: 'bg-blue-100 text-blue-800',
+      embedding: 'bg-purple-100 text-purple-800',
+    };
+    const cls = map[statusValue] || 'bg-gray-100 text-gray-800';
+    const label = String(statusValue).replace('_', ' ');
+    return (
+      <span className={`${base} ${cls}`} title={`Processing status: ${label}`}>
+        {label}
+      </span>
+    );
+  };
+
+  // NEW: Render truncation warning badge
+  const renderTruncationWarning = (status?: any) => {
+    if (!status || typeof status !== 'object') return null;
+    const isTruncated = status.is_truncated;
+    const coverage = status.processing_coverage;
+    
+    if (!isTruncated) return null;
+    
+    return (
+      <span 
+        className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-800 flex items-center gap-1"
+        title={`Document was truncated due to size limits. Only ${coverage?.toFixed(1)}% was processed. Consider splitting into smaller files.`}
+      >
+        <span>⚠️</span>
+        <span>Truncated ({coverage?.toFixed(0)}%)</span>
+      </span>
+    );
+  };
+
+  // NEW: Auto-poll documents list while any are processing
+  useEffect(() => {
+    const hasActive = documents.some(d => {
+      const ps: any = (d as any).processing_status;
+      const sVal: string | undefined = typeof ps === 'string' ? ps : ps?.status;
+      return sVal && sVal !== 'ready' && sVal !== 'failed';
+    });
+    if (!hasActive) return;
+    const interval = setInterval(() => {
+      loadDocuments();
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [documents]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -501,13 +568,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   };
 
   const handleEditMetadata = (doc: DocumentFile) => {
-    // Fetch document metadata and populate edit form
-    // For now, just open modal with doc info
+    // Populate edit form with existing metadata
     setSelectedDocument(doc);
     setEditMetadata({
-      product_category: '', // TODO: Fetch from doc.metadata
-      content_type: '',     // TODO: Fetch from doc.metadata
-      version: ''           // TODO: Fetch from doc.metadata
+      product_category: doc.metadata?.product_category || doc.product_category || '',
+      content_type: doc.metadata?.content_type || doc.content_type || '',
+      version: doc.metadata?.version || ''
     });
     setShowEditModal(true);
   };
@@ -559,6 +625,67 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     }
   };
 
+  // NEW: Handle folder selection from browser with file type filtering
+  const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const allFiles = Array.from(event.target.files || []);
+    if (allFiles.length === 0) return;
+
+    // Filter files based on enabled types
+    const validFiles: File[] = [];
+    const filteredOut: File[] = [];
+    
+    allFiles.forEach((file: File) => {
+      const extension = file.name.split('.').pop()?.toLowerCase() || '';
+      
+      // Check if this file type is enabled
+      let isAllowed = false;
+      for (const docType of documentTypes) {
+        if (enabledFileTypes.has(docType.value)) {
+          // Check if this file matches any enabled type's extensions
+          const matches = docType.extensions.some(ext => extension === ext.replace('.', ''));
+          if (matches) {
+            isAllowed = true;
+            break;
+          }
+        }
+      }
+      
+      // Also check for .mhtml, .rtf, .md directly
+      if (['mhtml', 'html', 'htm', 'rtf', 'md'].includes(extension) && enabledFileTypes.has('mhtml')) {
+        isAllowed = true;
+      }
+      
+      if (isAllowed) {
+        validFiles.push(file);
+      } else {
+        filteredOut.push(file);
+      }
+    });
+    
+    // Store valid files
+    setSelectedFiles(validFiles);
+    setFilteredOutFiles(filteredOut);
+    
+    // Convert to bulkFiles format for display
+    const folderFiles = validFiles.map((file: File) => ({
+      path: (file as any).webkitRelativePath || file.name,
+      filename: file.name,
+      size: file.size
+    }));
+    
+    setBulkFiles(folderFiles);
+    
+    // Show appropriate message
+    if (filteredOut.length > 0) {
+      setError(
+        `${filteredOut.length} file(s) filtered out (type not selected). ` +
+        `${validFiles.length} file(s) ready to upload.`
+      );
+    } else {
+      setSuccess(`Selected ${validFiles.length} files from folder`);
+    }
+  };
+
   // NEW: Bulk import functions
   const handleScanFolder = async () => {
     if (!selectedFolder) {
@@ -582,6 +709,78 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       setError(err.message || 'Failed to scan folder');
     } finally {
       setBulkProcessing(false);
+    }
+  };
+
+  // NEW: Handle bulk import from browser folder
+  const handleBulkImportFromBrowser = async () => {
+    if (selectedFiles.length === 0) {
+      setError('Please select a folder first');
+      return;
+    }
+
+    setBulkProcessing(true);
+    setJobMonitoring(true);
+    setError(null);
+
+    try {
+      // Upload files one by one
+      const uploadPromises = selectedFiles.map(async (file) => {
+        // Auto-detect document type from file extension
+        const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+        const documentType = documentTypes.find(t => t.extensions.includes(extension))?.value || 'pdf';
+        
+        // Auto-detect product category from filename
+        let product_category = '';
+        const filename = file.name.toLowerCase();
+        if (filename.includes('openlab')) product_category = 'openlab_cds';
+        else if (filename.includes('masshunter')) product_category = 'masshunter_workstation';
+        
+        return apiClient.uploadDocument(
+          file,
+          file.name.replace(/\.[^/.]+$/, ''), // Remove extension
+          `Bulk imported: ${file.name}`,
+          documentType,
+          product_category,
+          '', // content_type - will be auto-detected
+          ''  // version - will be auto-detected
+        );
+      });
+
+      // Track progress
+      let successCount = 0;
+      let failCount = 0;
+      
+      await Promise.all(uploadPromises.map(p => 
+        p.then(() => successCount++)
+          .catch(() => failCount++)
+      ));
+
+      setSuccess(`Upload completed! ${successCount} successful, ${failCount} failed`);
+      setBulkResults({
+        successful: successCount,
+        failed: failCount,
+        skipped: 0
+      });
+      
+      // Reload documents
+      loadDocuments();
+      
+      // Reset state after 3 seconds
+      setTimeout(() => {
+        setJobMonitoring(false);
+        setBulkProcessing(false);
+        setShowBulkUploadModal(false);
+        setBulkFiles([]);
+        setSelectedFiles([]);
+        setBulkResults(null);
+        setSelectedFolder('');
+      }, 3000);
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to upload files');
+      setBulkProcessing(false);
+      setJobMonitoring(false);
     }
   };
 
@@ -1018,6 +1217,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                         <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
                           {documentTypes.find(t => t.value === doc.document_type)?.label || doc.document_type}
                         </span>
+                        {renderStatusBadge((doc as any).processing_status)}
+                        {renderTruncationWarning((doc as any).processing_status)}
                       </div>
                       
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-3">
@@ -1054,6 +1255,31 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       >
                         <Eye size={18} />
                       </button>
+                      {(() => {
+                        const ps: any = (doc as any).processing_status;
+                        const sVal: string | undefined = typeof ps === 'string' ? ps : ps?.status;
+                        const ufId: number | undefined = (doc as any).uploaded_file_id;
+                        if (ufId && sVal === 'failed') {
+                          return (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await apiClient.retryFileProcessing(ufId);
+                                  setSuccess('Retry scheduled');
+                                  loadDocuments();
+                                } catch (e: any) {
+                                  setError(e?.message || 'Failed to retry');
+                                }
+                              }}
+                              className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                              title="Retry Processing"
+                            >
+                              <Wand2 size={18} />
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
                       <button
                         onClick={() => handleDownload(doc)}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
@@ -1355,28 +1581,145 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Folder Path
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={selectedFolder}
-                    onChange={(e) => setSelectedFolder(e.target.value)}
-                    placeholder="e.g., /path/to/documents"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                  <button
-                    onClick={handleScanFolder}
-                    disabled={bulkProcessing}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
-                  >
-                    <FolderOpen size={20} />
-                    {bulkProcessing ? 'Scanning...' : 'Scan Folder'}
-                  </button>
-                </div>
+              {/* Toggle between Browser and Server methods */}
+              <div className="flex gap-2 mb-4 border-b">
+                <button
+                  onClick={() => setUploadSource('browser')}
+                  className={`flex-1 px-4 py-2 rounded-t-lg ${
+                    uploadSource === 'browser'
+                      ? 'bg-green-100 text-green-700 font-semibold'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  } transition-colors`}
+                >
+                  🌐 Select from Browser
+                </button>
+                <button
+                  onClick={() => setUploadSource('server')}
+                  className={`flex-1 px-4 py-2 rounded-t-lg ${
+                    uploadSource === 'server'
+                      ? 'bg-green-100 text-green-700 font-semibold'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  } transition-colors`}
+                >
+                  💾 Server Folder Path
+                </button>
               </div>
+
+              {/* File Type Filter Selection */}
+              {uploadSource === 'browser' && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    📄 Select File Types to Include
+                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {documentTypes.map((docType) => {
+                      const IconComponent = docType.icon;
+                      const isEnabled = enabledFileTypes.has(docType.value);
+                      return (
+                        <button
+                          key={docType.value}
+                          onClick={() => {
+                            const newSet = new Set(enabledFileTypes);
+                            if (isEnabled) {
+                              newSet.delete(docType.value);
+                            } else {
+                              newSet.add(docType.value);
+                            }
+                            setEnabledFileTypes(newSet);
+                            // Re-filter files if already selected
+                            if (selectedFiles.length > 0) {
+                              handleFolderSelect({ target: { files: selectedFiles } } as any);
+                            }
+                          }}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                            isEnabled
+                              ? 'bg-blue-50 border-blue-500 text-blue-700'
+                              : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          <IconComponent size={16} />
+                          <span className="text-xs font-medium">{docType.label}</span>
+                        </button>
+                      );
+                    })}
+                    {/* HTML/MHTML toggle */}
+                    <button
+                      onClick={() => {
+                        const newSet = new Set(enabledFileTypes);
+                        const hasHtml = enabledFileTypes.has('mhtml');
+                        if (hasHtml) {
+                          newSet.delete('mhtml');
+                        } else {
+                          newSet.add('mhtml');
+                        }
+                        setEnabledFileTypes(newSet);
+                        if (selectedFiles.length > 0) {
+                          handleFolderSelect({ target: { files: selectedFiles } } as any);
+                        }
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
+                        enabledFileTypes.has('mhtml')
+                          ? 'bg-blue-50 border-blue-500 text-blue-700'
+                          : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <FileCode size={16} />
+                      <span className="text-xs font-medium">HTML/MHTML</span>
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Only files with selected types will be included in the upload
+                  </p>
+                </div>
+              )}
+
+              {/* Browser Folder Selection */}
+              {uploadSource === 'browser' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Folder from Your Computer
+                  </label>
+                  <input
+                    type="file"
+                    {...({ webkitdirectory: '' } as any)}
+                    multiple
+                    onChange={handleFolderSelect}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Choose a folder to upload all files from your local machine
+                  </p>
+                </div>
+              )}
+
+              {/* Server Folder Path (existing method) */}
+              {uploadSource === 'server' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Server Folder Path
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={selectedFolder}
+                      onChange={(e) => setSelectedFolder(e.target.value)}
+                      placeholder="e.g., /media/uploads/documents"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={handleScanFolder}
+                      disabled={bulkProcessing}
+                      className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      <FolderOpen size={20} />
+                      {bulkProcessing ? 'Scanning...' : 'Scan Folder'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter a server-side folder path to scan for files
+                  </p>
+                </div>
+              )}
 
               {/* NEW: Real-time Status Display */}
               {jobMonitoring && importStatus && (
@@ -1474,6 +1817,37 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 </div>
               )}
 
+              {/* Show Filtered Out Files */}
+              {uploadSource === 'browser' && filteredOutFiles.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Files Filtered Out ({filteredOutFiles.length})
+                    </label>
+                    <button
+                      onClick={() => setFilteredOutFiles([])}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <div className="border border-orange-200 rounded-lg max-h-40 overflow-y-auto bg-orange-50">
+                    <div className="p-2 space-y-1">
+                      {filteredOutFiles.map((file, idx) => {
+                        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+                        return (
+                          <div key={idx} className="text-xs text-orange-700 flex items-center gap-2">
+                            <span className="w-2 h-2 bg-orange-400 rounded-full"></span>
+                            <span>{file.name}</span>
+                            <span className="text-orange-500">(.{ext} not enabled)</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Enhanced Results with Error Reporting */}
               {bulkResults && (
                 <div className="bg-gray-50 rounded-lg p-4 space-y-4">
@@ -1549,6 +1923,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     setBulkResults(null);
                     setImportStatus(null);
                     setSelectedFolder('');
+                    setSelectedFiles([]);
+                    setUploadSource('browser');
+                    setFilteredOutFiles([]);
+                    setEnabledFileTypes(new Set(['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx', 'html', 'mhtml']));
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
@@ -1556,7 +1934,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 </button>
                 {!jobMonitoring && bulkFiles.length > 0 && (
                   <button
-                    onClick={handleBulkImport}
+                    onClick={uploadSource === 'browser' ? handleBulkImportFromBrowser : handleBulkImport}
                     disabled={bulkProcessing}
                     className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >

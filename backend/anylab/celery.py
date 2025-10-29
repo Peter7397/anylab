@@ -32,8 +32,8 @@ app.conf.update(
     timezone='UTC',
     enable_utc=True,
     
-    # Task execution
-    task_always_eager=False,  # Set to True for testing
+    # Task execution (allow override via env CELERY_TASK_ALWAYS_EAGER=true)
+    task_always_eager=os.getenv('CELERY_TASK_ALWAYS_EAGER', 'false').lower() == 'true',
     task_eager_propagates=True,
     
     # Worker settings

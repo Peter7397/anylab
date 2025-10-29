@@ -113,16 +113,18 @@ class DocumentSerializer(serializers.ModelSerializer):
     file_size_mb = serializers.SerializerMethodField()
     uploaded_date = serializers.SerializerMethodField()
     file_url = serializers.SerializerMethodField()
+    processing_status = serializers.SerializerMethodField()
+    uploaded_file_id = serializers.SerializerMethodField()
     
     class Meta:
         model = DocumentFile
         fields = [
             'id', 'title', 'filename', 'document_type', 'description', 'uploaded_by', 
             'uploaded_at', 'page_count', 'file_size_mb', 'uploaded_date', 'file_url',
-            'metadata', 'source_url'
+            'metadata', 'source_url', 'processing_status', 'uploaded_file_id'
         ]
         read_only_fields = ['id', 'uploaded_by', 'uploaded_at', 'file_size_mb', 
-                           'uploaded_date', 'file_url', 'metadata', 'source_url']
+                           'uploaded_date', 'file_url', 'metadata', 'source_url', 'processing_status', 'uploaded_file_id']
     
     def get_file_size_mb(self, obj):
         if obj.file_size:
@@ -133,15 +135,34 @@ class DocumentSerializer(serializers.ModelSerializer):
         return obj.uploaded_at.strftime("%Y-%m-%d %H:%M:%S") if obj.uploaded_at else ""
     
     def get_file_url(self, obj):
-        if obj.file:
-            request = self.context.get('request')
-            if request:
-                # For SSB_KPR documents (MHTML), use the HTML view endpoint
-                if obj.document_type == 'SSB_KPR':
-                    return request.build_absolute_uri(f'/api/ai/documents/{obj.id}/html/')
-                else:
-                    return request.build_absolute_uri(obj.file.url)
+        request = self.context.get('request')
+        if not request:
+            return None
+        
+        # For SSB_KPR documents (MHTML), use the HTML view endpoint
+        if obj.document_type == 'SSB_KPR':
+            return request.build_absolute_uri(f'/api/ai/documents/{obj.id}/html/')
+        
+        # Check if DocumentFile has a file field (legacy documents)
+        if obj.file and hasattr(obj.file, 'url'):
+            return request.build_absolute_uri(obj.file.url)
+        
+        # For uploaded documents, file is stored via UploadedFile
+        # The file is in media/uploads/filename.ext
+        if hasattr(obj, 'uploaded_file') and obj.uploaded_file:
+            # Generate URL from UploadedFile.filename
+            # uploaded_file.filename is stored as 'uploads/filename.ext'
+            media_url = request.build_absolute_uri(f'/media/{obj.uploaded_file.filename}')
+            return media_url
+        
         return None
+    
+    def get_processing_status(self, obj):
+        """Get processing status from linked UploadedFile"""
+        return obj.get_processing_status()
+
+    def get_uploaded_file_id(self, obj):
+        return obj.uploaded_file.id if getattr(obj, 'uploaded_file', None) else None
 
 
 class QueryHistorySerializer(serializers.ModelSerializer):

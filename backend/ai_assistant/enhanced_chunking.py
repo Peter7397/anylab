@@ -22,9 +22,9 @@ class SemanticChunker:
     """Advanced text chunking with semantic awareness"""
     
     def __init__(self, 
-                 chunk_size: int = 100,  # Optimal size for RAG quality
-                 chunk_overlap: int = 10,
-                 max_chunks_per_doc: int = 10000):  # REMOVED LIMIT - Quality over speed
+                 chunk_size: int = 600,  # Balanced size for RAG quality and performance
+                 chunk_overlap: int = 120,  # 20% overlap for context preservation
+                 max_chunks_per_doc: int = 2000):  # Hard limit to prevent server crashes
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self.max_chunks_per_doc = max_chunks_per_doc
@@ -88,9 +88,12 @@ class SemanticChunker:
         
         # NO LIMIT - Process all content for maximum RAG quality
         while chunk_start < len(clean_text):
-            # Only limit if we exceed safety threshold (10k chunks)
+            # Enforce hard limit to prevent server crashes
             if chunk_index >= self.max_chunks_per_doc:
-                logger.warning(f"Document has {len(chunks)} chunks, which is very large. Consider document size.")
+                logger.warning(
+                    f"Document truncated at {self.max_chunks_per_doc} chunks (current: {len(chunks)}). "
+                    f"This document is too large for processing. Consider splitting into smaller files."
+                )
                 break
             
             # Find end position for this chunk
@@ -191,15 +194,15 @@ class AdvancedChunker(SemanticChunker):
         return chunks
 
 # Global chunker instances
-# QUALITY FOCUS: No chunk limits, 100 char chunks for maximum RAG precision
+# BALANCED APPROACH: 600 char chunks, 2000 chunk limit for performance and quality
 semantic_chunker = SemanticChunker(
-    chunk_size=100,           # Optimal size for semantic understanding
-    chunk_overlap=10,         # Maintain context between chunks
-    max_chunks_per_doc=10000  # NO PRACTICAL LIMIT - Process entire document
+    chunk_size=600,           # Balanced size for semantic understanding
+    chunk_overlap=120,        # 20% overlap maintains context between chunks
+    max_chunks_per_doc=2000  # Hard limit prevents server crashes
 )
 
 advanced_chunker = AdvancedChunker(
-    chunk_size=100,           # Optimal size for semantic understanding
-    chunk_overlap=10,         # Maintain context between chunks
-    max_chunks_per_doc=10000  # NO PRACTICAL LIMIT - Process entire document
+    chunk_size=600,           # Balanced size for semantic understanding
+    chunk_overlap=120,        # 20% overlap maintains context between chunks
+    max_chunks_per_doc=2000  # Hard limit prevents server crashes
 )

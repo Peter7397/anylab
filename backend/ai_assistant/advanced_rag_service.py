@@ -33,6 +33,15 @@ class AdvancedRAGService(ImprovedRAGService):
         # Performance settings
         self.hybrid_cache_ttl = 3600  # 1 hour for hybrid search results
         
+        # FIX: Override similarity threshold AFTER parent init
+        # Lower threshold for Advanced RAG to handle expanded queries with better recall
+        # Expanded queries may have lower similarity scores but still be relevant
+        # Parent class sets 0.5, we override to 0.3 for Advanced RAG
+        self.similarity_threshold = 0.3
+        
+        logger.info(f"Advanced RAG initialized: similarity_threshold={self.similarity_threshold}, "
+                   f"query_expansion={self.use_query_expansion}")
+        
     def search_with_hybrid_and_reranking(self, query: str, top_k: int = 8) -> List[Dict]:
         """Advanced search pipeline with hybrid search and reranking"""
         try:
@@ -56,7 +65,11 @@ class AdvancedRAGService(ImprovedRAGService):
                 expanded_query = query
                 expansion_applied = False
             
-            logger.info(f"Query type: {query_type}, expansion applied: {expansion_applied}")
+            logger.info(
+                f"Advanced search: query='{query[:50]}...', type={query_type}, "
+                f"expansion={expansion_applied}, expanded='{expanded_query[:50]}...', "
+                f"threshold={self.similarity_threshold}"
+            )
             
             # Step 2: Vector Search (get more candidates for hybrid)
             vector_candidates = 30 if self.use_hybrid_search else self.top_k_candidates
@@ -64,8 +77,23 @@ class AdvancedRAGService(ImprovedRAGService):
                 expanded_query, top_k=vector_candidates
             )
             
+            # FIX: If expanded query fails, fallback to original query
             if not vector_results:
-                return []
+                logger.warning(
+                    f"Expanded query '{expanded_query[:50]}...' returned no results, "
+                    f"trying original query without expansion"
+                )
+                # Fallback to original query without expansion
+                vector_results = self.search_relevant_documents_with_scoring(
+                    query, top_k=vector_candidates
+                )
+                if not vector_results:
+                    logger.error(f"Both expanded and original query returned no results for: {query[:50]}...")
+                    # Don't cache empty results
+                    return []
+                else:
+                    logger.info(f"Original query succeeded with {len(vector_results)} results")
+                    expansion_applied = False  # Mark as if expansion wasn't used
             
             # Step 3: Hybrid Search (combine vector + BM25)
             if self.use_hybrid_search and len(vector_results) > 1:
@@ -93,13 +121,15 @@ class AdvancedRAGService(ImprovedRAGService):
                 result['query_type'] = query_type
                 result['search_method'] = 'advanced_hybrid_reranked'
             
-            # Cache results
-            cache.set(cache_key, final_results, self.hybrid_cache_ttl)
-            
-            avg_final_score = sum(r.get('final_rerank_score', r.get('hybrid_score', 0)) 
-                                for r in final_results) / len(final_results)
-            logger.info(f"Advanced search complete: {len(final_results)} results, "
-                       f"avg score: {avg_final_score:.3f}")
+            # FIX: Only cache results if we have any (don't cache empty results)
+            if final_results:
+                cache.set(cache_key, final_results, self.hybrid_cache_ttl)
+                avg_final_score = sum(r.get('final_rerank_score', r.get('hybrid_score', 0)) 
+                                    for r in final_results) / len(final_results)
+                logger.info(f"Advanced search complete: {len(final_results)} results, "
+                           f"avg score: {avg_final_score:.3f}")
+            else:
+                logger.warning(f"Advanced search returned no results, NOT caching")
             
             return final_results
             
@@ -294,8 +324,12 @@ class AdvancedRAGService(ImprovedRAGService):
                     }
                 }
             
-            # Cache result
-            cache.set(cache_key, result, self.response_cache_ttl)
+            # FIX: Only cache result if we have sources (don't cache "I don't know" responses)
+            if relevant_docs:  # Only cache if we found sources
+                cache.set(cache_key, result, self.response_cache_ttl)
+                logger.info(f"Cached advanced RAG result: {len(relevant_docs)} sources")
+            else:
+                logger.warning("Not caching empty advanced RAG result (no sources found)")
             
             # Save to history with advanced metadata
             if user:

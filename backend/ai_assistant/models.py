@@ -46,6 +46,10 @@ class UploadedFile(models.Model):
     chunk_count = models.IntegerField(default=0)  # Actual chunks created
     embedding_count = models.IntegerField(default=0)  # Actual embeddings created
     
+    # Document truncation tracking
+    is_truncated = models.BooleanField(default=False, help_text="True if document was truncated due to size limits")
+    processing_coverage = models.FloatField(default=100.0, help_text="Percentage of document that was processed (0-100)")
+    
     def is_ready_for_search(self):
         """Check if file is fully processed and ready for RAG/search"""
         return (
@@ -138,9 +142,40 @@ class DocumentFile(models.Model):
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     page_count = models.IntegerField(default=0)
     file_size = models.BigIntegerField(default=0)
+    
+    # Link to UploadedFile for processing status tracking
+    uploaded_file = models.ForeignKey(UploadedFile, on_delete=models.SET_NULL, null=True, blank=True, related_name='document_files')
 
     def __str__(self):
         return self.title
+    
+    def get_processing_status(self):
+        """Get processing status from linked UploadedFile"""
+        if self.uploaded_file:
+            return {
+                'status': self.uploaded_file.processing_status,
+                'metadata_extracted': self.uploaded_file.metadata_extracted,
+                'chunks_created': self.uploaded_file.chunks_created,
+                'embeddings_created': self.uploaded_file.embeddings_created,
+                'chunk_count': self.uploaded_file.chunk_count,
+                'embedding_count': self.uploaded_file.embedding_count,
+                'is_ready': self.uploaded_file.is_ready_for_search(),
+                'processing_error': self.uploaded_file.processing_error,
+                'is_truncated': self.uploaded_file.is_truncated,
+                'processing_coverage': self.uploaded_file.processing_coverage,
+            }
+        return {
+            'status': 'unknown',
+            'metadata_extracted': False,
+            'chunks_created': False,
+            'embeddings_created': False,
+            'chunk_count': 0,
+            'embedding_count': 0,
+            'is_ready': False,
+            'processing_error': None,
+            'is_truncated': False,
+            'processing_coverage': 0.0,
+        }
 
     class Meta:
         ordering = ['-uploaded_at']

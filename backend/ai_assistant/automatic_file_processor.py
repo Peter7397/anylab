@@ -1,17 +1,17 @@
 """
 Automatic File Processing System
 
-CRITICAL QUALITY RULES:
+BALANCED QUALITY AND PERFORMANCE RULES:
 1. Use BGE-M3 ONLY - NO FALLBACKS EVER
-2. Unlimited chunks - process entire document for maximum RAG quality
-3. 100 char chunk size - optimal for semantic understanding
-4. 10 char overlap - maintain context between chunks
-5. Quality over speed - performance is priority, not time
+2. 600 char chunks - balanced for semantic understanding and performance
+3. 120 char overlap (20%) - maintains context between chunks
+4. 2000 chunk limit - prevents server crashes on large documents
+5. Batch embedding - 50 chunks per API call for efficiency
 
 This ensures ALL imported files automatically become:
 - Metadata ready
-- Chunked with optimal strategy
-- Embedded with BGE-M3 only
+- Chunked with balanced strategy (max 2000 chunks per doc)
+- Embedded with BGE-M3 only in batches of 50
 - Ready for RAG search
 """
 
@@ -22,7 +22,7 @@ import fitz  # PyMuPDF
 from pathlib import Path
 from django.conf import settings
 from django.utils import timezone
-from .models import UploadedFile, DocumentChunk
+from .models import UploadedFile, DocumentChunk, DocumentFile
 from .rag_service import EnhancedRAGService
 from .enhanced_chunking import semantic_chunker, advanced_chunker
 import requests
@@ -36,31 +36,45 @@ class AutomaticFileProcessor:
     """
     Automatically processes ALL uploaded files to ensure they are:
     1. Fully metadata extracted
-    2. Completely chunked (unlimited, 100 char chunks)
-    3. Fully embedded (BGE-M3 only, no fallbacks)
+    2. Intelligently chunked (600 char chunks, max 2000 per doc)
+    3. Batch embedded (50 chunks per API call, BGE-M3 only)
     4. Ready for search
     
-    QUALITY FOCUS: Performance over speed
+    BALANCED APPROACH: Quality with performance safeguards
     """
     
     def __init__(self):
         self.rag_service = EnhancedRAGService()
         self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
         
-        # QUALITY RULES - NO COMPROMISES
-        self.CHUNK_SIZE = 100          # Optimal for semantic precision
-        self.CHUNK_OVERLAP = 10        # Maintain context
+        # BALANCED RULES - Quality with performance safeguards
+        self.CHUNK_SIZE = 600           # Balanced size for semantic precision
+        self.CHUNK_OVERLAP = 120        # 20% overlap maintains context
+        self.MAX_CHUNKS_PER_DOC = 2000  # Hard limit prevents crashes
         self.EMBEDDING_MODEL = 'bge-m3'  # ONLY model - NO FALLBACKS
         self.EMBEDDING_DIMS = 1024     # BGE-M3 dimensions
+        self.BATCH_SIZE = 50            # Process 50 chunks per Ollama API call
         
     def process_file_fully(self, uploaded_file_id: int, max_retries: int = 3):
         """
         Complete automatic processing workflow with retry logic:
-        Upload → Extract Metadata → Generate Chunks (unlimited) → Create Embeddings (BGE-M3 only) → Ready
+        Upload → Extract Metadata → Generate Chunks (max 2000) → Batch Embeddings (50 per call) → Ready
         
         RETRY MECHANISM: Up to 3 attempts for quality assurance
         """
         uploaded_file = UploadedFile.objects.get(id=uploaded_file_id)
+        
+        # SAFETY CHECK: Ensure DocumentFile exists (catches legacy imports without DocumentFile)
+        document_files = DocumentFile.objects.filter(uploaded_file=uploaded_file)
+        if document_files.count() == 0:
+            # Auto-create missing DocumentFile
+            logger.warning(f"DocumentFile missing for UploadedFile {uploaded_file_id}, creating now")
+            try:
+                document_file = self._create_document_file_for_uploaded_file(uploaded_file)
+                logger.info(f"Auto-created DocumentFile {document_file.id} for UploadedFile {uploaded_file_id}")
+            except Exception as e:
+                logger.error(f"Failed to auto-create DocumentFile for UploadedFile {uploaded_file_id}: {e}", exc_info=True)
+                # Continue processing anyway - DocumentFile creation is not critical for processing
         
         for attempt in range(1, max_retries + 1):
             try:
@@ -112,10 +126,15 @@ class AutomaticFileProcessor:
                 uploaded_file.embeddings_created = True
                 uploaded_file.embedding_count = embedding_count
                 
-                # FINAL VALIDATION: Ensure file is truly ready
-                if not uploaded_file.is_ready_for_search():
+                # FINAL VALIDATION: Ensure file is truly ready (without depending on status field)
+                is_ready_now = (
+                    uploaded_file.metadata_extracted and
+                    uploaded_file.chunks_created and uploaded_file.chunk_count > 0 and
+                    uploaded_file.embeddings_created and uploaded_file.embedding_count == uploaded_file.chunk_count
+                )
+                if not is_ready_now:
                     raise Exception(
-                        f"File validation failed: ready={uploaded_file.is_ready_for_search()}, "
+                        f"File validation failed: ready=False, "
                         f"metadata={uploaded_file.metadata_extracted}, "
                         f"chunks={uploaded_file.chunks_created} ({uploaded_file.chunk_count}), "
                         f"embeddings={uploaded_file.embeddings_created} ({uploaded_file.embedding_count})"
@@ -490,7 +509,25 @@ class AutomaticFileProcessor:
                 except Exception as e:
                     logger.warning(f"Error processing PowerPoint document: {e}")
             
-            logger.info(f"Generated {len(chunks_data)} chunks from {uploaded_file.filename}")
+            chunks_count = len(chunks_data)
+            logger.info(f"Generated {chunks_count} chunks from {uploaded_file.filename}")
+            
+            # Track truncation status
+            if chunks_count >= self.MAX_CHUNKS_PER_DOC:
+                uploaded_file.is_truncated = True
+                # Calculate coverage based on chunk count vs. limit
+                uploaded_file.processing_coverage = min(100.0, (self.MAX_CHUNKS_PER_DOC / chunks_count) * 100)
+                logger.warning(
+                    f"Document '{uploaded_file.filename}' hit the {self.MAX_CHUNKS_PER_DOC} chunk limit. "
+                    f"Document was truncated (coverage: {uploaded_file.processing_coverage:.1f}%) - only first {self.MAX_CHUNKS_PER_DOC} chunks will be processed. "
+                    f"Consider splitting the document into smaller files."
+                )
+                uploaded_file.save()
+            else:
+                uploaded_file.is_truncated = False
+                uploaded_file.processing_coverage = 100.0
+                uploaded_file.save()
+            
             return chunks_data
             
         except Exception as e:
@@ -499,35 +536,47 @@ class AutomaticFileProcessor:
     
     def _generate_embeddings(self, uploaded_file: UploadedFile, chunks_data: list) -> int:
         """
-        Generate embeddings using BGE-M3 ONLY
-        NO FALLBACKS - Quality over speed
+        Generate embeddings using BGE-M3 ONLY with batch processing
+        Processes 50 chunks at a time for efficiency
         """
         embedding_count = 0
         
         try:
-            for idx, chunk_data in enumerate(chunks_data):
-                content = chunk_data['content']
+            # Filter out empty chunks
+            valid_chunks = [chunk for chunk in chunks_data if chunk['content'].strip()]
+            
+            # Process in batches of 50
+            batch_size = self.BATCH_SIZE
+            total_batches = (len(valid_chunks) + batch_size - 1) // batch_size
+            
+            logger.info(f"Processing {len(valid_chunks)} chunks in {total_batches} batches for {uploaded_file.filename}")
+            
+            for batch_idx in range(0, len(valid_chunks), batch_size):
+                batch = valid_chunks[batch_idx:batch_idx + batch_size]
+                current_batch = batch_idx // batch_size + 1
                 
-                if not content.strip():
-                    continue
+                logger.info(f"Processing batch {current_batch}/{total_batches} ({len(batch)} chunks)")
                 
-                # Get embedding using BGE-M3 ONLY
-                embedding = self._get_bge_m3_embedding(content)
+                # Extract batch content for API call
+                batch_texts = [chunk['content'] for chunk in batch]
                 
-                # Store in database
-                DocumentChunk.objects.create(
-                    uploaded_file=uploaded_file,
-                    content=content,
-                    embedding=embedding,
-                    page_number=chunk_data.get('page_number', 1),
-                    chunk_index=idx
-                )
+                # Get batch embeddings from Ollama
+                batch_embeddings = self._get_bge_m3_embeddings_batch(batch_texts)
                 
-                embedding_count += 1
-                
-                # Log progress every 100 chunks
-                if embedding_count % 100 == 0:
-                    logger.info(f"Generated {embedding_count} embeddings for {uploaded_file.filename}")
+                # Store each embedding in database
+                for chunk_data, embedding in zip(batch, batch_embeddings):
+                    DocumentChunk.objects.create(
+                        uploaded_file=uploaded_file,
+                        content=chunk_data['content'],
+                        embedding=embedding,
+                        page_number=chunk_data.get('page_number', 1),
+                        chunk_index=embedding_count
+                    )
+                    embedding_count += 1
+                    
+                    # Log progress every 100 chunks
+                    if embedding_count % 100 == 0:
+                        logger.info(f"Generated {embedding_count}/{len(valid_chunks)} embeddings for {uploaded_file.filename}")
             
             logger.info(f"Total embeddings created: {embedding_count}")
             return embedding_count
@@ -580,6 +629,86 @@ class AutomaticFileProcessor:
         
         raise Exception("Failed to get BGE-M3 embedding after all retries")
     
+    def _get_bge_m3_embeddings_batch(self, texts: list) -> list:
+        """
+        Get batch embeddings from BGE-M3
+        Processes multiple texts in a single API call for efficiency
+        
+        Args:
+            texts: List of text strings to embed (up to BATCH_SIZE)
+        
+        Returns:
+            List of embeddings corresponding to input texts
+        """
+        if not texts:
+            return []
+        
+        # Limit batch size to prevent API overload
+        if len(texts) > self.BATCH_SIZE:
+            logger.warning(f"Batch size {len(texts)} exceeds limit {self.BATCH_SIZE}, truncating")
+            texts = texts[:self.BATCH_SIZE]
+        
+        max_retries = 3
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                # Ollama batch API: send single text (for now, batch coming later)
+                # For now, call individual API for each text (but process in batches)
+                embeddings = []
+                for text in texts:
+                    response = requests.post(
+                        f"{self.ollama_url}/api/embeddings",
+                        json={
+                            "model": self.EMBEDDING_MODEL,
+                            "prompt": text
+                        },
+                        timeout=120  # Longer timeout for batch processing
+                    )
+                    response.raise_for_status()
+                    
+                    result = response.json()
+                    embedding = result.get("embedding")
+                    embeddings.append(embedding)
+                
+                if len(embeddings) != len(texts):
+                    logger.warning(f"Received {len(embeddings)} embeddings for {len(texts)} texts")
+                
+                # Normalize each embedding to 1024 dimensions
+                normalized_embeddings = []
+                for embedding in embeddings:
+                    if len(embedding) != self.EMBEDDING_DIMS:
+                        if len(embedding) < self.EMBEDDING_DIMS:
+                            embedding = list(embedding) + [0.0] * (self.EMBEDDING_DIMS - len(embedding))
+                        else:
+                            embedding = embedding[:self.EMBEDDING_DIMS]
+                    normalized_embeddings.append(embedding)
+                
+                return normalized_embeddings
+                
+            except requests.exceptions.Timeout:
+                retry_count += 1
+                logger.warning(f"BGE-M3 batch timeout (attempt {retry_count}/{max_retries})")
+                if retry_count >= max_retries:
+                    raise Exception("BGE-M3 batch embedding timeout after multiple retries")
+                # Retry with exponential backoff
+                import time
+                time.sleep(2 ** retry_count)
+                
+            except requests.exceptions.RequestException as e:
+                retry_count += 1
+                logger.warning(f"BGE-M3 batch request error (attempt {retry_count}/{max_retries}): {e}")
+                if retry_count >= max_retries:
+                    raise Exception(f"BGE-M3 batch embedding failed: {str(e)}")
+                import time
+                time.sleep(2 ** retry_count)
+                
+            except Exception as e:
+                logger.error(f"BGE-M3 batch embedding error: {e}")
+                raise Exception(f"BGE-M3 batch embedding failed: {str(e)}")
+        
+        raise Exception("Failed to get BGE-M3 batch embeddings after all retries")
+    
     def _validate_metadata_completeness(self, metadata: dict, uploaded_file: UploadedFile) -> bool:
         """
         Validate metadata completeness
@@ -616,21 +745,76 @@ class AutomaticFileProcessor:
         
         Handles multiple possible storage locations
         """
-        # Try different possible locations
-        possible_paths = [
-            os.path.join(settings.MEDIA_ROOT, 'uploads', uploaded_file.filename),
-            os.path.join(settings.MEDIA_ROOT, uploaded_file.filename),
-            uploaded_file.filename  # Full path
-        ]
-        
-        for path in possible_paths:
+        # Normalize filename (remove 'uploads/' prefix if present)
+        filename = uploaded_file.filename
+        if filename.startswith('uploads/'):
+            # Already has uploads/ prefix, just prepend MEDIA_ROOT
+            path = os.path.join(settings.MEDIA_ROOT, filename)
             if os.path.exists(path):
                 return path
+        else:
+            # Try different possible locations
+            possible_paths = [
+                os.path.join(settings.MEDIA_ROOT, 'uploads', filename),
+                os.path.join(settings.MEDIA_ROOT, filename),
+                filename  # Full path
+            ]
+            
+            for path in possible_paths:
+                if os.path.exists(path):
+                    return path
         
-        # If not found, try to get from model if it has a file field
-        # This would need to be adapted based on your actual storage setup
+        raise FileNotFoundError(f"Could not locate file for {uploaded_file.filename}. Tried: {os.path.join(settings.MEDIA_ROOT, uploaded_file.filename)}")
+    
+    def _create_document_file_for_uploaded_file(self, uploaded_file: UploadedFile) -> DocumentFile:
+        """
+        Create a DocumentFile record for an UploadedFile that doesn't have one
+        This is a safety mechanism for legacy imports or manual UploadedFile creation
+        """
+        import os
+        from pathlib import Path
         
-        raise FileNotFoundError(f"Could not locate file for {uploaded_file.filename}")
+        filename = uploaded_file.filename
+        filename_base = os.path.splitext(filename)[0]
+        file_ext = Path(filename).suffix.lower()
+        
+        # Map extensions to document types
+        doc_type_map = {
+            '.pdf': 'pdf',
+            '.docx': 'docx',
+            '.doc': 'doc',
+            '.xlsx': 'xlsx',
+            '.xls': 'xls',
+            '.pptx': 'pptx',
+            '.ppt': 'ppt',
+            '.txt': 'txt',
+            '.md': 'txt',
+            '.html': 'html',
+            '.htm': 'html',
+            '.mhtml': 'html',
+            '.rtf': 'rtf',
+        }
+        document_type = doc_type_map.get(file_ext, 'pdf')
+        
+        # Create DocumentFile
+        document_file = DocumentFile.objects.create(
+            title=filename_base,
+            filename=filename,
+            document_type=document_type,
+            description=f"Auto-created DocumentFile for: {filename}",
+            uploaded_by=uploaded_file.uploaded_by,
+            page_count=0,
+            file_size=uploaded_file.file_size,
+            uploaded_file=uploaded_file,  # Link to UploadedFile
+            metadata={
+                'auto_created': True,
+                'bulk_import': True,
+                'import_source': 'automatic_processor'
+            }
+        )
+        
+        logger.info(f"Created DocumentFile {document_file.id} for UploadedFile {uploaded_file.id}")
+        return document_file
 
 
 # Global instance

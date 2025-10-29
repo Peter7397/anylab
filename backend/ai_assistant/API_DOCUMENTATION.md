@@ -226,6 +226,133 @@ All responses follow a consistent format:
 - **Request Body**: Multipart form data
 - **Response**: Upload confirmation
 
+### Bulk Import (NEW)
+
+#### Scan Folder
+- **POST** `/api/ai/bulk-import/scan/`
+- **Description**: Scan a folder and discover supported files
+- **Request Body**:
+  ```json
+  {
+      "folder_path": "/path/to/folder"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+      "success": true,
+      "folder_path": "/path/to/folder",
+      "file_count": 25,
+      "total_size": 10485760,
+      "files": [
+          {
+              "filename": "document.pdf",
+              "file_path": "/path/to/document.pdf",
+              "file_size": 102400,
+              "file_extension": ".pdf",
+              "relative_path": "document.pdf"
+          }
+      ]
+  }
+  ```
+
+#### Bulk Import Files
+- **POST** `/api/ai/bulk-import/`
+- **Description**: Import multiple files from a scanned folder
+- **Request Body**:
+  ```json
+  {
+      "files": [
+          {
+              "file_path": "/path/to/document.pdf",
+              "filename": "document.pdf"
+          }
+      ]
+  }
+  ```
+- **Response**:
+  ```json
+  {
+      "success": true,
+      "results": {
+          "total": 10,
+          "successful": 8,
+          "failed": 1,
+          "skipped": 1,
+          "details": [
+              {
+                  "filename": "document.pdf",
+                  "status": "success",
+                  "uploaded_file_id": 123,
+                  "document_id": 456,
+                  "file_url": "/api/ai/documents/456/",
+                  "document_type": "pdf"
+              }
+          ],
+          "errors": []
+      }
+  }
+  ```
+- **Features**:
+  - Creates both `UploadedFile` AND `DocumentFile` records
+  - Automatic metadata extraction (product category, version, content type)
+  - File deduplication (hash-based + filename)
+  - Error handling per file (doesn't stop entire import)
+  - Automatic processing via async Celery tasks
+
+#### Get Bulk Import Status
+- **GET** `/api/ai/bulk-import/status/`
+- **Description**: Get status of bulk import operations
+- **Query Parameters**: `status` (optional: pending, metadata_extracting, chunking, embedding, ready, failed)
+- **Response**:
+  ```json
+  {
+      "success": true,
+      "files": [
+          {
+              "id": 123,
+              "filename": "document.pdf",
+              "file_size": 102400,
+              "processing_status": "ready",
+              "chunk_count": 45,
+              "embedding_count": 45,
+              "metadata_extracted": true,
+              "chunks_created": true,
+              "embeddings_created": true,
+              "is_ready": true,
+              "document_id": 456,
+              "document_title": "document",
+              "document_type": "pdf",
+              "file_url": "/api/ai/documents/456/",
+              "uploaded_at": "2024-01-01T00:00:00Z"
+          }
+      ],
+      "statistics": {
+          "total": 100,
+          "pending": 5,
+          "metadata_extracting": 2,
+          "chunking": 3,
+          "embedding": 4,
+          "ready": 85,
+          "failed": 1,
+          "document_files_total": 100,
+          "document_files_with_uploaded_files": 95,
+          "document_files_ready": 85,
+          "document_files_processing": 10
+      }
+  }
+  ```
+
+#### Key Features of Bulk Import
+- ✅ **Automatic DocumentFile Creation**: Creates both UploadedFile and DocumentFile records
+- ✅ **Async Processing**: Uses Celery for background processing (metadata, chunking, embedding)
+- ✅ **Crash Prevention**: 2000 chunk limit per document prevents server crashes
+- ✅ **Metadata Extraction**: Automatically detects product category, version, content type
+- ✅ **File Deduplication**: Prevents duplicate imports using hash + filename
+- ✅ **Error Isolation**: Per-file error handling doesn't stop entire import
+- ✅ **URL Generation**: file_url automatically generated for API access
+- ✅ **Status Tracking**: Track processing status in real-time
+
 ## Error Codes
 
 | Code | Description |

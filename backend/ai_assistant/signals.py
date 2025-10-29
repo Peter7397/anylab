@@ -34,21 +34,15 @@ def auto_process_uploaded_file(sender, instance, created, **kwargs):
     """
     if created and instance.processing_status == 'pending':
         try:
-            # Check if we should use async processing
-            from django.conf import settings
-            use_async = getattr(settings, 'ENABLE_ASYNC_FILE_PROCESSING', False)
+            # IMPORTANT: Always use async processing to prevent blocking uploads
+            # Celery will handle retries automatically with autoretry_for
+            from .tasks import process_file_automatically
             
-            logger.info(f"Auto-processing file: {instance.filename} (ID: {instance.id}, async={use_async})")
+            logger.info(f"Auto-processing file: {instance.filename} (ID: {instance.id}, async=True)")
             
-            if use_async:
-                # Use Celery for async processing (for large batches or production)
-                from .tasks import process_file_automatically
-                process_file_automatically.delay(instance.id)
-                logger.info(f"Scheduled background processing for file {instance.id}")
-            else:
-                # Process synchronously (immediate, but blocks)
-                automatic_file_processor.process_file_fully(instance.id)
-                logger.info(f"Processed file {instance.id} synchronously")
+            # Use Celery for async processing (prevents request blocking)
+            process_file_automatically.delay(instance.id)
+            logger.info(f"Scheduled background processing for file {instance.id}")
             
         except Exception as e:
             logger.error(f"Auto-processing failed for {instance.filename}: {e}", exc_info=True)

@@ -133,26 +133,23 @@ def process_document_queue():
     This is called periodically by Celery Beat.
     """
     try:
-        # Get pending documents
-        pending_docs = DocumentFile.objects.filter(
-            processed=False
-        ).order_by('created_at')[:10]
+        # Model DocumentFile does not have a 'processed' field.
+        # For now, treat this task as a no-op to avoid errors, or
+        # adapt to a safe listing of recent documents for visibility.
+        pending_docs = DocumentFile.objects.order_by('-uploaded_at')[:0]
         
         if pending_docs.exists():
             logger.info(f'Processing {pending_docs.count()} pending documents')
             
             for doc in pending_docs:
                 try:
-                    # Mark as processing
-                    doc.processed = True
-                    doc.save()
+                    # Placeholder: no processing step defined for DocumentFile
+                    pass
                     
-                    logger.info(f'Processed document: {doc.title}')
+                    logger.info(f'Visited document (no-op): {doc.title}')
                     
                 except Exception as e:
-                    logger.error(f'Error processing document {doc.id}: {e}')
-                    doc.processed = False
-                    doc.save()
+                    logger.error(f'Error iterating document {doc.id}: {e}')
                     
         else:
             logger.debug('No pending documents to process')
@@ -161,7 +158,15 @@ def process_document_queue():
         logger.error(f'Document queue processing failed: {e}', exc_info=True)
 
 
-@shared_task(bind=True, name='ai_assistant.tasks.process_file_automatically')
+@shared_task(
+    bind=True, 
+    name='ai_assistant.tasks.process_file_automatically',
+    autoretry_for=(Exception,),  # Auto-retry on any exception
+    retry_kwargs={'max_retries': 3, 'countdown': 60},  # 3 retries with 60s delays
+    retry_backoff=True,  # Exponential backoff: 60s, 120s, 240s
+    retry_backoff_max=600,  # Max delay 10 minutes
+    retry_jitter=True  # Add randomness to prevent thundering herd
+)
 def process_file_automatically(self, uploaded_file_id):
     """
     Background task for automatic file processing
@@ -169,11 +174,11 @@ def process_file_automatically(self, uploaded_file_id):
     QUALITY FOCUS: Uses automatic processor with full quality guarantees
     - Unlimited chunks
     - BGE-M3 only
-    - 3 retry attempts
+    - 3 retry attempts (Celery-level) + 3 attempts (process-level) = up to 9 total
     - Performance over speed
     """
     try:
-        logger.info(f'Processing file {uploaded_file_id} in background')
+        logger.info(f'Processing file {uploaded_file_id} in background (attempt {self.request.retries + 1})')
         
         # Use the automatic processor with all quality guarantees
         result = automatic_file_processor.process_file_fully(uploaded_file_id)
@@ -189,15 +194,15 @@ def process_file_automatically(self, uploaded_file_id):
     except Exception as e:
         logger.error(f'Background processing failed for file {uploaded_file_id}: {e}', exc_info=True)
         
-        # Mark as failed in database
+        # Mark current attempt status in database
         try:
             uploaded_file = UploadedFile.objects.get(id=uploaded_file_id)
-            uploaded_file.processing_status = 'failed'
-            uploaded_file.processing_error = str(e)
+            uploaded_file.processing_error = f"Attempt {self.request.retries + 1} failed: {str(e)}"
             uploaded_file.save()
         except UploadedFile.DoesNotExist:
             logger.error(f'UploadedFile {uploaded_file_id} not found')
         
+        # Let Celery handle retry (with autoretry_for)
         raise
 
 

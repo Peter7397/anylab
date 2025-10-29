@@ -8,6 +8,7 @@ operations including chat, search, and document processing.
 import logging
 import hashlib
 import time
+import os
 from typing import Dict, Any, List, Optional
 from django.core.files.storage import FileSystemStorage
 from django.conf import settings
@@ -280,40 +281,54 @@ class RAGService(BaseService):
                 'file_size': file.size
             })
             
-            # Save file
-            fs = FileSystemStorage()
-            filename = fs.save(file.name, file)
-            file_path = fs.path(filename)
-            
-            # Calculate file hash for deduplication
+            # Calculate file hash first for deduplication
             file_hash = hashlib.md5(file.read()).hexdigest()
             file.seek(0)  # Reset file pointer
             
-            # Check for duplicates
+            # Check for duplicates BEFORE saving file
             existing_file = UploadedFile.objects.filter(file_hash=file_hash).first()
             if existing_file:
-                fs.delete(filename)
                 return self.success_response("File already exists", {
-                    'file_id': existing_file.id,
+                    'uploaded_file_id': existing_file.id,
                     'filename': existing_file.filename,
                     'message': 'This file has already been uploaded'
                 })
             
-            # Process document based on file type
-            file_extension = file.name.split('.')[-1].lower()
+            # Save file to media/uploads directory so Celery can access it
+            uploads_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
+            os.makedirs(uploads_dir, exist_ok=True)  # Create directory if it doesn't exist
             
-            # Process all document types - PDF, text, HTML/MHTML files all get processed for RAG
-            if file_extension == 'pdf':
-                result = self.rag_service.process_pdf_and_build_index(file_path, user)
-            else:
-                # Process text files, HTML, MHTML, and other formats
-                # Pass the file object, file_path, and user
-                result = self.rag_service.process_document_and_build_index(file, file_path, file_hash, user)
+            fs = FileSystemStorage(location=uploads_dir)
+            filename = fs.save(file.name, file)
+            file_path = fs.path(filename)
+            relative_path = os.path.join('uploads', filename)
             
-            # Clean up temporary file
-            fs.delete(filename)
+            # Create UploadedFile record FIRST (before processing)
+            # This will trigger the signal that queues Celery processing
+            file_size = os.path.getsize(file_path)
             
-            return self.success_response("Document uploaded and processed successfully", result)
+            # Store the relative file path in filename so Celery can find it
+            uploaded_file = UploadedFile.objects.create(
+                filename=relative_path,  # Store relative path: 'uploads/filename.ext'
+                file_hash=file_hash,
+                file_size=file_size,
+                uploaded_by=user,
+                processing_status='pending'  # Start as pending, Celery will process
+            )
+            
+            # Signal will automatically trigger process_file_automatically.delay()
+            # Celery will process the file from media/uploads/ directory
+            # File will stay there until processing is complete
+            
+            result = {
+                'uploaded_file_id': uploaded_file.id,
+                'filename': uploaded_file.filename,
+                'file_size': uploaded_file.file_size,
+                'status': 'pending',
+                'message': 'File uploaded successfully. Processing will begin automatically.'
+            }
+            
+            return self.success_response("Document uploaded successfully", result)
             
         except Exception as e:
             self.log_error('upload_document_enhanced', e)

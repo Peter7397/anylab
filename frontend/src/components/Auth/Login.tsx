@@ -37,7 +37,7 @@ const Login: React.FC = () => {
       <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900">AnyLab</h1>
-          <p className="text-sm text-gray-500">AI eNlighteN Your Lab</p>
+          <p className="text-sm text-gray-500">AI Next to Your Lab</p>
           <h2 className="text-xl font-semibold text-gray-900 mt-4">Sign in</h2>
           <p className="text-sm text-gray-500 mt-1">Enter your credentials to continue</p>
         </div>

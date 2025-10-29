@@ -19,7 +19,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from ..models import UploadedFile
+from ..models import UploadedFile, DocumentFile
 from ..automatic_file_processor import automatic_file_processor
 
 logger = logging.getLogger(__name__)
@@ -191,15 +191,64 @@ def bulk_import_files(request):
                     
                     logger.info(f"Created UploadedFile record for {filename} (ID: {uploaded_file.id})")
                     
+                    # Create DocumentFile record (CRITICAL: Links to UploadedFile for processing tracking)
+                    document_file = None
+                    try:
+                        filename_base = os.path.splitext(filename)[0]
+                        document_type = _determine_document_type(filename)
+                        metadata = _extract_metadata_from_filename(filename, file_path)
+                        
+                        document_file = DocumentFile.objects.create(
+                            title=filename_base,
+                            filename=filename,
+                            document_type=document_type,
+                            description=f"Bulk imported file: {filename}",
+                            uploaded_by=request.user,
+                            page_count=0,  # Will be updated during processing
+                            file_size=file_size,
+                            uploaded_file=uploaded_file,  # CRITICAL: Link to UploadedFile
+                            metadata=metadata
+                        )
+                        
+                        logger.info(f"Created DocumentFile record for {filename} (ID: {document_file.id})")
+                        
+                    except Exception as doc_ex:
+                        logger.error(f"Error creating DocumentFile for {filename}: {doc_ex}", exc_info=True)
+                        # Log error but continue - UploadedFile is still valid
+                        # Signal will still trigger processing
+                        results['errors'].append({
+                            'file': filename,
+                            'error': f'DocumentFile creation failed: {str(doc_ex)}',
+                            'type': 'documentfile_creation_error'
+                        })
+                    
                     # Trigger automatic processing (will be handled by signal)
                     # automatic_file_processor.process_file_fully(uploaded_file.id)
                     
                     results['successful'] += 1
-                    results['details'].append({
+                    
+                    # Build detailed response
+                    file_detail = {
                         'filename': filename,
                         'status': 'success',
                         'uploaded_file_id': uploaded_file.id
-                    })
+                    }
+                    
+                    # Add DocumentFile info if created successfully
+                    if document_file:
+                        file_detail['document_id'] = document_file.id
+                        file_detail['document_type'] = document_type
+                        
+                        # Generate proper file URL using the same logic as serializer
+                        # For SSB_KPR documents, use HTML view endpoint
+                        if document_type == 'SSB_KPR':
+                            file_detail['file_url'] = request.build_absolute_uri(f'/api/ai/documents/{document_file.id}/html/')
+                        else:
+                            # Generate media URL from UploadedFile.filename
+                            # uploaded_file.filename is stored as 'uploads/filename.ext'
+                            file_detail['file_url'] = request.build_absolute_uri(f'/media/{uploaded_file.filename}')
+                    
+                    results['details'].append(file_detail)
                     
                 except Exception as e:
                     # Comprehensive error logging
@@ -255,7 +304,14 @@ def bulk_import_status(request):
         
         files_data = []
         for file in files:
-            files_data.append({
+            # Get related DocumentFile if exists
+            document_file = None
+            try:
+                document_file = DocumentFile.objects.filter(uploaded_file=file).first()
+            except Exception as e:
+                logger.warning(f"Error getting DocumentFile for UploadedFile {file.id}: {e}")
+            
+            file_data = {
                 'id': file.id,
                 'filename': file.filename,
                 'file_size': file.file_size,
@@ -268,9 +324,26 @@ def bulk_import_status(request):
                 'is_ready': file.is_ready_for_search(),
                 'processing_error': file.processing_error,
                 'uploaded_at': file.uploaded_at.isoformat() if file.uploaded_at else None
-            })
+            }
+            
+            # Add DocumentFile info if exists
+            if document_file:
+                file_data['document_id'] = document_file.id
+                file_data['document_title'] = document_file.title
+                file_data['document_type'] = document_file.document_type
+                
+                # Generate proper file URL using the same logic as serializer
+                # For SSB_KPR documents, use HTML view endpoint
+                if document_file.document_type == 'SSB_KPR':
+                    file_data['file_url'] = request.build_absolute_uri(f'/api/ai/documents/{document_file.id}/html/')
+                else:
+                    # Generate media URL from UploadedFile.filename
+                    # uploaded_file.filename is stored as 'uploads/filename.ext'
+                    file_data['file_url'] = request.build_absolute_uri(f'/media/{file.filename}')
+            
+            files_data.append(file_data)
         
-        # Get statistics
+        # Get statistics for UploadedFile
         stats = {
             'total': UploadedFile.objects.count(),
             'pending': UploadedFile.objects.filter(processing_status='pending').count(),
@@ -278,7 +351,21 @@ def bulk_import_status(request):
             'chunking': UploadedFile.objects.filter(processing_status='chunking').count(),
             'embedding': UploadedFile.objects.filter(processing_status='embedding').count(),
             'ready': UploadedFile.objects.filter(processing_status='ready').count(),
-            'failed': UploadedFile.objects.filter(processing_status='failed').count()
+            'failed': UploadedFile.objects.filter(processing_status='failed').count(),
+            
+            # DocumentFile statistics
+            'document_files_total': DocumentFile.objects.count(),
+            'document_files_with_uploaded_files': DocumentFile.objects.filter(
+                uploaded_file__isnull=False
+            ).count(),
+            'document_files_ready': DocumentFile.objects.filter(
+                uploaded_file__isnull=False,
+                uploaded_file__processing_status='ready'
+            ).count(),
+            'document_files_processing': DocumentFile.objects.filter(
+                uploaded_file__isnull=False,
+                uploaded_file__processing_status__in=['pending', 'metadata_extracting', 'chunking', 'embedding']
+            ).count()
         }
         
         return Response({
@@ -302,4 +389,60 @@ def _calculate_file_hash(file_path: str) -> str:
         for chunk in iter(lambda: f.read(8192), b''):
             sha256.update(chunk)
     return sha256.hexdigest()
+
+
+def _determine_document_type(filename: str) -> str:
+    """Determine document_type from file extension"""
+    file_ext = Path(filename).suffix.lower()
+    
+    doc_type_map = {
+        '.pdf': 'pdf',
+        '.docx': 'docx',
+        '.doc': 'doc',
+        '.xlsx': 'xlsx',
+        '.xls': 'xls',
+        '.pptx': 'pptx',
+        '.ppt': 'ppt',
+        '.txt': 'txt',
+        '.md': 'txt',
+        '.html': 'html',
+        '.htm': 'html',
+        '.mhtml': 'html',
+        '.rtf': 'rtf',
+    }
+    
+    return doc_type_map.get(file_ext, 'pdf')
+
+
+def _extract_metadata_from_filename(filename: str, file_path: str) -> dict:
+    """Extract basic metadata from filename and path"""
+    metadata = {
+        'bulk_import': True,
+        'import_source': 'bulk_import',
+        'original_filename': filename
+    }
+    
+    try:
+        # Try to import and use detection utilities if available
+        from ..utils.version_detector import detect_version
+        from ..utils.product_detector import detect_product, detect_content_type
+        
+        # Detect document classification
+        product_category = detect_product(filename)
+        content_type = detect_content_type(filename)
+        version = detect_version(filename)
+        
+        if product_category:
+            metadata['product_category'] = product_category
+        if content_type:
+            metadata['content_type'] = content_type
+        if version:
+            metadata['version'] = version
+    except ImportError:
+        # Utilities not available, skip advanced metadata extraction
+        logger.debug("Metadata detection utilities not available, using basic metadata")
+    except Exception as e:
+        logger.warning(f"Error extracting metadata from filename: {e}")
+    
+    return metadata
 

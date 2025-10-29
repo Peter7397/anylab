@@ -1,7 +1,7 @@
 Purpose:
 AnyLab is a web-based lab IT operations and troubleshooting platform integrating:
 
-**Slogan: AI eNlighteN Your Lab**
+**Slogan: AI Next to Your Lab**
 - AI-driven troubleshooting (RAG-based Q&A using manuals, KBs, logs)
 - AI RAG driving Assist 
 This design focuses on the AI Assistant and how it integrates with the rest of the platform.
@@ -351,69 +351,3 @@ volumes:
   - Files implemented: `backend/ai_assistant/views.py`, `backend/ai_assistant/rag_service.py`, 
     `backend/ai_assistant/improved_rag_service.py`, `backend/ai_assistant/advanced_rag_service.py`,
     `backend/ai_assistant/comprehensive_rag_service.py`
-- **Implemented Pipeline:**
-  - Ingestion: PDF/URL → extract → chunk → embed (BGE‑m3 via Ollama) → store (pgvector)
-  - Retrieval: query processing → top‑k vector search → Qwen generation with citations
-  - Advanced features: Hybrid search, reranking, smart caching, duplicate detection
-- **Performance Optimizations:**
-  - Multi-level caching (embeddings, search results, responses)
-  - Optimized chunking strategies
-  - Smart similarity scoring
-  - Query history tracking
-
----
-
-11. Configuration & Environment
-
-- Backend environment (examples):
-  - `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`
-  - Database: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PORT`
-  - Redis: `REDIS_HOST`, `REDIS_PORT`
-  - AI: `OLLAMA_API_URL` (default `http://ollama:11434`), `QWEN_MODEL`, `EMBEDDING_MODEL`
-  - Django media/static: `MEDIA_ROOT`, `MEDIA_URL`, `STATIC_ROOT`, `STATIC_URL`
-- Frontend env:
-  - `VITE_API_BASE_URL` or `REACT_APP_API_BASE_URL` (match frontend setup) pointing to backend `/api/`.
-
----
-
-12. Run & Deploy
-
-- Local with Docker Compose (backend stack):
-  - From `backend/`: `docker compose up -d --build`
-  - Services: Django API, Postgres (pgvector), Redis, optional LLM (vLLM/Ollama), Nginx (if configured).
-- Dev without Docker:
-  - Backend: create venv, `pip install -r backend/requirements.txt`, set env, `python manage.py migrate`, `python manage.py runserver`.
-  - Frontend: `cd frontend && npm install && npm start` (or `npm run dev` if Vite).
-- Notes:
-  - Media storage for `/media/` must be writable for PDF uploads.
-  - Configure CORS (frontend origin) if serving separately.
-
----
-
-13. Security Considerations
-
-- JWT auth endpoints available; protect AI, monitoring, and maintenance APIs with proper permissions.
-- File uploads: 50 MB limit and extension checks for PDFs; store uploader when authenticated.
-- Serve media via Django only to authenticated users in production or via signed URLs (future).
-- Secrets in env, never in repo; restrict admin access; enable HTTPS in reverse proxy.
-- Add request size limits and rate limiting for AI endpoints (future task).
-
----
-
-14. Near‑Term Roadmap
-
-- ✅ **COMPLETED**: RAG service implementation with BGE‑m3 and Qwen integration
-- ✅ **COMPLETED**: Document persistence and search with pgvector
-- ✅ **COMPLETED**: Multiple RAG search modes (Comprehensive, Advanced, Enhanced, Basic)
-- ✅ **COMPLETED**: Frontend integration for PDF Library and RAG Chat
-- **IN PROGRESS**: Finish Monitoring and Maintenance API CRUD, list, filters, and permissions
-- **PLANNED**: Alerting pipeline (Celery): thresholds → notifications (email/webhook)
-- **PLANNED**: Mode switch UI → toggles model configs and restarts AI container if needed
-- **PLANNED**: Enhanced document type support (Word, Excel, PowerPoint)
-
----
-
-15. Testing
-
-- Backend: `pytest` or `python manage.py test` (tests under each app’s `tests.py`).
-- Add API tests for AI PDF upload/list/detail, and later for RAG responses and monitoring endpoints.

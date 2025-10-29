@@ -12,6 +12,7 @@ from ..views import (
     upload_document_enhanced, pdf_documents, upload_pdf_enhanced,
     extract_documents_metadata, document_html_view
 )
+from ..views.rag_views import get_file_processing_status, retry_file_processing
 
 urlpatterns = [
     # Document management endpoints
@@ -31,6 +32,10 @@ urlpatterns = [
     path('pdfs/<int:pdf_id>/download/', pdf_download, name='documents_pdfs_download'),
     path('pdfs/<int:pdf_id>/delete/', pdf_delete, name='documents_pdfs_delete'),
     path('pdfs/search/', pdf_search, name='documents_pdfs_search'),
+    
+    # File processing status endpoint
+    path('files/<int:file_id>/status/', get_file_processing_status, name='documents_file_status'),
+    path('files/<int:file_id>/retry/', retry_file_processing, name='documents_file_retry'),
     
     # History and analytics endpoints
     path('history/', get_query_history, name='documents_history'),

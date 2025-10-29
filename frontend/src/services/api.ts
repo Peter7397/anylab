@@ -895,6 +895,51 @@ class ApiClient {
     return response.data;
   }
 
+  // File processing status (UploadedFile)
+  async getFileProcessingStatus(fileId: number): Promise<{
+    id: number;
+    filename: string;
+    file_size: number;
+    processing_status: 'pending' | 'metadata_extracting' | 'chunking' | 'embedding' | 'ready' | 'failed';
+    metadata_extracted: boolean;
+    chunks_created: boolean;
+    embeddings_created: boolean;
+    chunk_count: number;
+    embedding_count: number;
+    is_ready: boolean;
+    processing_error?: string | null;
+    uploaded_at?: string | null;
+    processing_started_at?: string | null;
+    processing_completed_at?: string | null;
+    progress_percentage?: number;
+  }> {
+    const response = await this.request<{
+      id: number;
+      filename: string;
+      file_size: number;
+      processing_status: 'pending' | 'metadata_extracting' | 'chunking' | 'embedding' | 'ready' | 'failed';
+      metadata_extracted: boolean;
+      chunks_created: boolean;
+      embeddings_created: boolean;
+      chunk_count: number;
+      embedding_count: number;
+      is_ready: boolean;
+      processing_error?: string | null;
+      uploaded_at?: string | null;
+      processing_started_at?: string | null;
+      processing_completed_at?: string | null;
+      progress_percentage?: number;
+    }>(`/ai/docs/files/${fileId}/status/`);
+    return response.data;
+  }
+
+  async retryFileProcessing(fileId: number): Promise<{ uploaded_file_id: number; status: string }>{
+    const response = await this.request<{ uploaded_file_id: number; status: string }>(`/ai/docs/files/${fileId}/retry/`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
   async uploadDocument(
     file: File, 
     title: string, 

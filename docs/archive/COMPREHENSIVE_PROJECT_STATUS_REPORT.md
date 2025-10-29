@@ -3,7 +3,7 @@
 
 **Report Date:** December 2024  
 **Project:** AnyLab0812 Laboratory Management System  
-**Slogan:** AI eNlighteN Your Lab
+**Slogan:** AI Next to Your Lab
 
 ---
 
