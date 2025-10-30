@@ -4,7 +4,7 @@
 
 ### 1. Navigate to Frontend Directory
 ```bash
-cd /Users/pinggenchen/Desktop/OnLab0803/frontend
+cd frontend
 ```
 
 ### 2. Start Frontend Development Server
@@ -19,18 +19,18 @@ npm start
 ### ❌ Don't run `npm start` from the wrong directory:
 ```bash
 # WRONG - This will fail (no package.json here)
-cd /Users/pinggenchen/Desktop/OnLab0803
+cd ..
 npm start
 
 # WRONG - This will fail (this is backend directory)
-cd /Users/pinggenchen/Desktop/OnLab0803/backend
+cd backend
 npm start
 ```
 
 ### ✅ Always run from the frontend directory:
 ```bash
 # CORRECT
-cd /Users/pinggenchen/Desktop/OnLab0803/frontend
+cd frontend
 npm start
 ```
 
@@ -39,14 +39,14 @@ npm start
 ### Start Backend First:
 ```bash
 # Terminal 1: Backend
-cd /Users/pinggenchen/Desktop/OnLab0803/backend
-./start-system.sh
+cd backend
+docker compose up -d
 ```
 
 ### Then Start Frontend:
 ```bash
 # Terminal 2: Frontend  
-cd /Users/pinggenchen/Desktop/OnLab0803/frontend
+cd frontend
 npm start
 ```
 
@@ -54,13 +54,12 @@ npm start
 
 ### Method 1: From Project Root
 ```bash
-cd /Users/pinggenchen/Desktop/OnLab0803
 cd frontend && npm start
 ```
 
 ### Method 2: Direct Path
 ```bash
-cd /Users/pinggenchen/Desktop/OnLab0803/frontend && npm start
+cd frontend && npm start
 ```
 
 ### Method 3: VS Code Integrated Terminal
@@ -93,9 +92,8 @@ webpack compiled with warnings
 # Check your current directory
 pwd
 
-# Should show: /Users/pinggenchen/Desktop/OnLab0803/frontend
-# If not, navigate to frontend directory:
-cd /Users/pinggenchen/Desktop/OnLab0803/frontend
+# Ensure it ends with /frontend; if not, navigate to frontend directory:
+cd frontend
 ```
 
 ### If port 3000 is busy:
@@ -127,18 +125,18 @@ npm start
 
 ```bash
 # Morning startup
-cd /Users/pinggenchen/Desktop/OnLab0803/backend
-./start-system.sh
+cd backend
+docker compose up -d
 
 # In another terminal
-cd /Users/pinggenchen/Desktop/OnLab0803/frontend  
+cd frontend  
 npm start
 
 # Work on your project...
 
 # Evening shutdown
 # Ctrl+C in frontend terminal
-# Ctrl+C or ./stop-system.sh for backend
+# docker compose down in backend if needed
 ```
 
 ---

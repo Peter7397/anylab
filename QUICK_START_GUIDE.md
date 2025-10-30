@@ -2,20 +2,20 @@
 
 ## Prerequisites
 - Docker Desktop running
-- Node.js 16+ installed
+- Node.js 18+ installed
 - Git (for cloning)
 
 ## 🎯 One-Command Startup (Recommended)
 
-From the OnLab root directory:
+From the project root directory:
 ```bash
-./start-onlab.sh
+./start-hybrid.sh
 ```
 
 This script will:
 1. ✅ Check Docker is running
 2. ✅ Verify backend image exists (build if needed)
-3. ✅ Start all backend services (PostgreSQL, Redis, Django, Celery)
+3. ✅ Start backend services (PostgreSQL, Redis, Django, Celery)
 4. ✅ Wait for backend to be ready
 5. ✅ Install frontend dependencies if needed
 6. ✅ Start React development server
@@ -25,7 +25,7 @@ This script will:
 ### Backend Only
 ```bash
 cd backend
-./start-system.sh
+docker compose up -d
 ```
 
 ### Frontend Only
@@ -50,7 +50,7 @@ Once started, access the system at:
 ### View Logs
 ```bash
 # Backend logs
-cd backend && docker compose logs -f
+cd backend && docker compose logs -f django
 
 # Frontend logs (in another terminal)
 cd frontend && npm start

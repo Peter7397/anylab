@@ -106,13 +106,13 @@ cp frontend/.env.example frontend/.env
 # Edit configuration files as needed
 ```
 
-### 3. Start with Docker
+### 3. Start Services
 ```bash
-# Start all services
-docker-compose up -d
-
-# Or use the hybrid startup script
+# Recommended: hybrid startup (backend services + frontend)
 ./start-hybrid.sh
+
+# Or start with Docker Compose (backend stack only)
+cd backend && docker compose up -d
 ```
 
 ### 4. Access the Application
@@ -141,10 +141,11 @@ npm start
 
 ## 📚 Documentation
 
-- [API Documentation](backend/API_DOCUMENTATION.md)
-- [Docker Setup Guide](DOCKER_SETUP.md)
-- [RAG System Guide](RAG_SYSTEM_BACKUP_README.md)
+- [Backend API Documentation](backend/API_DOCUMENTATION.md)
+- [AI Assistant API Reference](backend/ai_assistant/API_DOCUMENTATION.md)
+- [Website Integration Documentation](WEBSITE_INTEGRATION_DOCUMENTATION.md)
 - [Quick Start Guide](QUICK_START_GUIDE.md)
+- [Testing Guide](TESTING_GUIDE.md)
 
 ## 🔐 Security Features
 
@@ -202,10 +203,9 @@ For support and questions:
 
 ## 🔄 Version History
 
-- **v1.0.0 (build 1)** - CURRENT - Initial release with core features
-- v1.1.0 - Enhanced RAG system and monitoring
-- v1.2.0 - UI improvements and performance optimizations
-- v1.3.0 - Fully functional RAG system with multiple search modes
+- **v1.1.0 (build 3)** - CURRENT - Docs refresh, Website integration docs, startup guides fixed
+- v1.0.1 (build 2) - RAG improvements, cache standardization, analytics endpoints
+- v1.0.0 (build 1) - Initial release with core features
 
 ---
 

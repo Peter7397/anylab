@@ -172,16 +172,14 @@
 }
 ```
 
-### RAG PDF Upload (for future use)
+### RAG PDF Upload
 - **Endpoint:** `POST /api/ai/rag/upload/`
+- **Auth:** Required
 - **Form Data:**
   - `file`: PDF file
-- **Response:**
-```json
-{
-  "message": "RAG service is temporarily disabled."
-}
-```
+  - `title`: string
+  - `description`: string (optional)
+- **Response:** Upload confirmation and processing metadata
 
 ---
 
@@ -495,4 +493,4 @@
 
 ---
 
-**Last updated:** $(date)
+**Last updated:** October 30, 2025

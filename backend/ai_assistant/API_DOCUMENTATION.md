@@ -15,7 +15,7 @@ The AI Assistant API provides comprehensive functionality for document managemen
 RAG (Retrieval-Augmented Generation) operations, content scraping, users/roles management,
 and analytics.
 
-## Update: December 2024
+## Update: October 2025
 
 **New Features Added:**
 - ✅ Complete Users & Roles management system
@@ -23,6 +23,8 @@ and analytics.
 - ✅ Enhanced document types support
 - ✅ Source URL tracking for scraped content
 - ✅ Metadata support for documents
+ - ✅ Bulk import APIs for filesystem ingestion
+ - ✅ Website sources ingestion pipeline (see Website Integration Documentation)
 
 ## Base URL
 ```

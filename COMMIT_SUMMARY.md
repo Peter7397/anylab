@@ -79,3 +79,11 @@ Implemented Dashboard and System Settings pages with live data integration.
 - All code follows existing project patterns
 - No breaking changes to existing features
 
+## 2025-10-30 Documentation Refresh
+- Updated `README.md` with correct startup scripts, links, and version history
+- Revised `QUICK_START_GUIDE.md` to use `start-hybrid.sh` and Docker Compose
+- Cleaned `frontend/START_FRONTEND.md` to use relative paths
+- Refreshed `backend/API_DOCUMENTATION.md` (dates and active endpoints)
+- Updated `backend/ai_assistant/API_DOCUMENTATION.md` (October 2025 update notes)
+- Added `WEBSITE_INTEGRATION_DOCUMENTATION.md` to primary docs index
+
