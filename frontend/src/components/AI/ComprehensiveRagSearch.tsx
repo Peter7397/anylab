@@ -358,7 +358,7 @@ const ComprehensiveRagSearch: React.FC = () => {
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
-                  <Brain className="mx-auto h-12 w-12 text-gray-400" />
+              <Layers className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">Start Comprehensive RAG Search</h3>
                   <p className="mt-1 text-sm text-gray-500">
                     Ask questions for deep, comprehensive analysis with maximum detail and complete answers.
