@@ -3,17 +3,17 @@
   "name": "OnLab - One AI solution for every lab",
   "icons": [
     {
-      "src": "ai-favicon-32.png",
+      "src": "icon-source.png",
       "sizes": "32x32",
       "type": "image/png"
     },
     {
-      "src": "ai-logo-192.png",
+      "src": "icon-source.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "ai-logo-512.png",
+      "src": "icon-source.png",
       "type": "image/png",
       "sizes": "512x512"
     }
