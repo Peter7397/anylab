@@ -13,6 +13,7 @@ import {
   Brain
 } from 'lucide-react';
 import { apiClient } from '../../services/api';
+import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
 
 interface ChatMessage {
   id: string;
@@ -32,6 +33,7 @@ const ComprehensiveRagSearch: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
+  const { history: unifiedHistory, recordUserPrompt, refresh: refreshUnifiedHistory } = useUnifiedChatHistory(200);
   const [chatHistory, setChatHistory] = useState<Array<{ 
     id: string; 
     prompt: string; 
@@ -96,6 +98,21 @@ const ComprehensiveRagSearch: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Cross-post receiver for Comprehensive RAG
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('anylab_cross_post');
+      if (raw) {
+        const payload = JSON.parse(raw);
+        if (payload?.channel === 'rag_comprehensive' && typeof payload?.content === 'string') {
+          localStorage.removeItem('anylab_cross_post');
+          setInputMessage(payload.content);
+          setTimeout(() => handleComprehensiveSearch(), 0);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
   const handleComprehensiveSearch = async () => {
     if (!inputMessage.trim() || isLoading) return;
 
@@ -113,6 +130,7 @@ const ComprehensiveRagSearch: React.FC = () => {
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsLoading(true);
+    try { await recordUserPrompt('rag_comprehensive', currentQuery); } catch (e) { console.error('Failed to record unified history:', e); }
 
     // Add to history (will be updated with response later)
     const historyItem = {
@@ -182,6 +200,7 @@ const ComprehensiveRagSearch: React.FC = () => {
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      refreshUnifiedHistory();
     }
   };
 
@@ -193,22 +212,22 @@ const ComprehensiveRagSearch: React.FC = () => {
   };
 
   const formatContentForDisplay = (text: string) => {
-    // More comprehensive markdown formatting with better asterisk handling
+    // Preserve paragraph structure while ensuring font consistency
     let formatted = text
-      // First pass: Handle bold text (double asterisks) - process first to avoid conflicts
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      // Second pass: Handle remaining single asterisks (italic) - only if not part of bold
-      .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
-      // Handle code blocks
-      .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded text-sm">$1</code>')
-      // Handle headers
-      .replace(/^#{1,6}\s+(.+)$/gm, '<h3 class="font-semibold text-lg mt-4 mb-2">$1</h3>')
-      // Handle numbered lists
-      .replace(/^(\d+)\.\s+(.+)$/gm, '<div class="ml-4 mb-1"><span class="font-medium">$1.</span> $2</div>')
-      // Handle bullet points
-      .replace(/^[-*]\s+(.+)$/gm, '<div class="ml-4 mb-1">• $1</div>')
-      // Convert line breaks
-      .replace(/\n/g, '<br>');
+      // Remove any remaining markdown formatting that could cause font issues
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // Remove bold formatting
+      .replace(/\*([^*\n]+?)\*/g, '$1')   // Remove italic formatting
+      .replace(/`([^`]+)`/g, '$1')        // Remove code formatting
+      .replace(/^#{1,6}\s+(.+)$/gm, '$1') // Remove headers
+      // Preserve list structure
+      .replace(/^(\d+)\.\s+(.+)$/gm, '$1. $2')
+      .replace(/^[-*•]\s+(.+)$/gm, '• $1')
+      // Normalize whitespace while preserving paragraph breaks
+      .replace(/[ \t]+/g, ' ')  // Normalize spaces within lines
+      .replace(/\n{3,}/g, '\n\n');  // Limit consecutive newlines
+    
+    // Convert newlines to <br> tags for proper display, preserving paragraph structure
+    formatted = formatted.replace(/\n/g, '<br>');
     
     return formatted;
   };
@@ -273,8 +292,8 @@ const ComprehensiveRagSearch: React.FC = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Brain className="h-6 w-6 text-blue-600" />
+            <div className="p-2 bg-primary-100 rounded-lg">
+              <img src="/icon-source.png" alt="Comprehensive RAG" className="h-6 w-6" />
             </div>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">Comprehensive RAG</h1>
@@ -285,7 +304,7 @@ const ComprehensiveRagSearch: React.FC = () => {
             {performanceStats && (
               <button
                 onClick={() => setShowPerformanceStats(!showPerformanceStats)}
-                className="flex items-center px-3 py-1 text-sm text-blue-600 hover:text-blue-700"
+                className="flex items-center px-3 py-1 text-sm text-primary-600 hover:text-primary-700"
               >
                 <Zap className="mr-1 h-4 w-4" />
                 Performance
@@ -304,25 +323,25 @@ const ComprehensiveRagSearch: React.FC = () => {
 
       {/* Performance Stats */}
       {showPerformanceStats && performanceStats && (
-        <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
+        <div className="bg-primary-50 border-b border-primary-200 px-6 py-3">
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center space-x-4">
               <span className="flex items-center">
-                <Clock className="mr-1 h-4 w-4 text-blue-600" />
+                <Clock className="mr-1 h-4 w-4 text-primary-600" />
                 Response: {performanceStats.responseTime}ms
               </span>
               <span className="flex items-center">
-                <Target className="mr-1 h-4 w-4 text-blue-600" />
+                <Target className="mr-1 h-4 w-4 text-primary-600" />
                 Results: {performanceStats.searchResults}
               </span>
               <span className="flex items-center">
-                <FileText className="mr-1 h-4 w-4 text-blue-600" />
+                <FileText className="mr-1 h-4 w-4 text-primary-600" />
                 Tokens: {performanceStats.tokensUsed}
               </span>
             </div>
             <button
               onClick={() => setShowPerformanceStats(false)}
-              className="text-blue-600 hover:text-blue-700"
+              className="text-primary-600 hover:text-primary-700"
             >
               <X className="h-4 w-4" />
             </button>
@@ -359,23 +378,46 @@ const ComprehensiveRagSearch: React.FC = () => {
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div 
-                              className="text-sm prose prose-sm max-w-none"
+                              className="text-sm font-normal leading-relaxed text-gray-800"
                               dangerouslySetInnerHTML={{ 
                                 __html: formatContentForDisplay(message.content) 
                               }}
                             />
                           </div>
-                          <button
-                            onClick={() => copyToClipboard(message.content, message.id)}
-                            className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
-                            title="Copy formatted text with references"
-                          >
-                            {copiedMessageId === message.id ? (
-                              <Check className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
+                          <div className="flex items-center space-x-2">
+                            {message.role === 'user' && (
+                              <select
+                                onChange={(e) => {
+                                  const target = e.target.value as 'chat'|'rag_basic'|'rag'|'rag_comprehensive'|'troubleshooting';
+                                  if (!target) return;
+                                  try {
+                                    localStorage.setItem('anylab_cross_post', JSON.stringify({ channel: target, content: message.content, ts: Date.now() }));
+                                  } catch (err) {}
+                                  e.currentTarget.selectedIndex = 0;
+                                }}
+                                className="text-xs border border-gray-300 rounded px-1 py-0.5 text-gray-600 bg-white"
+                                defaultValue=""
+                                title="Ask in..."
+                              >
+                                <option value="">Ask in…</option>
+                                <option value="chat">Free Chat</option>
+                                <option value="rag_basic">Basic RAG</option>
+                                <option value="rag">Advanced RAG</option>
+                                <option value="troubleshooting">Troubleshooting</option>
+                              </select>
                             )}
-                          </button>
+                            <button
+                              onClick={() => copyToClipboard(message.content, message.id)}
+                              className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
+                              title="Copy formatted text with references"
+                            >
+                              {copiedMessageId === message.id ? (
+                                <Check className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                         
                         {/* References */}
@@ -452,15 +494,15 @@ const ComprehensiveRagSearch: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">Search History</h3>
                 <button
-                  onClick={clearHistory}
-                  className="text-sm text-red-600 hover:text-red-700"
+                  onClick={() => refreshUnifiedHistory()}
+                  className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  Clear All
+                  Refresh
                 </button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              {chatHistory.length === 0 ? (
+              {unifiedHistory.length === 0 ? (
                 <div className="text-center py-8">
                   <History className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">No search history</h3>
@@ -470,91 +512,23 @@ const ComprehensiveRagSearch: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {chatHistory.map((item) => (
+                  {unifiedHistory.map((item) => (
                     <div key={item.id} className="border border-gray-200 rounded-lg p-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <button
-                            onClick={() => loadFromHistory(item)}
+                            onClick={() => { setInputMessage(item.content); setShowHistory(false); }}
                             className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors text-left"
                           >
-                            {item.prompt}
+                            {item.content}
                           </button>
                           <p className="text-xs text-gray-500 mt-1">
-                            {new Date(item.timestamp).toLocaleString()}
+                            {new Date(item.created_at).toLocaleString()} • {item.channel}
                           </p>
                         </div>
-                        {item.response && (
-                          <button
-                            onClick={() => {
-                              const newMessages: ChatMessage[] = [
-                                {
-                                  id: item.id,
-                                  role: 'user',
-                                  content: item.prompt,
-                                  timestamp: item.timestamp
-                                },
-                                {
-                                  id: (parseInt(item.id) + 1).toString(),
-                                  role: 'assistant',
-                                  content: item.response || 'No response available',
-                                  timestamp: new Date().toISOString(),
-                                  references: item.sources || []
-                                }
-                              ];
-                              setMessages(newMessages);
-                              setShowHistory(false);
-                            }}
-                            className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-                          >
-                            View
-                          </button>
-                        )}
+                        
                       </div>
                       
-                      {/* Expandable Response */}
-                      {item.response && (
-                        <div className="mt-3 pt-3 border-t border-gray-100">
-                          <details className="group">
-                            <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800 transition-colors">
-                              <span className="group-open:hidden">Show response</span>
-                              <span className="hidden group-open:inline">Hide response</span>
-                            </summary>
-                            <div className="mt-2 text-sm text-gray-700 bg-gray-50 p-3 rounded">
-                              <p className="whitespace-pre-wrap">{item.response}</p>
-                              
-                              {/* Sources */}
-                              {item.sources && item.sources.length > 0 && (
-                                <div className="mt-3 pt-3 border-t border-gray-200">
-                                  <p className="text-xs font-medium text-gray-600 mb-2">Sources:</p>
-                                  <div className="space-y-2">
-                                    {item.sources.map((source, index) => (
-                                      <div key={index} className="text-xs bg-white p-2 rounded border">
-                                        {source.view_url && typeof source.view_url === 'string' && source.view_url.length > 0 ? (
-                                          <a 
-                                            href={source.view_url} 
-                                            target="_blank" 
-                                            rel="noopener noreferrer"
-                                            className="font-medium text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                                            title={`Open ${source.title} on page ${source.page || 'N/A'}`}
-                                          >
-                                            {source.title}
-                                          </a>
-                                        ) : (
-                                          <p className="font-medium text-gray-800" title="View URL not available">{source.title}</p>
-                                        )}
-                                        {source.page && <p className="text-gray-600">Page: {source.page}</p>}
-                                        {source.score && <p className="text-gray-600">Relevance: {(source.score * 100).toFixed(1)}%</p>}
-                                        <p className="text-gray-700 mt-1">{source.content.substring(0, 100)}...</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </details>
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
