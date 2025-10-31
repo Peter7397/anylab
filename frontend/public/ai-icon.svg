@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="AI">
+  <title>AI</title>
+  <defs>
+    <style>
+      .g{fill:#2e7d32}
+    </style>
+  </defs>
+  <!-- Background is transparent for favicon use -->
+  <!-- AI letters -->
+  <path class="g" d="M164 176l-46 128h36l9-28h43l9 28h36l-46-128h-41zm12 30l14 44h-28l14-44zM312 176h32v128h-32zM280 176h32v28h-32z"/>
+  <!-- Stylized 3-tier database (rounded rectangles) -->
+  <rect x="128" y="236" width="256" height="60" rx="16" class="g"/>
+  <rect x="128" y="308" width="256" height="60" rx="16" class="g"/>
+  <rect x="128" y="380" width="256" height="60" rx="16" class="g"/>
+</svg>
+
