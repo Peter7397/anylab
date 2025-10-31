@@ -24,6 +24,8 @@ import {
         Key,
         Calendar,
         FileText,
+        BookText,
+        FileType2,
         Globe,
         Shield,
         FileSearch,
@@ -34,6 +36,10 @@ import {
         Download,
         FlaskConical,
         Cpu,
+        Beaker,
+        Atom,
+        Scan,
+        Layers,
         ToggleLeft,
         ToggleRight
 } from 'lucide-react';
@@ -57,8 +63,8 @@ const generalAgilentNavigation = [
                 icon: Library,
                 children: [
                         { name: 'Library Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
-                        { name: 'Product Manuals', href: '/ai/knowledge/manuals', icon: FileText },
-                        { name: 'Technical Specs', href: '/ai/knowledge/specs', icon: FileText },
+                        { name: 'Product Manuals', href: '/ai/knowledge/manuals', icon: BookText },
+                        { name: 'Technical Specs', href: '/ai/knowledge/specs', icon: FileType2 },
                         { name: 'Community Solutions', href: '/ai/knowledge/community', icon: Users },
                         { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
                 ],
@@ -70,8 +76,9 @@ const generalAgilentNavigation = [
                 children: [
                         { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
                         { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
-                        { name: 'Advanced RAG', href: '/ai/rag', icon: Search },
-                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Brain },
+                        { name: 'Advanced RAG', href: '/ai/rag', icon: Brain },
+                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Layers },
+                        { name: 'Graph RAG', href: '/ai/graph-rag', icon: Network },
                         { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
         },
@@ -89,42 +96,42 @@ const generalAgilentNavigation = [
         {
                 name: 'Liquid Chromatography',
                 href: '/products/lc',
-                icon: FlaskConical,
+                icon: Beaker,
                 children: [
-                        { name: 'LC Systems', href: '/products/lc/systems', icon: FlaskConical },
-                        { name: 'LC Columns', href: '/products/lc/columns', icon: FlaskConical },
-                        { name: 'LC Accessories', href: '/products/lc/accessories', icon: FlaskConical },
+                        { name: 'LC Systems', href: '/products/lc/systems', icon: Beaker },
+                        { name: 'LC Columns', href: '/products/lc/columns', icon: Beaker },
+                        { name: 'LC Accessories', href: '/products/lc/accessories', icon: Beaker },
                         { name: 'LC Software', href: '/products/lc/software', icon: Code },
                 ],
         },
         {
                 name: 'Mass Spectrometry',
                 href: '/products/ms',
-                icon: Cpu,
+                icon: Activity,
                 children: [
-                        { name: 'MS Systems', href: '/products/ms/systems', icon: Cpu },
+                        { name: 'MS Systems', href: '/products/ms/systems', icon: Activity },
                         { name: 'MS Software', href: '/products/ms/software', icon: Code },
-                        { name: 'MS Accessories', href: '/products/ms/accessories', icon: Cpu },
+                        { name: 'MS Accessories', href: '/products/ms/accessories', icon: Activity },
                 ],
         },
         {
                 name: 'NMR Systems',
                 href: '/products/nmr',
-                icon: Cpu,
+                icon: Atom,
                 children: [
-                        { name: 'NMR Systems', href: '/products/nmr/systems', icon: Cpu },
+                        { name: 'NMR Systems', href: '/products/nmr/systems', icon: Atom },
                         { name: 'NMR Software', href: '/products/nmr/software', icon: Code },
-                        { name: 'NMR Accessories', href: '/products/nmr/accessories', icon: Cpu },
+                        { name: 'NMR Accessories', href: '/products/nmr/accessories', icon: Atom },
                 ],
         },
         {
                 name: 'Spectroscopy',
                 href: '/products/spectroscopy',
-                icon: Cpu,
+                icon: Scan,
                 children: [
-                        { name: 'UV-Vis', href: '/products/spectroscopy/uv-vis', icon: Cpu },
-                        { name: 'IR', href: '/products/spectroscopy/ir', icon: Cpu },
-                        { name: 'Fluorescence', href: '/products/spectroscopy/fluorescence', icon: Cpu },
+                        { name: 'UV-Vis', href: '/products/spectroscopy/uv-vis', icon: Scan },
+                        { name: 'IR', href: '/products/spectroscopy/ir', icon: Scan },
+                        { name: 'Fluorescence', href: '/products/spectroscopy/fluorescence', icon: Scan },
                 ],
         },
         {
@@ -163,8 +170,9 @@ const labInformaticsNavigation = [
                 children: [
                         { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
                         { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
-                        { name: 'Advanced RAG', href: '/ai/rag', icon: Search },
-                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Brain },
+                        { name: 'Advanced RAG', href: '/ai/rag', icon: Brain },
+                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Layers },
+                        { name: 'Graph RAG', href: '/ai/graph-rag', icon: Network },
                         { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
         },
@@ -294,9 +302,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 }`}>
                         {/* Header */}
                         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                                {!collapsed && (
+                                {collapsed ? (
+                                        <div className="flex items-center justify-center w-full">
+                                                <img src="/ai-icon.svg" alt="AnyLab" aria-hidden className="w-8 h-8" />
+                                        </div>
+                                ) : (
                                         <div className="flex items-center">
-                                                <img src="/ai-logo-192.png" alt="AnyLab" aria-hidden className="w-9 h-9 mr-2 rounded" />
+                                                <img src="/ai-icon.svg" alt="AnyLab" aria-hidden className="w-9 h-9 mr-2" />
                                                 <div>
                                                         <h1 className="text-xl font-bold text-gray-900">AnyLab</h1>
                                                         <p className="text-xs text-gray-500">AI Next to Your Lab</p>
@@ -305,7 +317,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                 )}
                                 <button
                                         onClick={onToggle}
-                                        className="p-1 rounded-md hover:bg-gray-100 transition-colors"
+                                        className="p-1 rounded-md hover:bg-primary-50 text-primary-700 transition-colors"
                                 >
                                         {collapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
                                 </button>
@@ -327,7 +339,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                         onClick={toggleOrganizationMode}
                                                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                                                                 organizationMode === 'lab-informatics' 
-                                                                        ? 'bg-blue-600' 
+                                                                        ? 'bg-primary-600' 
                                                                         : 'bg-gray-200'
                                                         }`}
                                                 >
@@ -348,13 +360,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                 <div className="p-2 border-b border-gray-200">
                                         <button
                                                 onClick={toggleOrganizationMode}
-                                                className="w-full p-2 rounded-md hover:bg-gray-100 transition-colors flex items-center justify-center"
+                                                className="w-full p-2 rounded-md hover:bg-primary-50 text-primary-700 transition-colors flex items-center justify-center"
                                                 title={organizationMode === 'general' ? 'Switch to Lab Informatics' : 'Switch to General Agilent'}
                                         >
                                                 {organizationMode === 'general' ? (
-                                                        <FlaskConical size={20} className="text-gray-600" />
+                                                        <FlaskConical size={20} className="text-primary-600" />
                                                 ) : (
-                                                        <Code size={20} className="text-blue-600" />
+                                                        <Code size={20} className="text-primary-600" />
                                                 )}
                                         </button>
                                 </div>
@@ -373,10 +385,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                         {item.children ? (
                                                                 <button
                                                                         onClick={() => toggleExpanded(item.name)}
-                                                                        className={`sidebar-item w-full text-left cursor-pointer ${isParentActive ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
+                                                                        className={`sidebar-item w-full text-left cursor-pointer ${isParentActive ? 'sidebar-item-active border border-primary-200 bg-primary-50 text-primary-800' : 'sidebar-item-inactive'}`}
                                                                         type="button"
                                                                 >
-                                                                        <Icon size={20} className="mr-3" />
+                                                                        <Icon size={20} className={`mr-3 ${isParentActive ? 'text-primary-700' : ''}`} />
                                                                         {!collapsed && (
                                                                                 <>
                                                                                         <span className="flex-1">{item.name}</span>
@@ -387,10 +399,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                         ) : (
                                                                 <Link
                                                                         to={item.href}
-                                                                        className={`sidebar-item ${isActive(item.href || '') ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
+                                                                        className={`sidebar-item ${isActive(item.href || '') ? 'sidebar-item-active border border-primary-200 bg-primary-50 text-primary-800' : 'sidebar-item-inactive'}`}
                                                                 >
-                                                                        <Icon size={20} className="mr-3" />
-                                                                        {!collapsed && <span>{item.name}</span>}
+                                                                        <Icon size={20} className={`mr-3 ${isActive(item.href || '') ? 'text-primary-700' : ''}`} />
+                                                                        {!collapsed && <span className="flex-1">{item.name}</span>}
                                                                 </Link>
                                                         )}
 
@@ -402,9 +414,9 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                                                         <Link
                                                                                                 key={child.name}
                                                                                                 to={child.href}
-                                                                                                className={`sidebar-item ${isActive(child.href) ? 'sidebar-item-active' : 'sidebar-item-inactive'}`}
+                                                                                                className={`sidebar-item ${isActive(child.href) ? 'sidebar-item-active border border-primary-200 bg-primary-50 text-primary-800' : 'sidebar-item-inactive'}`}
                                                                                         >
-                                                                                                <ChildIcon size={16} className="mr-2" />
+                                                                                                <ChildIcon size={16} className={`mr-2 ${isActive(child.href) ? 'text-primary-700' : ''}`} />
                                                                                                 {child.name}
                                                                                         </Link>
                                                                                 );
