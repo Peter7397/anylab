@@ -408,8 +408,8 @@ class AutomaticFileProcessor:
                         text = page.get_text()
                         
                         if text.strip():
-                            # Use advanced chunker with NO limits
-                            page_chunks = semantic_chunker.chunk_by_sentences(text, page_number=page_num + 1)
+                            # Use advanced chunker with NO limits, include glossary micro-chunks
+                            page_chunks = semantic_chunker.chunk_document_pages([text])
                             
                             for chunk in page_chunks:
                                 chunks_data.append({
@@ -429,8 +429,8 @@ class AutomaticFileProcessor:
                     content = f.read()
                 
                 if content.strip():
-                    # Use advanced chunker with NO limits
-                    content_chunks = semantic_chunker.chunk_by_sentences(content, page_number=1)
+                    # Use advanced chunker with NO limits, include glossary micro-chunks
+                    content_chunks = semantic_chunker.chunk_document_pages([content])
                     
                     for chunk in content_chunks:
                         chunks_data.append({

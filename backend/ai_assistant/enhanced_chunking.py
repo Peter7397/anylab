@@ -127,6 +127,33 @@ class SemanticChunker:
         
         return chunks
     
+    def extract_glossary_microchunks(self, text: str, page_number: int = 1) -> List[TextChunk]:
+        """Extract small definition-like snippets for acronyms/terms.
+        Returns 80-150 char micro-chunks around patterns like "X is ..." or ALL-CAPS terms.
+        """
+        microchunks: List[TextChunk] = []
+        clean_text = self.preprocess_text(text)
+        if not clean_text:
+            return microchunks
+        # Find definitional sentences
+        pattern_def = re.compile(r"\b([A-Z][A-Za-z0-9_\-/]{1,30})\b\s+(is|are)\s+[^.]{10,200}\.")
+        for m in pattern_def.finditer(clean_text):
+            start, end = m.start(), m.end()
+            snippet = clean_text[max(0, start-20):min(len(clean_text), end+20)]
+            if 80 <= len(snippet) <= 180:
+                microchunks.append(TextChunk(content=snippet.strip(), start_pos=start, end_pos=end,
+                                             chunk_index=-1, page_number=page_number))
+        # Acronym lines (ALL CAPS <=5 chars) within first 300 chars of a paragraph
+        pattern_acr = re.compile(r"\b([A-Z]{2,5})\b")
+        for m in pattern_acr.finditer(clean_text[:800]):
+            start = max(0, m.start()-60)
+            end = min(len(clean_text), m.end()+120)
+            snippet = clean_text[start:end]
+            if 60 <= len(snippet) <= 160:
+                microchunks.append(TextChunk(content=snippet.strip(), start_pos=start, end_pos=end,
+                                             chunk_index=-1, page_number=page_number))
+        return microchunks
+    
     def chunk_document_pages(self, page_texts: List[str]) -> List[TextChunk]:
         """Chunk multiple pages of a document"""
         all_chunks = []
@@ -136,6 +163,9 @@ class SemanticChunker:
                 continue
                 
             page_chunks = self.chunk_by_sentences(page_text, page_number=page_num)
+            # Add glossary micro-chunks to improve definitional recall
+            page_glossary = self.extract_glossary_microchunks(page_text, page_number=page_num)
+            page_chunks.extend(page_glossary)
             all_chunks.extend(page_chunks)
             
             # Quality-focused: Process all pages without truncation

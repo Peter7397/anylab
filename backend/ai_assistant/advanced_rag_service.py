@@ -71,8 +71,14 @@ class AdvancedRAGService(ImprovedRAGService):
                 f"threshold={self.similarity_threshold}"
             )
             
+            # Step 1.5: Route strategy for definitional/acronym queries
+            route = query_processor.route_strategy(query)
+            if route['mode'] == 'definition':
+                self.similarity_threshold = route['similarity_threshold']
+            
             # Step 2: Vector Search (get more candidates for hybrid)
-            vector_candidates = 30 if self.use_hybrid_search else self.top_k_candidates
+            vector_candidates = (route.get('vector_candidates')
+                                 if self.use_hybrid_search else self.top_k_candidates)
             vector_results = self.search_relevant_documents_with_scoring(
                 expanded_query, top_k=vector_candidates
             )
@@ -98,7 +104,13 @@ class AdvancedRAGService(ImprovedRAGService):
             # Step 3: Hybrid Search (combine vector + BM25)
             if self.use_hybrid_search and len(vector_results) > 1:
                 hybrid_results = hybrid_search_engine.hybrid_search(
-                    query, vector_results, top_k=top_k * 2  # Get more for reranking
+                    query,
+                    vector_results,
+                    top_k=top_k * 2,  # Get more for reranking
+                    vector_weight_override=route.get('vector_weight_override'),
+                    bm25_weight_override=route.get('bm25_weight_override'),
+                    exact_term_boost=route.get('exact_term_boost', 0.0),
+                    title_boost=route.get('title_boost', 0.0)
                 )
                 logger.info(f"Hybrid search: {len(hybrid_results)} results")
             else:
@@ -114,7 +126,9 @@ class AdvancedRAGService(ImprovedRAGService):
                 logger.info("Skipping reranking")
             
             # Step 5: Final selection
-            final_results = reranked_results[:top_k]
+            # Final selection, allow route to cap
+            final_cap = route.get('final_top_k', top_k)
+            final_results = reranked_results[:final_cap]
             
             # Add search metadata
             for result in final_results:

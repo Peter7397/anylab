@@ -191,8 +191,14 @@ class HybridSearchEngine:
         
         return [(score - min_score) / (max_score - min_score) for score in scores]
     
-    def hybrid_search(self, query: str, vector_results: List[Dict], top_k: int = 10) -> List[Dict]:
-        """Perform hybrid search combining vector similarity and BM25"""
+    def hybrid_search(self, query: str, vector_results: List[Dict], top_k: int = 10,
+                      vector_weight_override: Optional[float] = None,
+                      bm25_weight_override: Optional[float] = None,
+                      exact_term_boost: float = 0.0,
+                      title_boost: float = 0.0) -> List[Dict]:
+        """Perform hybrid search combining vector similarity and BM25.
+        Optional weight overrides and small boosts for exact term/title matches.
+        """
         if not vector_results:
             return []
         
@@ -228,14 +234,25 @@ class HybridSearchEngine:
             normalized_vector = self.normalize_scores(vector_similarities)
             normalized_bm25 = self.normalize_scores(bm25_scores)
             
-            # Combine scores
+            # Combine scores (with optional overrides and boosts)
+            v_weight = self.vector_weight if vector_weight_override is None else vector_weight_override
+            b_weight = self.bm25_weight if bm25_weight_override is None else bm25_weight_override
             for i, doc in enumerate(vector_results):
                 vector_score = normalized_vector[i]
                 bm25_score = normalized_bm25[i]
                 
                 # Hybrid score combination
-                hybrid_score = (self.vector_weight * vector_score + 
-                               self.bm25_weight * bm25_score)
+                hybrid_score = (v_weight * vector_score + b_weight * bm25_score)
+
+                # Optional boosts for exact term presence
+                if exact_term_boost or title_boost:
+                    content = (doc.get('content') or '').lower()
+                    title = (doc.get('title') or doc.get('filename') or '').lower()
+                    q = query.lower().strip()
+                    if exact_term_boost and q and q in content[:200]:
+                        hybrid_score += exact_term_boost
+                    if title_boost and q and q in title:
+                        hybrid_score += title_boost
                 
                 # Add scoring details to document
                 enhanced_doc = doc.copy()
@@ -348,6 +365,37 @@ class QueryProcessor:
         expanded = ' '.join(expanded_terms)
         logger.debug(f"Query expansion: '{query}' -> '{expanded[:100]}'")
         return expanded
+    
+    def is_acronym_query(self, query: str) -> bool:
+        q = query.strip()
+        return 1 <= len(q) <= 10 and q.upper() == q and q.replace(' ', '').isalpha()
+    
+    def is_definitional_query(self, query: str) -> bool:
+        ql = query.lower()
+        return any(phrase in ql for phrase in ["what is", "what are", "define ", "definition of"]) or self.is_acronym_query(query)
+    
+    def route_strategy(self, query: str) -> Dict[str, any]:
+        """Return routing parameters based on query intent"""
+        if self.is_definitional_query(query):
+            return {
+                'mode': 'definition',
+                'similarity_threshold': 0.45,
+                'vector_candidates': 40,
+                'final_top_k': 12,
+                'mmr_lambda': 0.8,
+                'vector_weight_override': 0.65,
+                'bm25_weight_override': 0.35,
+                'exact_term_boost': 0.1,
+                'title_boost': 0.1
+            }
+        # default general route
+        return {
+            'mode': 'general',
+            'similarity_threshold': 0.3,
+            'vector_candidates': 30,
+            'final_top_k': 8,
+            'mmr_lambda': 0.7
+        }
     
     def classify_query(self, query: str) -> str:
         """Classify query type for better processing"""
