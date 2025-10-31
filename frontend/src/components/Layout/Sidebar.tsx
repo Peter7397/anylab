@@ -304,11 +304,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                         <div className="flex items-center justify-between p-4 border-b border-gray-200">
                                 {collapsed ? (
                                         <div className="flex items-center justify-center w-full">
-                                                <img src="/ai-icon.svg" alt="AnyLab" aria-hidden className="w-12 h-12" />
+                                                <img src="/icon-source.png" alt="AnyLab" aria-hidden className="w-12 h-12" />
                                         </div>
                                 ) : (
                                         <div className="flex items-center">
-                                                <img src="/ai-icon.svg" alt="AnyLab" aria-hidden className="w-16 h-16 mr-3" />
+                                                <img src="/icon-source.png" alt="AnyLab" aria-hidden className="w-16 h-16 mr-3" />
                                                 <div>
                                                         <h1 className="text-xl font-bold text-gray-900">AnyLab</h1>
                                                         <p className="text-xs text-gray-500">AI Next to Your Lab</p>
