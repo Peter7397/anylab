@@ -384,6 +384,12 @@ class AutomaticFileProcessor:
     def _generate_chunks(self, uploaded_file: UploadedFile) -> list:
         """Generate chunks with UNLIMITED approach for maximum quality"""
         try:
+            # If this upload has an associated DocumentFile with website content metadata, use that path
+            doc_file = DocumentFile.objects.filter(uploaded_file=uploaded_file).first()
+            if doc_file and isinstance(getattr(doc_file, 'metadata', None), dict):
+                if doc_file.metadata.get('content_type') == 'website' or doc_file.metadata.get('html_content'):
+                    return self._generate_html_chunks(uploaded_file)
+            
             file_path = self._get_file_path(uploaded_file)
             
             if not os.path.exists(file_path):
@@ -815,6 +821,69 @@ class AutomaticFileProcessor:
         
         logger.info(f"Created DocumentFile {document_file.id} for UploadedFile {uploaded_file.id}")
         return document_file
+    
+    def _generate_html_chunks(self, uploaded_file: UploadedFile) -> list:
+        """Generate chunks from HTML content stored in metadata"""
+        try:
+            logger.info(f"Generating chunks from HTML content for {uploaded_file.filename}")
+            # Use DocumentFile.metadata as the source of website/HTML content
+            doc_file = DocumentFile.objects.filter(uploaded_file=uploaded_file).first()
+            meta = (doc_file.metadata if (doc_file and isinstance(getattr(doc_file, 'metadata', None), dict)) else {})
+            # Get HTML content from metadata
+            html_content = meta.get('html_content', '')
+            if not html_content:
+                logger.error(f"No HTML content found in metadata for {uploaded_file.filename}")
+                return []
+            
+            chunks_data = []
+            
+            # Extract structured content from metadata
+            extracted_elements = meta.get('extracted_elements', {})
+            source_url = meta.get('source_url', '')
+            title = meta.get('title', '')
+            
+            # Create overview chunk
+            overview_content = f"Website: {title}\nURL: {source_url}\n"
+            if meta.get('description'):
+                overview_content += f"Description: {meta.get('description')}\n"
+            
+            overview_content += f"Content Summary:\n"
+            overview_content += f"- Links: {extracted_elements.get('links_count', 0)}\n"
+            overview_content += f"- Images: {extracted_elements.get('images_count', 0)}\n"
+            overview_content += f"- Tables: {extracted_elements.get('tables_count', 0)}\n"
+            overview_content += f"- Headings: {extracted_elements.get('headings_count', 0)}\n"
+            overview_content += f"- Paragraphs: {extracted_elements.get('paragraphs_count', 0)}\n"
+            overview_content += f"- Lists: {extracted_elements.get('lists_count', 0)}\n"
+            overview_content += f"- Code blocks: {extracted_elements.get('code_blocks_count', 0)}\n"
+            overview_content += f"- Forms: {extracted_elements.get('forms_count', 0)}\n"
+            
+            chunks_data.append({
+                'content': overview_content,
+                'page_number': 1,
+                'chunk_index': len(chunks_data)
+            })
+            
+            # Process main HTML content using semantic chunker
+            if html_content.strip():
+                # Use advanced chunker with NO limits for HTML content
+                content_chunks = semantic_chunker.chunk_by_sentences(html_content, page_number=1)
+                
+                for chunk in content_chunks:
+                    # Add source attribution to each chunk
+                    chunk_content = f"[Source: {source_url}]\n{chunk.content}"
+                    
+                    chunks_data.append({
+                        'content': chunk_content,
+                        'page_number': chunk.page_number,
+                        'chunk_index': len(chunks_data)
+                    })
+            
+            logger.info(f"Generated {len(chunks_data)} chunks from HTML content for {uploaded_file.filename}")
+            return chunks_data
+            
+        except Exception as e:
+            logger.error(f"Error generating HTML chunks for {uploaded_file.filename}: {e}", exc_info=True)
+            return []
 
 
 # Global instance

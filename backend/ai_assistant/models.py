@@ -4,6 +4,7 @@ from django.core.validators import FileExtensionValidator
 from django.utils import timezone
 from pgvector.django import VectorField
 import hashlib
+import uuid
 
 class UploadedFile(models.Model):
     """Enhanced file storage with hash-based deduplication"""
@@ -317,3 +318,128 @@ class HelpPortalDocument(models.Model):
             models.Index(fields=['category']),
             models.Index(fields=['file_hash']),
         ]
+
+
+class WebsiteSource(models.Model):
+    """Track external website sources for RAG processing"""
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('fetching', 'Fetching Content'),
+        ('metadata_extracting', 'Extracting Metadata'),
+        ('chunking', 'Generating Chunks'),
+        ('embedding', 'Creating Embeddings'),
+        ('ready', 'Ready for Search'),
+        ('failed', 'Processing Failed'),
+    ]
+    
+    url = models.URLField(max_length=512, unique=True)
+    domain = models.CharField(max_length=255, db_index=True)
+    title = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    
+    # Processing status (same as UploadedFile)
+    processing_status = models.CharField(
+        max_length=20, 
+        choices=STATUS_CHOICES, 
+        default='pending',
+        db_index=True
+    )
+    metadata_extracted = models.BooleanField(default=False)
+    chunks_created = models.BooleanField(default=False)
+    embeddings_created = models.BooleanField(default=False)
+    
+    # Error tracking
+    processing_error = models.TextField(null=True, blank=True)
+    processing_started_at = models.DateTimeField(null=True, blank=True)
+    processing_completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Quality metrics
+    chunk_count = models.IntegerField(default=0)
+    embedding_count = models.IntegerField(default=0)
+    page_count = models.IntegerField(default=0)  # Number of pages scraped
+    
+    # Update tracking
+    last_refreshed_at = models.DateTimeField(null=True, blank=True)
+    next_refresh_at = models.DateTimeField(null=True, blank=True)
+    auto_refresh = models.BooleanField(default=True)
+    refresh_interval_days = models.IntegerField(default=7)
+    
+    # Link to UploadedFile (when HTML is converted to file)
+    uploaded_file = models.ForeignKey(UploadedFile, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Metadata
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    def is_ready_for_search(self):
+        """Check if website is fully processed and ready for RAG/search"""
+        return (
+            self.processing_status == 'ready' and
+            self.metadata_extracted and
+            self.chunks_created and
+            self.embeddings_created and
+            self.chunk_count > 0 and
+            self.embedding_count > 0
+        )
+    
+    def get_processing_progress(self):
+        """Get processing progress percentage"""
+        steps_completed = 0
+        total_steps = 4
+        
+        if self.metadata_extracted:
+            steps_completed += 1
+        if self.chunks_created:
+            steps_completed += 1
+        if self.embeddings_created:
+            steps_completed += 1
+        if self.processing_status == 'ready':
+            steps_completed += 1
+            
+        return int((steps_completed / total_steps) * 100)
+    
+    def __str__(self):
+        return f"{self.title or self.domain} ({self.url})"
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['processing_status']),
+            models.Index(fields=['domain']),
+            models.Index(fields=['url']),
+            models.Index(fields=['created_at']),
+        ]
+
+
+class ChatChannel(models.TextChoices):
+    CHAT = 'chat', 'ChatAssistant'
+    RAG_BASIC = 'rag_basic', 'Basic RAG'
+    RAG = 'rag', 'RAG'
+    RAG_COMPREHENSIVE = 'rag_comprehensive', 'Comprehensive RAG'
+    RAG_GRAPH = 'rag_graph', 'Graph RAG'
+    TROUBLESHOOTING = 'troubleshooting', 'Troubleshooting'
+
+
+class ChatMessage(models.Model):
+    """Unified chat message storage across channels per user."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, db_index=True)
+    channel = models.CharField(max_length=40, choices=ChatChannel.choices, db_index=True)
+    thread_id = models.UUIDField(default=uuid.uuid4, db_index=True)
+    role = models.CharField(max_length=16, choices=(('user', 'user'), ('assistant', 'assistant')))
+    content = models.TextField()
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['user', 'channel', 'created_at']),
+            models.Index(fields=['thread_id', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id}:{self.channel}:{self.role}:{str(self.thread_id)[:8]}"

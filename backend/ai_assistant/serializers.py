@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import (
     PDFDocument, WebLink, KnowledgeShare, 
     UploadedFile, DocumentChunk, DocumentFile, QueryHistory,
-    HelpPortalDocument
+    HelpPortalDocument, WebsiteSource, ChatMessage
 )
 
 
@@ -204,3 +204,134 @@ class HelpPortalDocumentSerializer(serializers.ModelSerializer):
     
     def get_processed_date(self, obj):
         return obj.processed_at.strftime("%Y-%m-%d %H:%M:%S") if obj.processed_at else ""
+
+
+class WebsiteSourceSerializer(serializers.ModelSerializer):
+    """Serializer for Website Source model"""
+    
+    created_date = serializers.SerializerMethodField()
+    updated_date = serializers.SerializerMethodField()
+    last_refreshed_date = serializers.SerializerMethodField()
+    next_refresh_date = serializers.SerializerMethodField()
+    processing_started_date = serializers.SerializerMethodField()
+    processing_completed_date = serializers.SerializerMethodField()
+    processing_status_display = serializers.CharField(source='get_processing_status_display', read_only=True)
+    is_ready = serializers.SerializerMethodField()
+    progress_percentage = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = WebsiteSource
+        fields = [
+            'id', 'url', 'domain', 'title', 'description',
+            'processing_status', 'processing_status_display',
+            'metadata_extracted', 'chunks_created', 'embeddings_created',
+            'processing_error', 'processing_started_at', 'processing_started_date',
+            'processing_completed_at', 'processing_completed_date',
+            'chunk_count', 'embedding_count', 'page_count',
+            'last_refreshed_at', 'last_refreshed_date',
+            'next_refresh_at', 'next_refresh_date',
+            'auto_refresh', 'refresh_interval_days',
+            'metadata', 'uploaded_file', 'created_by',
+            'created_at', 'created_date', 'updated_at', 'updated_date',
+            'is_ready', 'progress_percentage'
+        ]
+        read_only_fields = [
+            'id', 'domain', 'processing_status', 'metadata_extracted',
+            'chunks_created', 'embeddings_created', 'processing_error',
+            'processing_started_at', 'processing_completed_at',
+            'chunk_count', 'embedding_count', 'page_count',
+            'last_refreshed_at', 'next_refresh_at', 'metadata',
+            'uploaded_file', 'created_by', 'created_at', 'updated_at'
+        ]
+    
+    def get_created_date(self, obj):
+        return obj.created_at.strftime("%Y-%m-%d %H:%M:%S") if obj.created_at else ""
+    
+    def get_updated_date(self, obj):
+        return obj.updated_at.strftime("%Y-%m-%d %H:%M:%S") if obj.updated_at else ""
+    
+    def get_last_refreshed_date(self, obj):
+        return obj.last_refreshed_at.strftime("%Y-%m-%d %H:%M:%S") if obj.last_refreshed_at else ""
+    
+    def get_next_refresh_date(self, obj):
+        return obj.next_refresh_at.strftime("%Y-%m-%d %H:%M:%S") if obj.next_refresh_at else ""
+    
+    def get_processing_started_date(self, obj):
+        return obj.processing_started_at.strftime("%Y-%m-%d %H:%M:%S") if obj.processing_started_at else ""
+    
+    def get_processing_completed_date(self, obj):
+        return obj.processing_completed_at.strftime("%Y-%m-%d %H:%M:%S") if obj.processing_completed_at else ""
+    
+    def get_is_ready(self, obj):
+        return obj.is_ready_for_search()
+    
+    def get_progress_percentage(self, obj):
+        return obj.get_processing_progress()
+    
+    def validate_url(self, value):
+        """Validate URL format and check for duplicates"""
+        from urllib.parse import urlparse
+        
+        # Basic URL validation
+        parsed = urlparse(value)
+        if not parsed.scheme or not parsed.netloc:
+            raise serializers.ValidationError("Invalid URL format")
+        
+        # Check for duplicates
+        if self.instance is None:  # Only check on creation
+            if WebsiteSource.objects.filter(url=value).exists():
+                raise serializers.ValidationError("This website URL has already been added")
+        
+        return value
+    
+    def create(self, validated_data):
+        """Create WebsiteSource with user info and extract domain"""
+        from urllib.parse import urlparse
+        
+        request = self.context.get('request')
+        
+        # Extract domain from URL
+        parsed_url = urlparse(validated_data['url'])
+        validated_data['domain'] = parsed_url.netloc
+        
+        # Set created_by if user is authenticated
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            validated_data['created_by'] = request.user
+        
+        return super().create(validated_data)
+
+
+class WebsiteSourceCreateSerializer(serializers.ModelSerializer):
+    """Simplified serializer for creating website sources"""
+    
+    class Meta:
+        model = WebsiteSource
+        fields = ['url', 'title', 'description', 'auto_refresh', 'refresh_interval_days']
+    
+    def validate_url(self, value):
+        """Validate URL format and check for duplicates"""
+        from urllib.parse import urlparse
+        
+        # Basic URL validation
+        parsed = urlparse(value)
+        if not parsed.scheme or not parsed.netloc:
+            raise serializers.ValidationError("Invalid URL format")
+        
+        # Check for duplicates
+        if WebsiteSource.objects.filter(url=value).exists():
+            raise serializers.ValidationError("This website URL has already been added")
+        
+        return value
+
+
+class ChatMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ChatMessage
+        fields = ['id', 'channel', 'thread_id', 'role', 'content', 'metadata', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            validated_data['user'] = request.user
+        return super().create(validated_data)

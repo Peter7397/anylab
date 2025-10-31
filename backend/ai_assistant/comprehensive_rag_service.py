@@ -13,6 +13,8 @@ from .models import DocumentChunk, UploadedFile, QueryHistory
 from .advanced_rag_service import AdvancedRAGService
 from .hybrid_search import hybrid_search_engine, query_processor
 from .reranker import advanced_reranker
+from .rag_improvements import enhanced_retrieval_pipeline
+from .citation_validator import validate_response_support
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +109,7 @@ class ComprehensiveContextOptimizer:
         comprehensive_instruction = (
             "You are a technical documentation expert. Your ONLY source of information is the provided context below.\n\n"
             "ABSOLUTE REQUIREMENTS - READ THESE CAREFULLY:\n\n"
-            "🚫 FORBIDDEN ACTIVITIES:\n"
+            "FORBIDDEN ACTIVITIES:\n"
             "1. DO NOT use any knowledge outside the provided context\n"
             "2. DO NOT guess, infer, or make assumptions\n"
             "3. DO NOT use common sense or general knowledge\n"
@@ -116,7 +118,7 @@ class ComprehensiveContextOptimizer:
             "6. DO NOT create examples that aren't in the documents\n"
             "7. DO NOT add details that aren't explicitly mentioned\n"
             "8. DO NOT use technical terms you learned elsewhere\n\n"
-            "✅ REQUIRED BEHAVIORS:\n"
+            "REQUIRED BEHAVIORS:\n"
             "1. Extract information EXACTLY as stated in the context\n"
             "2. ONLY cite information that appears in the provided context\n"
             "3. If information is missing in the context, state: \"This information is not available in the provided documentation\"\n"
@@ -206,14 +208,14 @@ class ComprehensiveRAGService(AdvancedRAGService):
         self.comprehensive_cache_ttl = 7200  # 2 hours for comprehensive results
         
     def search_for_comprehensive_results(self, query: str, top_k: int = None) -> List[Dict]:
-        """Search for maximum relevant information across all sources"""
+        """Search for maximum relevant information across all sources with enhanced improvements"""
         if top_k is None:
             top_k = self.comprehensive_top_k
             
         try:
             # Create cache key for comprehensive search
             query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
-            cache_key = f"comprehensive_search_{query_hash}_{top_k}_{self.similarity_threshold}"
+            cache_key = f"comprehensive_search_enhanced_{query_hash}_{top_k}_{self.similarity_threshold}"
             
             # Try cache first
             cached_results = cache.get(cache_key)
@@ -221,56 +223,96 @@ class ComprehensiveRAGService(AdvancedRAGService):
                 logger.info(f"Using cached comprehensive search results: {query[:30]}...")
                 return cached_results
             
-            # Step 1: Query processing with adaptive expansion
-            query_type = query_processor.classify_query(query)
-            # Use adaptive expansion - for comprehensive mode, still expand more aggressively
-            if query_processor.should_expand_query(query):
-                expanded_query = query_processor.expand_query(query)
-                expansion_applied = True
-            else:
-                expanded_query = query
-                expansion_applied = False
-            
-            logger.info(f"Comprehensive search - Query type: {query_type}, expansion: {expansion_applied}")
-            
-            # Step 2: Cast a very wide net for maximum comprehensive coverage (Option 3+)
-            # Retrieve 60 candidates for maximum recall - accuracy is priority
-            vector_results = self.search_relevant_documents_with_scoring(
-                expanded_query, top_k=self.comprehensive_candidates
+            # Use enhanced retrieval pipeline with all improvements
+            retrieval_result = enhanced_retrieval_pipeline.enhanced_retrieve(
+                query=query,
+                metadata_filters=None,
+                use_rrf=True,      # Reciprocal Rank Fusion
+                use_mmr=True,      # Maximal Marginal Relevance for diversity
+                use_dedup=True     # Deduplication
             )
             
-            logger.info(f"Retrieved {len(vector_results)} candidates out of {self.comprehensive_candidates} requested")
+            comprehensive_results = retrieval_result['results']
             
-            if not vector_results:
-                return []
-            
-            # Step 3: Hybrid search with more candidates
-            hybrid_results = hybrid_search_engine.hybrid_search(
-                query, vector_results, top_k=top_k * 2  # Get more for comprehensive coverage
-            )
-            
-            # Step 4: Advanced reranking but keep more results
-            reranked_results = advanced_reranker.advanced_rerank(query, hybrid_results)
-            
-            # Step 5: Select comprehensive set of results
-            comprehensive_results = reranked_results[:top_k]
+            # Check if we should abstain (and log it)
+            if retrieval_result.get('should_abstain'):
+                logger.warning(
+                    f"Abstain guardrail triggered for query '{query[:50]}...': "
+                    f"{retrieval_result.get('clarification', 'Unknown reason')}"
+                )
             
             # Add comprehensive metadata
             for result in comprehensive_results:
-                result['query_type'] = query_type
-                result['search_method'] = 'comprehensive_rag'
+                result['query_type'] = retrieval_result['metadata'].get('query_type', 'general')
+                result['search_method'] = 'comprehensive_rag_enhanced'
                 result['comprehensive_mode'] = True
+                result['enhancements'] = {
+                    'rrf': retrieval_result['metadata'].get('used_rrf', False),
+                    'mmr': retrieval_result['metadata'].get('used_mmr', False),
+                    'dedup': retrieval_result['metadata'].get('used_dedup', False)
+                }
             
             # Cache results
             cache.set(cache_key, comprehensive_results, self.comprehensive_cache_ttl)
             
-            logger.info(f"Comprehensive search: {len(comprehensive_results)} results for maximum detail")
+            logger.info(
+                f"Enhanced comprehensive search: {len(comprehensive_results)} results "
+                f"(avg_score: {retrieval_result['metadata'].get('avg_score', 0):.3f})"
+            )
             
             return comprehensive_results
             
         except Exception as e:
-            logger.error(f"Error in comprehensive search: {e}")
-            # Fallback to advanced search
+            logger.error(f"Error in enhanced comprehensive search: {e}", exc_info=True)
+            # Fallback to original method
+            logger.info("Falling back to original comprehensive search")
+            return self._fallback_comprehensive_search(query, top_k)
+    
+    def _fallback_comprehensive_search(self, query: str, top_k: int) -> List[Dict]:
+        """Fallback to original comprehensive search method"""
+        try:
+            # Step 1: Query processing with adaptive expansion
+            query_type = query_processor.classify_query(query)
+            if query_processor.should_expand_query(query):
+                expanded_query = query_processor.expand_query(query)
+            else:
+                expanded_query = query
+            
+            # Step 2: Vector search
+            vector_results = self.search_relevant_documents_with_scoring(
+                expanded_query, top_k=self.comprehensive_candidates
+            )
+            
+            if not vector_results:
+                # Try original query
+                vector_results = self.search_relevant_documents_with_scoring(
+                    query, top_k=self.comprehensive_candidates
+                )
+            
+            if not vector_results:
+                return []
+            
+            # Step 3: Hybrid search
+            hybrid_results = hybrid_search_engine.hybrid_search(
+                query, vector_results, top_k=top_k * 2
+            )
+            
+            # Step 4: Advanced reranking
+            reranked_results = advanced_reranker.advanced_rerank(query, hybrid_results)
+            
+            # Step 5: Select results
+            comprehensive_results = reranked_results[:top_k]
+            
+            # Add metadata
+            for result in comprehensive_results:
+                result['query_type'] = query_type
+                result['search_method'] = 'comprehensive_rag_fallback'
+                result['comprehensive_mode'] = True
+            
+            return comprehensive_results
+            
+        except Exception as e:
+            logger.error(f"Error in fallback comprehensive search: {e}")
             return self.search_with_hybrid_and_reranking(query, top_k)
     
     def generate_comprehensive_response(self, query: str, documents: List[Dict]) -> str:
@@ -296,6 +338,16 @@ class ComprehensiveRAGService(AdvancedRAGService):
             # Clean response to remove any unwanted markdown formatting
             cleaned_response = self.clean_response_formatting(response)
             
+            # Lightweight citation validation (non-blocking)
+            try:
+                validation = validate_response_support(cleaned_response, documents)
+                if validation.get('unsupported_count', 0) > 0:
+                    logger.warning(
+                        f"Citation validator: {validation['unsupported_count']} unsupported of {validation['total_sentences']}"
+                    )
+            except Exception:
+                pass
+            
             return cleaned_response
             
         except Exception as e:
@@ -304,25 +356,43 @@ class ComprehensiveRAGService(AdvancedRAGService):
             return self.generate_advanced_response(query, documents)
     
     def clean_response_formatting(self, response: str) -> str:
-        """Remove unwanted markdown formatting and symbols from response"""
+        """Remove unwanted markdown formatting while preserving paragraph structure for consistent font rendering"""
         import re
         
         if not response:
             return response
             
-        # Remove markdown headers (### #### etc.)
-        cleaned = re.sub(r'^#{1,6}\s+', '', response, flags=re.MULTILINE)
+        # Remove markdown headers but preserve the text content
+        cleaned = re.sub(r'^#{1,6}\s+(.+)$', r'\1', response, flags=re.MULTILINE)
         
-        # Remove extra markdown symbols that might appear
-        cleaned = re.sub(r'\*\*\*+', '', cleaned)  # Remove multiple asterisks
-        cleaned = re.sub(r'---+', '', cleaned)     # Remove horizontal rules
-        cleaned = re.sub(r'===+', '', cleaned)     # Remove equals-based rules
+        # Remove bold and italic markdown but keep the text
+        cleaned = re.sub(r'\*\*([^*]+)\*\*', r'\1', cleaned)  # Remove bold formatting
+        cleaned = re.sub(r'\*([^*\n]+?)\*', r'\1', cleaned)  # Remove italic formatting
+        cleaned = re.sub(r'`([^`]+)`', r'\1', cleaned)  # Remove code formatting
         
-        # Clean up multiple newlines while preserving paragraph structure
+        # Remove emojis and special characters that can affect font rendering
+        cleaned = re.sub(r'[🚫✅❌⚠️💡📝🔍📊📈📉]', '', cleaned)
+        
+        # Remove markdown separators (horizontal rules, multiple dashes/equals)
+        cleaned = re.sub(r'^-{3,}$', '', cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r'^={3,}$', '', cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r'^\*{3,}$', '', cleaned, flags=re.MULTILINE)
+        
+        # Remove list markers but preserve the content and line breaks
+        # For bullet lists, convert to plain text with the bullet
+        cleaned = re.sub(r'^[-*]\s+', '• ', cleaned, flags=re.MULTILINE)
+        # For numbered lists, keep the number
+        cleaned = re.sub(r'^(\d+)\.\s+', r'\1. ', cleaned, flags=re.MULTILINE)
+        
+        # Preserve paragraph breaks - normalize multiple newlines to double newlines
         cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
         
-        # Remove leading/trailing whitespace
-        cleaned = cleaned.strip()
+        # Remove leading/trailing whitespace from each line but preserve line breaks
+        lines = cleaned.split('\n')
+        cleaned = '\n'.join(line.strip() for line in lines)
+        
+        # Final cleanup: remove any completely empty lines but keep paragraph structure
+        cleaned = re.sub(r'\n{3,}', '\n\n', cleaned).strip()
         
         return cleaned
     

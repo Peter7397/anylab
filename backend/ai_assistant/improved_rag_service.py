@@ -20,7 +20,7 @@ class ImprovedRAGService:
     """Enhanced RAG service with better chunking and similarity scoring"""
     
     def __init__(self, model_name=None):
-        self.model_name = model_name or getattr(settings, 'OLLAMA_MODEL', 'qwen2.5:latest')
+        self.model_name = model_name or getattr(settings, 'OLLAMA_MODEL', 'llama3:8b')
         self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         self.embedding_model = getattr(settings, 'EMBEDDING_MODEL', 'bge-m3')
         

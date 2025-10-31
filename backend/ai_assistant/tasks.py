@@ -7,7 +7,7 @@ from celery import shared_task
 from django.core.management import call_command
 from django.utils import timezone
 from django.core.cache import cache
-from .models import DocumentFile, UploadedFile
+from .models import DocumentFile, UploadedFile, ChatMessage
 from .automatic_file_processor import automatic_file_processor
 
 logger = logging.getLogger(__name__)
@@ -54,6 +54,19 @@ def scrape_ssb_weekly(self):
         cache.set('ssb_scraping_in_progress', False, 300)  # 5 minutes
         
         raise
+
+
+@shared_task(name='ai_assistant.tasks.purge_old_chat_messages')
+def purge_old_chat_messages():
+    """Delete chat messages older than 7 days for retention policy."""
+    try:
+        from datetime import timedelta
+        cutoff = timezone.now() - timedelta(days=7)
+        deleted, _ = ChatMessage.objects.filter(created_at__lt=cutoff).delete()
+        return {"status": "success", "deleted": deleted}
+    except Exception as e:
+        logger.error(f'Failed to purge old chat messages: {e}', exc_info=True)
+        return {"status": "error", "error": str(e)}
     
     finally:
         # Mark scraping complete
@@ -288,4 +301,119 @@ def process_pending_files():
             
     except Exception as e:
         logger.error(f'Error processing pending files: {e}', exc_info=True)
+
+
+@shared_task(
+    bind=True,
+    name='ai_assistant.tasks.process_website_automatically',
+    autoretry_for=(Exception,),
+    retry_kwargs={'max_retries': 3, 'countdown': 60},
+    retry_backoff=True,
+    retry_backoff_max=600,
+    retry_jitter=True
+)
+def process_website_automatically(self, website_source_id):
+    """
+    Background task for automatic website processing
+    
+    QUALITY FOCUS: Uses website processor with full quality guarantees
+    - HTML fetching and parsing
+    - Conversion to UploadedFile format
+    - Integration with AutomaticFileProcessor
+    - Same chunking and embedding standards
+    - 3 retry attempts (Celery-level) + 3 attempts (process-level) = up to 9 total
+    """
+    try:
+        logger.info(f'Processing website {website_source_id} in background (attempt {self.request.retries + 1})')
+        
+        # Use the website processor with all quality guarantees
+        from .website_processor import website_processor
+        result = website_processor.process_website_fully(website_source_id)
+        
+        logger.info(f'Website {website_source_id} processed successfully: {result}')
+        
+        return {
+            'status': 'success',
+            'website_source_id': website_source_id,
+            'result': result
+        }
+        
+    except Exception as e:
+        logger.error(f'Background website processing failed for {website_source_id}: {e}', exc_info=True)
+        
+        # Mark current attempt status in database
+        try:
+            from .models import WebsiteSource
+            website_source = WebsiteSource.objects.get(id=website_source_id)
+            website_source.processing_error = f"Attempt {self.request.retries + 1} failed: {str(e)}"
+            website_source.save()
+        except WebsiteSource.DoesNotExist:
+            logger.error(f'WebsiteSource {website_source_id} not found')
+        
+        # Let Celery handle retry (with autoretry_for)
+        raise
+
+
+@shared_task(name='ai_assistant.tasks.refresh_expired_websites')
+def refresh_expired_websites():
+    """
+    Refresh websites that need updating based on their refresh schedule
+    
+    Runs periodically to refresh websites that have passed their next_refresh_at time
+    """
+    try:
+        logger.info('Starting expired websites refresh task')
+        
+        from .models import WebsiteSource
+        from datetime import timedelta
+        
+        # Find websites that need refresh
+        expired_websites = WebsiteSource.objects.filter(
+            next_refresh_at__lte=timezone.now(),
+            auto_refresh=True,
+            processing_status='ready'  # Only refresh ready websites
+        )
+        
+        if not expired_websites.exists():
+            logger.info('No expired websites found for refresh')
+            return {
+                'status': 'success',
+                'refreshed_count': 0,
+                'message': 'No websites needed refresh'
+            }
+        
+        refreshed_count = 0
+        failed_count = 0
+        
+        for website in expired_websites:
+            try:
+                logger.info(f'Refreshing expired website: {website.url}')
+                
+                # Trigger refresh processing
+                from .website_processor import website_processor
+                result = website_processor.refresh_website(website.id)
+                
+                if result['status'] == 'success':
+                    refreshed_count += 1
+                    logger.info(f'Successfully refreshed website: {website.url}')
+                else:
+                    failed_count += 1
+                    logger.error(f'Failed to refresh website: {website.url} - {result.get("error", "Unknown error")}')
+                    
+            except Exception as e:
+                failed_count += 1
+                logger.error(f'Error refreshing website {website.url}: {e}', exc_info=True)
+        
+        logger.info(f'Expired websites refresh completed: {refreshed_count} refreshed, {failed_count} failed')
+        
+        return {
+            'status': 'success',
+            'refreshed_count': refreshed_count,
+            'failed_count': failed_count,
+            'total_checked': expired_websites.count()
+        }
+        
+    except Exception as e:
+        logger.error(f'Expired websites refresh task failed: {e}', exc_info=True)
+        raise
 
