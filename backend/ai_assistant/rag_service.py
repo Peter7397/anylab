@@ -545,7 +545,7 @@ class EnhancedRAGService:
                     FROM ai_assistant_documentchunk dc
                     LEFT JOIN ai_assistant_uploadedfile uf ON dc.uploaded_file_id = uf.id
                     WHERE dc.embedding IS NOT NULL
-                    ORDER BY dc.embedding <#> %s::vector
+                    ORDER BY dc.embedding <=> %s::vector
                     LIMIT %s;
                 """, [query_embedding, top_k])
                 results = cursor.fetchall()
