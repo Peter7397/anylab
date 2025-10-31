@@ -409,10 +409,10 @@ class EnhancedRetrievalPipeline:
         self,
         vector_weight: float = 0.7,
         bm25_weight: float = 0.3,
-        mmr_lambda: float = 0.7,
+        mmr_lambda: float = 0.6,
         rrf_k: int = 60,
-        initial_top_k: int = 50,
-        final_top_k: int = 12
+        initial_top_k: int = 120,
+        final_top_k: int = 24
     ):
         self.vector_weight = vector_weight
         self.bm25_weight = bm25_weight
@@ -423,7 +423,7 @@ class EnhancedRetrievalPipeline:
         self.rrf = ReciprocalRankFusion(k=rrf_k)
         self.mmr = MMRDiversitySelector(lambda_param=mmr_lambda)
         self.metadata_filter = MetadataFilterBuilder()
-        self.abstain_guardrail = AbstainGuardrail()
+        self.abstain_guardrail = AbstainGuardrail(min_similarity_threshold=0.2, min_results_threshold=1)
         self.dedup_filter = DeduplicationFilter()
         
         # Import existing hybrid search and reranker
@@ -583,10 +583,10 @@ class EnhancedRetrievalPipeline:
     ) -> List[Dict]:
         """Vector search with metadata filters"""
         # This would integrate with your existing vector search
-        # For now, use the existing improved_rag_service search
-        from .improved_rag_service import improved_rag_service
+        # For now, use the existing enhanced_rag_service search
+        from .improved_rag_service import enhanced_rag_service
         
-        results = improved_rag_service.search_relevant_documents_with_scoring(
+        results = enhanced_rag_service.search_relevant_documents_with_scoring(
             query,
             top_k=top_k
         )

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class ComprehensiveContextOptimizer:
     """Optimizer for maximum information extraction and comprehensive context"""
     
-    def __init__(self, max_context_length: int = 12000):  # Increased from 4000
+    def __init__(self, max_context_length: int = 20000):  # Allow larger combined context
         self.max_context_length = max_context_length
         self.min_sources_for_comprehensive = 3
         
@@ -196,16 +196,16 @@ class ComprehensiveRAGService(AdvancedRAGService):
     def __init__(self, model_name=None):
         super().__init__(model_name)
         
-        # Enhanced settings for comprehensive responses - Option 3+ Optimization
-        self.comprehensive_top_k = 20  # Increased from 15 for better coverage
-        self.comprehensive_candidates = 60  # Increased from 40 for maximum recall
-        self.similarity_threshold = 0.3  # Lowered from 0.4 for more inclusive results (accuracy first)
+        # Enhanced settings for maximum coverage (speed not prioritized)
+        self.comprehensive_top_k = 30   # more results provided to generator
+        self.comprehensive_candidates = 120  # wide candidate net for recall
+        self.similarity_threshold = 0.25  # more inclusive
         
         # Use comprehensive context optimizer
         self.comprehensive_optimizer = ComprehensiveContextOptimizer(max_context_length=12000)
         
         # Enhanced cache settings for comprehensive responses
-        self.comprehensive_cache_ttl = 7200  # 2 hours for comprehensive results
+        self.comprehensive_cache_ttl = 21600  # 6 hours for comprehensive results
         
     def search_for_comprehensive_results(self, query: str, top_k: int = None) -> List[Dict]:
         """Search for maximum relevant information across all sources with enhanced improvements"""
@@ -411,47 +411,47 @@ class ComprehensiveRAGService(AdvancedRAGService):
             logger.debug(f"Using cached comprehensive response: {prompt_hash[:8]}...")
             return cached_response
         
-        # Ultra-conservative parameters for maximum accuracy - prevent hallucination
+        # Parameters tuned for long, complete answers (more context and tokens)
         comprehensive_params = {
             'procedural': {
-                'num_predict': 4000,    # Allow long, complete procedures
+                'num_predict': 6000,
                 'temperature': 0.05,    # Almost deterministic - maximum accuracy
                 'top_p': 0.7,          # Narrower distribution
                 'repeat_penalty': 1.3, # Strong penalty to prevent repetition
-                'num_ctx': 8192,
-                'top_k': 20            # Fewer token choices (more conservative)
+                'num_ctx': 16384,
+                'top_k': 30
             },
             'definitional': {
-                'num_predict': 3000,    # Comprehensive definitions
+                'num_predict': 5000,
                 'temperature': 0.05,    # Very low for accuracy
                 'top_p': 0.75,         # Narrow distribution
                 'repeat_penalty': 1.25,
-                'num_ctx': 8192,
-                'top_k': 20
+                'num_ctx': 16384,
+                'top_k': 30
             },
             'troubleshooting': {
-                'num_predict': 4000,    # Complete troubleshooting
+                'num_predict': 6000,
                 'temperature': 0.05,    # Critical for accuracy
                 'top_p': 0.7,          # Very focused
                 'repeat_penalty': 1.3, # Strong penalty
-                'num_ctx': 8192,
-                'top_k': 20
+                'num_ctx': 16384,
+                'top_k': 30
             },
             'locational': {
-                'num_predict': 2500,    # Moderate length
+                'num_predict': 3500,
                 'temperature': 0.05,    # Extremely focused
                 'top_p': 0.7,
                 'repeat_penalty': 1.2,
-                'num_ctx': 8192,
-                'top_k': 20
+                'num_ctx': 16384,
+                'top_k': 30
             },
             'general': {
-                'num_predict': 3500,    # Long for comprehensive coverage
+                'num_predict': 5000,
                 'temperature': 0.05,    # Ultra-low for maximum accuracy
                 'top_p': 0.8,          # Narrow distribution
                 'repeat_penalty': 1.2, # Prevent repetition
-                'num_ctx': 8192,
-                'top_k': 20            # Conservative sampling
+                'num_ctx': 16384,
+                'top_k': 30
             }
         }
         
@@ -471,7 +471,7 @@ class ComprehensiveRAGService(AdvancedRAGService):
                         # top_k is already in params dict
                     }
                 },
-                timeout=300  # Increased timeout for longer responses
+                timeout=480  # Increased timeout for longer responses
             )
             response.raise_for_status()
             response_text = response.json()["message"]["content"]
