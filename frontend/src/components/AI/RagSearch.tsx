@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Search, 
+  Brain,
   Send, 
   Clock, 
   FileText, 
@@ -297,7 +297,7 @@ const RagSearch: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-blue-100 rounded-lg">
-              <img src="/icon-source.png" alt="Advanced RAG" className="h-6 w-6" />
+              <Brain className="h-6 w-6 text-primary-600" />
             </div>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">Advanced RAG</h1>
@@ -362,7 +362,7 @@ const RagSearch: React.FC = () => {
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
-                  <img src="/icon-source.png" alt="Advanced RAG" className="mx-auto h-12 w-12 opacity-60" />
+                  <Brain className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">Start Advanced RAG Search</h3>
                   <p className="mt-1 text-sm text-gray-500">
                     Ask questions to search through your knowledge base with hybrid search and reranking.

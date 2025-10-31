@@ -10,7 +10,7 @@ import {
   X,
   Zap,
   Target,
-  Brain
+  Layers
 } from 'lucide-react';
 import { apiClient } from '../../services/api';
 import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
@@ -293,7 +293,7 @@ const ComprehensiveRagSearch: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-primary-100 rounded-lg">
-              <img src="/icon-source.png" alt="Comprehensive RAG" className="h-6 w-6" />
+              <Layers className="h-6 w-6 text-primary-600" />
             </div>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">Comprehensive RAG</h1>
