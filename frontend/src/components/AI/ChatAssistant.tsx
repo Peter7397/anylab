@@ -62,7 +62,12 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
 
   const handleViewDocument = (source: any) => {
     if (source.uploaded_file_id) {
-      const baseUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
+      // Auto-detect API base URL based on current hostname
+      const hostname = window.location.hostname;
+      const protocol = window.location.protocol;
+      const port = '8000';
+      const backendHost = (hostname === 'localhost' || hostname === '127.0.0.1') ? 'localhost' : hostname;
+      const baseUrl = `${protocol}//${backendHost}:${port}/api`;
       // baseUrl already includes /api, so just add the ai/pdf path
       const viewerUrl = `${baseUrl}/ai/pdf/${source.uploaded_file_id}/view/?page=${source.page_number || 1}`;
       window.open(viewerUrl, '_blank');
@@ -142,6 +147,8 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
   );
 };
 
+import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
+
 const ChatAssistant: React.FC = () => {
   // Check authentication status
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -159,6 +166,7 @@ const ChatAssistant: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
+  const { history: unifiedHistory, recordUserPrompt, refresh: refreshUnifiedHistory, crossPostToChannel } = useUnifiedChatHistory(200);
   
   // Chat history
   const [chatHistory, setChatHistory] = useState<Array<{ id: string; prompt: string; preview: string; timestamp: string }>>([]);
@@ -172,6 +180,24 @@ const ChatAssistant: React.FC = () => {
   useEffect(() => {
     const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
     setIsAuthenticated(!!token);
+  }, []);
+
+  // Cross-post receiver (run once on mount)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('anylab_cross_post');
+      if (raw) {
+        const payload = JSON.parse(raw);
+        if (payload?.channel === 'chat' && typeof payload?.content === 'string') {
+          localStorage.removeItem('anylab_cross_post');
+          setInputMessage(payload.content);
+          setTimeout(() => handleSendMessage(), 0);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Show login prompt if not authenticated
@@ -325,6 +351,13 @@ const ChatAssistant: React.FC = () => {
     
     setMessages(prev => [...prev, aiResponse]);
 
+    // Persist user prompt to unified history (backend)
+    try {
+      await recordUserPrompt('chat', currentInput);
+    } catch (e) {
+      console.error('Failed to record unified history:', e);
+    }
+
     try {
       // Optimized parameters for faster response with Qwen 7B
       const res = await apiClient.chatWithOllama(currentInput, { 
@@ -346,16 +379,8 @@ const ChatAssistant: React.FC = () => {
           : msg
       ));
       
-      // Record to chat history
-      setChatHistory(prev => [
-        {
-          id: aiMessageId,
-          prompt: currentInput,
-          preview: (res.response || '').slice(0, 120),
-          timestamp: aiResponse.timestamp,
-        },
-        ...prev
-      ].slice(0, 50)); // Keep last 50 entries
+      // Unified history is backend-driven; refresh to reflect latest
+      refreshUnifiedHistory();
     } catch (e) {
       console.error('Chat error:', e);
       const responseTime = Date.now() - startTime;
@@ -386,22 +411,22 @@ const ChatAssistant: React.FC = () => {
   };
 
   const formatContentForDisplay = (text: string) => {
-    // More comprehensive markdown formatting with better asterisk handling
+    // Preserve paragraph structure while ensuring font consistency
     let formatted = text
-      // First pass: Handle bold text (double asterisks) - process first to avoid conflicts
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      // Second pass: Handle remaining single asterisks (italic) - only if not part of bold
-      .replace(/\*([^*\n]+?)\*/g, '<em>$1</em>')
-      // Handle code blocks
-      .replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded text-sm">$1</code>')
-      // Handle headers
-      .replace(/^#{1,6}\s+(.+)$/gm, '<h3 class="font-semibold text-lg mt-4 mb-2">$1</h3>')
-      // Handle numbered lists
-      .replace(/^(\d+)\.\s+(.+)$/gm, '<div class="ml-4 mb-1"><span class="font-medium">$1.</span> $2</div>')
-      // Handle bullet points
-      .replace(/^[-*]\s+(.+)$/gm, '<div class="ml-4 mb-1">• $1</div>')
-      // Convert line breaks
-      .replace(/\n/g, '<br>');
+      // Remove any remaining markdown formatting that could cause font issues
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // Remove bold formatting
+      .replace(/\*([^*\n]+?)\*/g, '$1')   // Remove italic formatting
+      .replace(/`([^`]+)`/g, '$1')        // Remove code formatting
+      .replace(/^#{1,6}\s+(.+)$/gm, '$1') // Remove headers
+      // Preserve list structure
+      .replace(/^(\d+)\.\s+(.+)$/gm, '$1. $2')
+      .replace(/^[-*•]\s+(.+)$/gm, '• $1')
+      // Normalize whitespace while preserving paragraph breaks
+      .replace(/[ \t]+/g, ' ')  // Normalize spaces within lines
+      .replace(/\n{3,}/g, '\n\n');  // Limit consecutive newlines
+    
+    // Convert newlines to <br> tags for proper display, preserving paragraph structure
+    formatted = formatted.replace(/\n/g, '<br>');
     
     return formatted;
   };
@@ -553,23 +578,44 @@ const ChatAssistant: React.FC = () => {
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div 
-                              className="text-sm prose prose-sm max-w-none"
+                              className="text-sm font-normal leading-relaxed text-gray-800"
                               dangerouslySetInnerHTML={{ 
                                 __html: formatContentForDisplay(message.content) 
                               }}
                             />
                           </div>
-                          <button
-                            onClick={() => copyToClipboard(message.content, message.id)}
-                            className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
-                            title="Copy formatted text"
-                          >
-                            {copiedMessageId === message.id ? (
-                              <Check className="h-4 w-4 text-green-600" />
-                            ) : (
-                              <Copy className="h-4 w-4" />
+                          <div className="flex items-center space-x-2">
+                            {message.type === 'user' && (
+                              <select
+                                onChange={(e) => {
+                                  const target = e.target.value as 'chat'|'rag_basic'|'rag'|'rag_comprehensive'|'troubleshooting';
+                                  if (!target) return;
+                                  crossPostToChannel(target, message.content);
+                                  e.currentTarget.selectedIndex = 0;
+                                }}
+                                className="text-xs border border-gray-300 rounded px-1 py-0.5 text-gray-600 bg-white"
+                                defaultValue=""
+                                title="Ask in..."
+                              >
+                                <option value="">Ask in…</option>
+                                <option value="rag_basic">Basic RAG</option>
+                                <option value="rag">Advanced RAG</option>
+                                <option value="rag_comprehensive">Comprehensive RAG</option>
+                                <option value="troubleshooting">Troubleshooting</option>
+                              </select>
                             )}
-                          </button>
+                            <button
+                              onClick={() => copyToClipboard(message.content, message.id)}
+                              className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
+                              title="Copy formatted text"
+                            >
+                              {copiedMessageId === message.id ? (
+                                <Check className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                         
                         <p className={`text-xs mt-2 ${
@@ -634,15 +680,15 @@ const ChatAssistant: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">Chat History</h3>
                 <button
-                  onClick={clearCurrentHistory}
-                  className="text-sm text-red-600 hover:text-red-700"
+                  onClick={() => refreshUnifiedHistory()}
+                  className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  Clear All
+                  Refresh
                 </button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              {chatHistory.length === 0 ? (
+              {unifiedHistory.length === 0 ? (
                 <div className="text-center py-8">
                   <History className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">No chat history</h3>
@@ -652,20 +698,17 @@ const ChatAssistant: React.FC = () => {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {chatHistory.map((item) => (
+                  {unifiedHistory.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => {
-                        // Load from history functionality can be added here
-                        setInputMessage(item.prompt);
+                        setInputMessage(item.content);
                       }}
                       className="w-full text-left p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                     >
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {item.prompt}
-                      </p>
+                      <p className="text-sm font-medium text-gray-900 truncate">{item.content}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {new Date(item.timestamp).toLocaleString()}
+                        {new Date(item.created_at).toLocaleString()} • {item.channel}
                       </p>
                     </button>
                   ))}

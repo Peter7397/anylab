@@ -21,6 +21,10 @@
     @apply bg-white hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg border border-gray-300 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
   }
   
+  .btn-soft {
+    @apply bg-primary-50 text-primary-700 hover:bg-primary-100 font-medium py-2 px-4 rounded-lg border border-primary-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-300 focus:ring-offset-2;
+  }
+  
   .btn-danger {
     @apply bg-danger-600 hover:bg-danger-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-danger-500 focus:ring-offset-2;
   }
@@ -63,5 +67,35 @@
   
   .table-cell {
     @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
+  }
+}
+
+@layer components {
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border;
+  }
+  .badge-brand {
+    @apply bg-primary-50 text-primary-700 border-primary-200;
+  }
+  .badge-info {
+    @apply bg-blue-50 text-blue-700 border-blue-200;
+  }
+  .badge-warn {
+    @apply bg-warning-50 text-warning-800 border-warning-200;
+  }
+  .badge-danger {
+    @apply bg-danger-50 text-danger-700 border-danger-200;
+  }
+  .panel {
+    @apply bg-white rounded-lg border border-gray-200 shadow-sm;
+  }
+  .panel-header {
+    @apply flex items-center justify-between px-4 py-3 border-b border-gray-200;
+  }
+  .panel-body {
+    @apply p-4;
+  }
+  .input {
+    @apply block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500;
   }
 }

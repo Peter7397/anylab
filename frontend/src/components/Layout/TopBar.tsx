@@ -11,6 +11,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { AIMode } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 interface TopBarProps {
   aiMode: AIMode;
@@ -22,20 +23,27 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showAIModeMenu, setShowAIModeMenu] = useState(false);
   const navigate = useNavigate();
+  const { clearAuth, user } = useAuth();
+  
+  // Get display name for user
+  const displayName = user 
+    ? (user.first_name && user.last_name 
+        ? `${user.first_name} ${user.last_name}` 
+        : user.username)
+    : 'User';
 
   const handleLogout = () => {
-    // Clear auth tokens
-    localStorage.removeItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
-    localStorage.removeItem(process.env.REACT_APP_REFRESH_TOKEN_KEY || 'anylab_refresh_token');
+    // Clear auth state (tokens, permissions, user) using AuthContext
+    clearAuth();
     // Redirect to login
     navigate('/login', { replace: true });
   };
 
   const quickActions = [
-    { name: 'Scan', icon: Radar, action: 'scan' },
+    { name: 'Scraper Manager', icon: Radar, action: 'scan' },
     { name: 'Refresh', icon: RefreshCw, action: 'refresh' },
-    { name: 'Generate Report', icon: FileText, action: 'report' },
-    { name: 'AI Analyze', icon: Sparkles, action: 'analyze' },
+    { name: 'Analytical Dashboard', icon: FileText, action: 'report' },
+    { name: 'Library Manager', icon: Sparkles, action: 'analyze' },
   ];
 
   const aiModes = [
@@ -140,7 +148,7 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
               className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
             >
               <User size={16} />
-              <span>Admin User</span>
+              <span>{displayName}</span>
               <ChevronDown size={16} />
             </button>
 

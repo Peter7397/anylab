@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { Download, FileText, Search, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Download, FileText, FileSearch, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 // Use worker from public/ to avoid dynamic import issues
 GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
@@ -550,7 +550,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           />
           <button
             onClick={() => findInPdf(searchQuery)}
-            className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 focus:ring-2 focus:ring-primary-500"
           >
             Search
           </button>
@@ -558,22 +558,22 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         
         {/* Enhanced search navigation */}
         {totalMatches > 0 && (
-          <div className="flex items-center justify-between mb-2 p-2 bg-blue-50 rounded border">
-            <div className="text-sm text-blue-700">
+          <div className="flex items-center justify-between mb-2 p-2 bg-primary-50 rounded border border-primary-200">
+            <div className="text-sm text-primary-700">
               Match {currentMatchIndex + 1} of {totalMatches}
             </div>
             <div className="flex space-x-1">
               <button
                 onClick={() => navigateToMatch('prev')}
                 disabled={totalMatches <= 1}
-                className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ← Prev
               </button>
               <button
                 onClick={() => navigateToMatch('next')}
                 disabled={totalMatches <= 1}
-                className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next →
               </button>
@@ -589,7 +589,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           <div className="text-xs text-gray-600 mb-2 flex items-center space-x-2">
             <span>Searching for: "{searchQuery}"</span>
             {searching && (
-              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary-500"></div>
             )}
           </div>
         )}
@@ -598,7 +598,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         <div className="space-y-2">
           {searching ? (
             <div className="text-sm text-gray-500 flex items-center space-x-2">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
               <span>Searching...</span>
             </div>
           ) : hits.length === 0 ? (
@@ -616,9 +616,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                 <button
                   key={`${h.pageNumber}-${i}`}
                   onClick={() => pageRefs.current[h.pageNumber]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                  className="block text-left w-full p-3 border rounded hover:bg-blue-50 hover:border-blue-200 transition-colors"
+                  className="block text-left w-full p-3 border rounded hover:bg-primary-50 hover:border-primary-200 transition-colors"
                 >
-                  <div className="text-xs text-blue-600 font-medium mb-1">Page {h.pageNumber}</div>
+                  <div className="text-xs text-primary-600 font-medium mb-1">Page {h.pageNumber}</div>
                   <div className="text-sm text-gray-700 leading-relaxed">{h.snippet}</div>
                 </button>
               ))}
@@ -636,14 +636,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         {loading && (
           <div className="p-6 text-gray-600">
             <div className="flex items-center space-x-2 mb-4">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
               <span>Loading document...</span>
             </div>
             {loadingProgress.total > 0 && (
               <>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-primary-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(loadingProgress.current / loadingProgress.total) * 100}%` }}
                   ></div>
                 </div>
@@ -679,7 +679,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                 </button>
                 <button
                   onClick={() => setCurrentScale(scale)}
-                  className="px-2 py-1 text-sm bg-blue-500 text-white border border-blue-500 rounded hover:bg-blue-600"
+                  className="px-2 py-1 text-sm bg-primary-600 text-white border border-primary-600 rounded hover:bg-primary-700"
                 >
                   Fit
                 </button>
@@ -860,7 +860,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
   };
 
   if (loading) return <div className="p-6 text-gray-600 flex items-center space-x-2">
-    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
     <span>Loading Word document...</span>
   </div>;
 
@@ -877,7 +877,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
         
         <div className="flex items-center space-x-2">
           <div className="flex items-center space-x-2">
-            <Search size={16} className="text-gray-500" />
+            <FileSearch size={16} className="text-gray-500" />
             <input
               type="text"
               value={searchQuery}
@@ -889,7 +889,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
               className="px-3 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchResults > 0 && (
-              <span className="text-sm text-blue-600">{searchResults} matches</span>
+              <span className="text-sm text-primary-600">{searchResults} matches</span>
             )}
           </div>
           <button
@@ -994,7 +994,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
   };
 
   if (loading) return <div className="p-6 text-gray-600 flex items-center space-x-2">
-    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
     <span>Loading text file...</span>
   </div>;
 
@@ -1011,7 +1011,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
         
         <div className="flex items-center space-x-2">
           <div className="flex items-center space-x-2">
-            <Search size={16} className="text-gray-500" />
+            <FileSearch size={16} className="text-gray-500" />
             <input
               type="text"
               value={searchQuery}
@@ -1259,7 +1259,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
         {/* Search and actions */}
         <div className="flex items-center space-x-2">
           <div className="flex items-center space-x-2">
-            <Search size={16} className="text-gray-500" />
+            <FileSearch size={16} className="text-gray-500" />
             <input
               type="text"
               value={searchQuery}
@@ -1271,7 +1271,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
               className="px-3 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchResults.length > 0 && (
-              <span className="text-sm text-blue-600">{searchResults.length} matches</span>
+              <span className="text-sm text-primary-600">{searchResults.length} matches</span>
             )}
           </div>
           <button
@@ -1320,7 +1320,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
             <button
               onClick={loadMoreRows}
               disabled={isLoadingMore}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoadingMore ? (
                 <div className="flex items-center space-x-2">
@@ -1391,7 +1391,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
   };
 
   if (loading) return <div className="p-6 text-gray-600 flex items-center space-x-2">
-    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
     <span>Loading PowerPoint file...</span>
   </div>;
 
@@ -1407,7 +1407,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
         <div className="flex items-center space-x-2">
           <button
             onClick={downloadPpt}
-            className="flex items-center space-x-1 px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+            className="flex items-center space-x-1 px-3 py-1 text-sm bg-primary-600 text-white rounded hover:bg-primary-700"
           >
             <Download size={16} />
             <span>Download to View</span>

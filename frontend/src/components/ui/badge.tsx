@@ -2,23 +2,25 @@ import React from 'react';
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'secondary' | 'destructive' | 'outline';
+  variant?: 'brand' | 'info' | 'warn' | 'danger' | 'neutral' | 'outline';
   className?: string;
 }
 
 export const Badge: React.FC<BadgeProps> = ({ 
   children, 
-  variant = 'default', 
+  variant = 'brand', 
   className = '' 
 }) => {
   const baseClasses = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium';
   
   const variantClasses = {
-    default: 'bg-blue-100 text-blue-800',
-    secondary: 'bg-gray-100 text-gray-800',
-    destructive: 'bg-red-100 text-red-800',
+    brand: 'bg-primary-50 text-primary-800',
+    info: 'bg-blue-50 text-blue-800',
+    warn: 'bg-warning-50 text-warning-800',
+    danger: 'bg-danger-50 text-danger-800',
+    neutral: 'bg-gray-100 text-gray-800',
     outline: 'border border-gray-300 text-gray-700'
-  };
+  } as const;
 
   return (
     <span className={`${baseClasses} ${variantClasses[variant]} ${className}`}>

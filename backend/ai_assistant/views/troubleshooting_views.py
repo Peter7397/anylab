@@ -23,13 +23,41 @@ def analyze_logs(request):
         
         query = request.data.get('query', '')
         log_content = request.data.get('log_content', '')
-        
-        if not log_content:
-            return bad_request_response('Log content is required')
-        
+
+        # Accept either a log file or a prompt-only query (require at least one)
+        if not log_content and not query:
+            return bad_request_response('Either log_content or query is required')
+
         # Call Ollama to analyze the log file
-        ollama_url = getattr(settings, 'OLLAMA_URL', 'http://localhost:11434')
-        model = getattr(settings, 'OLLAMA_MODEL', 'llama3.2:latest')
+        # Use consistent settings keys across the codebase
+        ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        model = getattr(settings, 'OLLAMA_MODEL', 'llama3:8b')
+        request_timeout = getattr(settings, 'OLLAMA_REQUEST_TIMEOUT', 120)
+        default_max_tokens = getattr(settings, 'OLLAMA_DEFAULT_MAX_TOKENS', 256)
+        num_ctx = getattr(settings, 'OLLAMA_NUM_CTX', 1024)
+
+        # Preprocess large logs to keep prompt within reasonable bounds
+        # Keep the last 20k chars and include up to 100 lines containing common error keywords
+        def preprocess_log(content: str) -> str:
+            try:
+                max_chars = 20000
+                lines = content.split('\n')
+                tail = content[-max_chars:] if len(content) > max_chars else content
+
+                import re as _re
+                error_lines = [ln for ln in lines if _re.search(r"error|exception|traceback|fail|critical|fatal", ln, _re.IGNORECASE)]
+                error_preview = '\n'.join(error_lines[-100:]) if error_lines else ''
+
+                if error_preview:
+                    return (
+                        "[NOTE] Log was large; included last 20k chars and last 100 matched error lines.\n\n"
+                        "[ERROR LINES]\n" + error_preview + "\n\n[TAIL]\n" + tail
+                    )
+                return tail
+            except Exception:
+                return content
+
+        reduced_log = preprocess_log(log_content) if log_content else ''
         
         # Create a comprehensive prompt for log analysis
         prompt = f"""You are an expert system administrator and troubleshooting specialist.
@@ -39,7 +67,7 @@ Analyze the following log file content and provide detailed troubleshooting sugg
 User Query: {query if query else "Please analyze this log file and provide troubleshooting suggestions"}
 
 Log File Content:
-{log_content}
+{reduced_log if reduced_log else "[No log file provided]"}
 
 Please provide:
 1. A brief analysis of what the log indicates
@@ -70,10 +98,11 @@ Be specific, actionable, and prioritize the most critical issues."""
                 "options": {
                     "temperature": 0.3,  # Low temperature for more deterministic analysis
                     "top_p": 0.9,
-                    "num_predict": 2000
+                    "num_predict": max(default_max_tokens, 1000),  # ensure sufficient budget for structured output
+                    "num_ctx": num_ctx
                 }
             },
-            timeout=60
+            timeout=request_timeout
         )
         
         response.raise_for_status()
@@ -118,8 +147,9 @@ Be specific, actionable, and prioritize the most critical issues."""
             "analysis": analysis,
             "suggestions": suggestions,
             "severity": severity,
-            "log_length": len(log_content),
-            "lines_analyzed": len(log_content.split('\n'))
+            "log_length": len(log_content or ''),
+            "lines_analyzed": len((log_content or '').split('\n')),
+            "used_truncation": bool(log_content and reduced_log and reduced_log != log_content)
         }
         
         BaseViewMixin.log_response(result, 'analyze_logs')
@@ -130,10 +160,11 @@ Be specific, actionable, and prioritize the most critical issues."""
         return Response({
             "status": "error",
             "message": f"Failed to analyze log: {str(e)}",
+            "error": str(e),
             "analysis": "Could not connect to AI service. Please check your connection.",
             "suggestions": [
                 "Check if Ollama service is running",
-                "Verify network connectivity",
+                "Verify OLLAMA_API_URL setting matches the reachable host",
                 "Try again in a few moments"
             ],
             "severity": "low"

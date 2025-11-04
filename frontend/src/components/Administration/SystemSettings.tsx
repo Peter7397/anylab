@@ -38,11 +38,12 @@ const SystemSettings: React.FC = () => {
     }
   };
 
-  const testConnection = async (type: 'ollama' | 'redis') => {
+  const testConnection = async (type: 'ollama' | 'redis' | 'neo4j') => {
     setTesting(type);
     setTestResults((prev: Record<string, any>) => ({ ...prev, [type]: null }));
     try {
-      const result = await apiClient.testConnection(type, settings?.rag || settings?.cache || {});
+      const payload = type === 'neo4j' ? (settings?.neo4j || settings?.graph?.neo4j || {}) : (settings?.rag || settings?.cache || {});
+      const result = await apiClient.testConnection(type, payload);
       setTestResults((prev: Record<string, any>) => ({ ...prev, [type]: result }));
       setMessage({ type: result.ok ? 'success' : 'error', text: result.ok ? 'Connection successful' : result.error });
     } catch (error: any) {
@@ -71,7 +72,7 @@ const SystemSettings: React.FC = () => {
     );
   }
 
-  const renderSetting = (label: string, value: any, description?: string, testType?: 'ollama' | 'redis') => (
+  const renderSetting = (label: string, value: any, description?: string, testType?: 'ollama' | 'redis' | 'neo4j') => (
     <div className="mb-6">
       <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
       {typeof value === 'boolean' ? (
@@ -96,7 +97,7 @@ const SystemSettings: React.FC = () => {
         <button
           onClick={() => testConnection(testType)}
           disabled={testing === testType}
-          className="mt-2 px-3 py-1 text-sm bg-blue-100 hover:bg-blue-200 rounded disabled:opacity-50"
+          className={`mt-2 px-3 py-1 text-sm rounded disabled:opacity-50 ${testType === 'neo4j' ? 'bg-green-100 hover:bg-green-200' : 'bg-primary-100 hover:bg-primary-200'}`}
         >
           {testing === testType ? (
             <Loader className="inline animate-spin mr-2" size={14} />
@@ -192,15 +193,35 @@ const SystemSettings: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'rag' && settings?.rag && (
+          {activeTab === 'rag' && settings?.rag && (
           <div>
-            <h2 className="text-lg font-semibold mb-4">RAG Settings</h2>
+            <h2 className="text-lg font-semibold mb-4">RAG & Graph Settings</h2>
             {renderSetting('Ollama URL', settings.rag.ollama_url, undefined, 'ollama')}
             {renderSetting('Model', settings.rag.model)}
             {renderSetting('Request Timeout', `${settings.rag.request_timeout}s`)}
             {renderSetting('Context Size', settings.rag.num_ctx)}
             {renderSetting('Max Tokens', settings.rag.max_tokens)}
             {renderSetting('Temperature', settings.rag.temperature)}
+
+            {/* Graph RAG */}
+            {settings.graph && (
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                {renderSetting('Graph RAG Enabled', settings.graph.enabled ?? true, 'Enable hybrid vector + graph retrieval')}
+                {renderSetting('Graph Depth', settings.graph.depth ?? 2, 'Traversal depth for relationships')}
+                {renderSetting('Max Graph Nodes', settings.graph.max_nodes ?? 50, 'Limit nodes in visualization/queries')}
+              </div>
+            )}
+
+            {/* Neo4j */}
+            {settings.neo4j && (
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <h3 className="text-md font-semibold mb-2">Neo4j</h3>
+                {renderSetting('Bolt URI', settings.neo4j.uri)}
+                {renderSetting('Database', settings.neo4j.database || 'neo4j')}
+                {renderSetting('User', settings.neo4j.user || 'neo4j')}
+                {renderSetting('Test Connection', 'Click to test', undefined, 'neo4j')}
+              </div>
+            )}
           </div>
         )}
 
@@ -234,8 +255,8 @@ const SystemSettings: React.FC = () => {
       </div>
 
       {/* Note */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-800">
+      <div className="bg-primary-50 border border-primary-200 rounded-lg p-4">
+        <p className="text-sm text-primary-800">
           <strong>Note:</strong> Settings are read-only in this implementation. To modify settings, edit the backend configuration files or environment variables.
         </p>
       </div>

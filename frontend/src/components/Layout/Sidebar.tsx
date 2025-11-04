@@ -43,6 +43,8 @@ import {
         ToggleLeft,
         ToggleRight
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import TrimmedImage from '../ui/TrimmedImage';
 
 interface SidebarProps {
         collapsed: boolean;
@@ -54,7 +56,7 @@ type OrganizationMode = 'general' | 'lab-informatics';
 const generalAgilentNavigation = [
         {
                 name: 'Dashboard',
-                href: '/',
+                href: '/dashboard',
                 icon: Home,
         },
         {
@@ -81,6 +83,11 @@ const generalAgilentNavigation = [
                         { name: 'Graph RAG', href: '/ai/graph-rag', icon: Network },
                         { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
+        },
+        {
+                name: 'Forum',
+                href: '/forum',
+                icon: MessageSquare,
         },
         {
                 name: 'Gas Chromatography',
@@ -141,6 +148,7 @@ const generalAgilentNavigation = [
                 children: [
                         { name: 'Users & Roles', href: '/admin/users', icon: Users },
                         { name: 'Licenses', href: '/admin/licenses', icon: Key },
+                        { name: 'Django Admin', href: '/admin/', icon: Shield, external: true },
                 ],
         },
 ];
@@ -148,7 +156,7 @@ const generalAgilentNavigation = [
 const labInformaticsNavigation = [
         {
                 name: 'Dashboard',
-                href: '/',
+                href: '/dashboard',
                 icon: Home,
         },
         {
@@ -175,6 +183,11 @@ const labInformaticsNavigation = [
                         { name: 'Graph RAG', href: '/ai/graph-rag', icon: Network },
                         { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
+        },
+        {
+                name: 'Forum',
+                href: '/forum',
+                icon: MessageSquare,
         },
         {
                 name: 'OpenLab Software Suite',
@@ -229,17 +242,38 @@ const labInformaticsNavigation = [
                         { name: 'Users & Roles', href: '/admin/users', icon: Users },
                         { name: 'Licenses', href: '/admin/licenses', icon: Key },
                         { name: 'System Settings', href: '/admin/system', icon: Settings },
+                        { name: 'Django Admin', href: '/admin/', icon: Shield, external: true },
                 ],
         },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         const location = useLocation();
+        const { permissions, user, loading } = useAuth();
         const [expandedItems, setExpandedItems] = useState<string[]>([]);
         const [organizationMode, setOrganizationMode] = useState<OrganizationMode>(() => {
                 const saved = localStorage.getItem('anylab_organization_mode');
                 return (saved as OrganizationMode) || 'general';
         });
+
+        // Debug logging (remove in production)
+        useEffect(() => {
+                if (!loading) {
+                        console.log('Sidebar - User:', user);
+                        console.log('Sidebar - User is_staff:', user?.is_staff);
+                        console.log('Sidebar - User is_superuser:', user?.is_superuser);
+                        console.log('Sidebar - Permissions:', permissions);
+                        console.log('Sidebar - Loading:', loading);
+                        // Check if items would be shown
+                        const testItems = navigation.map(item => ({
+                                name: item.name,
+                                href: item.href,
+                                isAllowed: isAllowed(item.href),
+                                feature: routeFeatureMap(item.href)
+                        }));
+                        console.log('Sidebar - Navigation items visibility:', testItems);
+                }
+        }, [user, permissions, loading]);
 
         // Save mode preference to localStorage
         useEffect(() => {
@@ -251,6 +285,47 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         };
 
         const navigation = organizationMode === 'general' ? generalAgilentNavigation : labInformaticsNavigation;
+
+        const routeFeatureMap = (href: string): string | null => {
+                if (href.startsWith('/admin/')) return 'admin';
+                // Only specific AI routes require ai.rag
+                const aiRagRoutes = [
+                        '/ai/chat',
+                        '/ai/basic-rag',
+                        '/ai/rag',
+                        '/ai/comprehensive-rag',
+                        '/ai/graph-rag',
+                ];
+                if (aiRagRoutes.includes(href)) return 'ai.rag';
+                // Knowledge routes require knowledge.view
+                if (href.startsWith('/ai/knowledge')) return 'knowledge.view';
+                if (href.startsWith('/ai/troubleshooting')) return 'knowledge.view';
+                // Product manuals and lab-informatics trees also require knowledge.view
+                if (href.startsWith('/products/')) return 'knowledge.view';
+                if (href.startsWith('/lab-informatics/')) return 'knowledge.view';
+                if (href.startsWith('/troubleshooting/')) return 'knowledge.view';
+                return null;
+        };
+
+        const isAllowed = (href: string): boolean => {
+                const feature = routeFeatureMap(href);
+                // During loading, show all items to prevent flicker
+                if (loading) return true;
+                // Routes without feature requirements are always allowed
+                if (!feature) return true;
+                // Superusers and staff have access to all features
+                // Check both direct properties and nested user object
+                const isStaff = !!(user?.is_staff || (user as any)?.user?.is_staff);
+                const isSuperuser = !!(user?.is_superuser || (user as any)?.user?.is_superuser);
+                if (isSuperuser || isStaff) {
+                        console.log(`Sidebar - Allowing ${href} because user is staff (${isStaff}) or superuser (${isSuperuser})`);
+                        return true;
+                }
+                // Check permissions for non-staff users
+                const hasPermission = !!permissions?.features?.[feature];
+                console.log(`Sidebar - Checking ${href} (feature: ${feature}): ${hasPermission ? 'ALLOWED' : 'DENIED'}`);
+                return hasPermission;
+        };
 
         const isActive = useCallback((href: string) => {
                 return location.pathname === href;
@@ -304,11 +379,21 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                         <div className="flex items-center justify-between p-4 border-b border-gray-200">
                                 {collapsed ? (
                                         <div className="flex items-center justify-center w-full">
-                                                <img src="/icon-source.png" alt="AnyLab" aria-hidden className="w-12 h-12" />
+                                                <TrimmedImage
+                                                        src={`${process.env.PUBLIC_URL || ''}/ai-logo-192.png`}
+                                                        fallbackSrc={`${process.env.PUBLIC_URL || ''}/ai-logo-512.png`}
+                                                        alt="AnyLab"
+                                                        className="w-12 h-12"
+                                                />
                                         </div>
                                 ) : (
                                         <div className="flex items-center">
-                                                <img src="/icon-source.png" alt="AnyLab" aria-hidden className="w-16 h-16 mr-3" />
+                                                <TrimmedImage
+                                                        src={`${process.env.PUBLIC_URL || ''}/ai-logo-512.png`}
+                                                        fallbackSrc={`${process.env.PUBLIC_URL || ''}/ai-logo-192.png`}
+                                                        alt="AnyLab"
+                                                        className="w-16 h-16 mr-3"
+                                                />
                                                 <div>
                                                         <h1 className="text-xl font-bold text-gray-900">AnyLab</h1>
                                                         <p className="text-xs text-gray-500">AI Next to Your Lab</p>
@@ -375,7 +460,37 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                         {/* Navigation */}
                         <nav className="flex-1 p-4 space-y-2">
                                 {navigation.map((item) => {
+                                        // During loading, show all items
+                                        if (loading) {
+                                                const Icon = item.icon;
+                                                // Show parent with all children during loading
+                                                return (
+                                                        <div key={item.name} className="space-y-1">
+                                                                {item.children ? (
+                                                                        <div className="sidebar-item">
+                                                                                <Icon size={20} className="mr-3" />
+                                                                                {!collapsed && <span className="flex-1">{item.name}</span>}
+                                                                        </div>
+                                                                ) : (
+                                                                        <Link to={item.href} className="sidebar-item">
+                                                                                <Icon size={20} className="mr-3" />
+                                                                                {!collapsed && <span className="flex-1">{item.name}</span>}
+                                                                        </Link>
+                                                                )}
+                                                        </div>
+                                                );
+                                        }
+                                        
+                                        // If parent has no children and is not allowed, skip
+                                        if (!item.children && !isAllowed(item.href)) {
+                                                return null;
+                                        }
                                         const Icon = item.icon;
+                                        const allowedChildren = item.children ? item.children.filter((child: any) => isAllowed(child.href)) : [];
+                                        // If parent has children but none are allowed, hide the entire section
+                                        if (item.children && allowedChildren.length === 0) {
+                                                return null;
+                                        }
                                         const isParentActive = item.children ? hasActiveChild(item.children) : isActive(item.href);
 
                                         const expanded = isExpanded(item.name);
@@ -397,6 +512,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                                         )}
                                                                 </button>
                                                         ) : (
+                                                                isAllowed(item.href) ? (
                                                                 <Link
                                                                         to={item.href}
                                                                         className={`sidebar-item ${isActive(item.href || '') ? 'sidebar-item-active border border-primary-200 bg-primary-50 text-primary-800' : 'sidebar-item-inactive'}`}
@@ -404,12 +520,29 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                                         <Icon size={20} className={`mr-3 ${isActive(item.href || '') ? 'text-primary-700' : ''}`} />
                                                                         {!collapsed && <span className="flex-1">{item.name}</span>}
                                                                 </Link>
+                                                                ) : null
                                                         )}
 
                                                         {!collapsed && item.children && expanded && (
                                                                 <div className="ml-8 space-y-1">
-                                                                        {item.children.map((child) => {
+                                                                        {allowedChildren.map((child: any) => {
                                                                                 const ChildIcon = child.icon;
+                                                                                // Handle external links (like Django admin)
+                                                                                if (child.external) {
+                                                                                        return (
+                                                                                                <a
+                                                                                                        key={child.name}
+                                                                                                        href={child.href}
+                                                                                                        target="_blank"
+                                                                                                        rel="noopener noreferrer"
+                                                                                                        className={`sidebar-item sidebar-item-inactive hover:bg-gray-50`}
+                                                                                                >
+                                                                                                        <ChildIcon size={18} className="mr-3" />
+                                                                                                        <span className="flex-1">{child.name}</span>
+                                                                                                        <Globe size={14} className="text-gray-400" />
+                                                                                                </a>
+                                                                                        );
+                                                                                }
                                                                                 return (
                                                                                         <Link
                                                                                                 key={child.name}

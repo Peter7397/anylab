@@ -8,7 +8,7 @@ This document provides a complete backup and restoration guide for the OnLab RAG
 ### Backend Components
 - **Django REST Framework** with JWT authentication
 - **PostgreSQL** with pgvector extension for vector storage
-- **Ollama** (Qwen model) for AI processing
+- **Ollama** (Llama 3 8B) for AI processing
 - **Redis** for caching and session management
 - **Custom RAG Services**: Basic, Advanced, and Comprehensive implementations
 

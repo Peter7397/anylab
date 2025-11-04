@@ -4,7 +4,7 @@ from django.utils import timezone
 
 
 class User(AbstractUser):
-    """Custom User model for OneLab platform"""
+    """Custom User model for AnyLab platform"""
     
     # Extended fields
     employee_id = models.CharField(max_length=50, unique=True, blank=True, null=True)

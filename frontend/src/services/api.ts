@@ -1,9 +1,28 @@
 // API Service Layer for AnyLab Frontend
 // This file handles all API communication with the Django backend
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000/api';
-const JWT_STORAGE_KEY = process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token';
-const REFRESH_TOKEN_KEY = process.env.REACT_APP_REFRESH_TOKEN_KEY || 'anylab_refresh_token';
+// Auto-detect API base URL based on current hostname
+// This ensures the frontend always connects to the backend on the same network interface
+const getApiBaseUrl = () => {
+  // Always detect based on current hostname to match the network interface
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+  const port = '8000';
+  
+  // If accessing via localhost/127.0.0.1, use localhost for backend
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return `${protocol}//localhost:${port}/api`;
+  }
+  
+  // Otherwise use the same hostname (for LAN access or any IP access)
+  // This ensures if you access via 192.168.1.216:3000, it connects to 192.168.1.216:8000
+  return `${protocol}//${hostname}:${port}/api`;
+};
+
+// HARDCODED: API configuration - no environment variables needed
+const API_BASE_URL = getApiBaseUrl();
+const JWT_STORAGE_KEY = 'anylab_token';  // HARDCODED: JWT storage key
+const REFRESH_TOKEN_KEY = 'anylab_refresh_token';  // HARDCODED: Refresh token key
 
 // Types
 export interface ApiResponse<T = any> {
@@ -32,6 +51,8 @@ export interface User {
   department?: string;
   position?: string;
   is_active: boolean;
+  is_staff?: boolean;
+  is_superuser?: boolean;
 }
 
 export interface System {
@@ -41,6 +62,16 @@ export interface System {
   os: string;
   lastLogin: string;
   status: 'online' | 'warning' | 'offline';
+}
+
+export interface MergedPermissions {
+  features?: Record<string, boolean>;
+  api?: Record<string, boolean>;
+  routes?: string[];
+}
+
+export interface MyPermissionsResponse {
+  permissions: MergedPermissions;
 }
 
 export interface MaintenanceTask {
@@ -121,6 +152,16 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
     
+    // Check if token is expired before making request
+    const token = this.getAuthToken();
+    if (token && this.isTokenExpired(token)) {
+      // Try to refresh token proactively
+      const refreshed = await this.refreshToken();
+      if (!refreshed) {
+        throw new Error('Authentication required');
+      }
+    }
+    
     // Only set default headers if no headers are provided
     const config: RequestInit = {
       ...options,
@@ -149,15 +190,12 @@ class ApiClient {
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Token expired, try to refresh
           const refreshed = await this.refreshToken();
           if (refreshed) {
-            // Retry the original request
             return this.request(endpoint, options);
           } else {
-            // Refresh failed, redirect to login
-            this.logout();
-            throw new Error('Authentication failed');
+            // Do not auto-redirect; let callers decide how to handle auth state
+            throw new Error('Authentication required');
           }
         }
         throw new Error(data.message || data.error || `HTTP ${response.status}`);
@@ -224,35 +262,98 @@ class ApiClient {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }
 
+  // Check if JWT token is expired
+  private isTokenExpired(token: string): boolean {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const exp = payload.exp * 1000; // Convert to milliseconds
+      const now = Date.now();
+      // Consider token expired if less than 1 minute until expiration
+      return exp - now < 60000;
+    } catch (e) {
+      // If we can't parse token, consider it invalid/expired
+      return true;
+    }
+  }
+
   // Refresh authentication token
   private async refreshToken(): Promise<boolean> {
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) return false;
 
     try {
-      const response = await fetch(`${this.baseURL}/token/refresh/`, {
+      const response = await this.publicRequest<{ access: string }>('/token/refresh/', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({ refresh: refreshToken }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        this.setAuthToken(data.access);
+      this.setAuthToken(response.data.access);
+      
+      // Notify AuthContext that token was refreshed
+      // Use dynamic import to avoid circular dependency
+      import('../context/AuthContext').then(({ notifyAuthTokenRefreshed }) => {
+        notifyAuthTokenRefreshed();
+      }).catch(() => {
+        // AuthContext might not be loaded yet, that's okay
+      });
+      
         return true;
-      }
     } catch (error) {
       console.error('Token refresh failed:', error);
+      return false;
     }
+  }
 
-    return false;
+  // Public API request (no auth headers) for endpoints like login, token refresh, etc.
+  private async publicRequest<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    const url = `${this.baseURL}${endpoint}`;
+    
+    const config: RequestInit = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+    };
+
+    try {
+      const response = await fetch(url, config);
+      
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        // Non-JSON response (e.g., HTML error pages)
+        const text = await response.text();
+        console.error('Non-JSON response:', text.substring(0, 200));
+        throw new Error(`Server returned non-JSON response (${response.status} ${response.statusText})`);
+      }
+
+      if (!response.ok) {
+        // For public requests, don't try to refresh token
+        throw new Error(data.detail || data.message || data.error || `HTTP ${response.status}`);
+      }
+
+      return {
+        data,
+        status: response.status,
+        message: data.message,
+      };
+    } catch (error) {
+      console.error('API request failed:', error);
+      throw error;
+    }
   }
 
   // Authentication Methods
   async login(credentials: LoginCredentials): Promise<AuthTokens> {
-    const response = await this.request<AuthTokens>('/token/', {
+    const response = await this.publicRequest<AuthTokens>('/token/', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
@@ -270,14 +371,23 @@ class ApiClient {
     window.location.href = '/login';
   }
 
+  async getMyPermissions(): Promise<MergedPermissions> {
+    const response = await this.request<MyPermissionsResponse>('/users/me/permissions/');
+    return response.data.permissions || {};
+  }
+
   async getCurrentUser(): Promise<User> {
-    const response = await this.request<User>('/users/me/');
-    return response.data;
+    const response = await this.request<{ user: User }>('/users/profile/');
+    const user = (response.data as any).user as User;
+    // Debug: Log user data to verify it's being parsed correctly
+    console.log('API getCurrentUser - Raw response:', response);
+    console.log('API getCurrentUser - Extracted user:', user);
+    return user;
   }
 
   // Health Check
   async healthCheck(): Promise<any> {
-    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/health/`);
+    const response = await fetch(`${this.baseURL}/health/`);
     return response.json();
   }
 
@@ -302,6 +412,13 @@ class ApiClient {
       body: JSON.stringify(userData),
     });
     return response.data;
+  }
+
+  async resetUserPassword(userId: number, password: string): Promise<void> {
+    await this.request(`/users/${userId}/reset_password/`, {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    });
   }
 
   async deleteUser(id: number): Promise<void> {
@@ -645,6 +762,28 @@ class ApiClient {
     return response.data;
   }
 
+  // Unified Chat History API
+  async getUnifiedHistory(params?: { limit?: number; channel?: string; thread_id?: string }): Promise<Array<{ id: number; channel: string; thread_id: string; role: 'user'|'assistant'; content: string; metadata?: any; created_at: string }>> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.channel) query.append('channel', params.channel);
+    if (params?.thread_id) query.append('thread_id', params.thread_id);
+    const endpoint = `/ai/chat/history${query.toString() ? `?${query.toString()}` : ''}`;
+    const response = await this.request<Array<{ id: number; channel: string; thread_id: string; role: 'user'|'assistant'; content: string; metadata?: any; created_at: string }>>(endpoint);
+    return response.data as any;
+  }
+
+  async createChatMessage(payload: { channel: string; thread_id?: string; role: 'user'|'assistant'; content: string; metadata?: any }): Promise<{ id: number; channel: string; thread_id: string; role: 'user'|'assistant'; content: string; metadata?: any; created_at: string }>{
+    const response = await this.request<{ id: number; channel: string; thread_id: string; role: 'user'|'assistant'; content: string; metadata?: any; created_at: string }>(
+      '/ai/chat/message',
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    );
+    return response.data as any;
+  }
+
   async getKnowledgeBase(): Promise<any> {
     const response = await this.request('/ai/knowledge/');
     return response.data;
@@ -722,8 +861,120 @@ class ApiClient {
     return response.data;
   }
 
+  // Get Graph Visualization Data
+  async getGraphForQuery(query: string, maxNodes: number = 50, maxDepth: number = 2): Promise<{
+    nodes: Array<{
+      id: string;
+      label: string;
+      type: string;
+      entityType?: string;
+      group: string;
+      size: number;
+    }>;
+    edges: Array<{
+      from: string;
+      to: string;
+      type: string;
+      label: string;
+      weight?: number;
+    }>;
+    entities: Array<{
+      id: string;
+      name: string;
+      type: string;
+      normalized: string;
+      confidence: number;
+    }>;
+    stats: {
+      total_nodes: number;
+      total_edges: number;
+      query_entities: number;
+    };
+  }> {
+    const response = await this.request<{
+      nodes: Array<{
+        id: string;
+        label: string;
+        type: string;
+        entityType?: string;
+        group: string;
+        size: number;
+      }>;
+      edges: Array<{
+        from: string;
+        to: string;
+        type: string;
+        label: string;
+        weight?: number;
+      }>;
+      entities: Array<{
+        id: string;
+        name: string;
+        type: string;
+        normalized: string;
+        confidence: number;
+      }>;
+      stats: {
+        total_nodes: number;
+        total_edges: number;
+        query_entities: number;
+      };
+    }>('/ai/rag/graph/query/', {
+      method: 'POST',
+      body: JSON.stringify({ query, max_nodes: maxNodes, max_depth: maxDepth }),
+    });
+    return response.data;
+  }
+
+  // Graph RAG Search
+  async graphRagSearch(query: string, topK: number = 10): Promise<{ 
+    response: string; 
+    sources: Array<{ 
+      title: string; 
+      content: string; 
+      similarity?: number; 
+      page?: number;
+      source?: 'vector+graph' | 'vector' | 'graph';
+      graph_boost?: boolean;
+      matched_entities?: Array<{ name: string; type: string }>;
+    }>; 
+    query: string; 
+    search_method?: string;
+    graph_stats?: {
+      total_results: number;
+      graph_enhanced: number;
+      vector_only: number;
+      query_entities: Array<{ name: string; type: string; normalized?: string }>;
+    };
+  }> {
+    const response = await this.request<{ 
+      response: string; 
+      sources: Array<{ 
+        title: string; 
+        content: string; 
+        similarity?: number; 
+        page?: number;
+        source?: 'vector+graph' | 'vector' | 'graph';
+        graph_boost?: boolean;
+        matched_entities?: Array<{ name: string; type: string }>;
+      }>; 
+      query: string; 
+      search_method?: string;
+      graph_stats?: {
+        total_results: number;
+        graph_enhanced: number;
+        vector_only: number;
+        query_entities: Array<{ name: string; type: string; normalized?: string }>;
+      };
+    }>('/ai/rag/search/graph/', {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k: topK }),
+    });
+    return response.data;
+  }
+
   // Troubleshooting AI - Log Analysis
-  async analyzeLogs(data: { query: string; log_content: string }): Promise<{ 
+  async analyzeLogs(data: { query: string; log_content: string }): Promise<{
     analysis: string; 
     suggestions: string[];
     severity?: 'low' | 'medium' | 'high';
@@ -1096,6 +1347,334 @@ class ApiClient {
     const response = await this.request('/ai/admin/settings/test-connection/', {
       method: 'POST',
       body: JSON.stringify({ type, config })
+    });
+    return response.data;
+  }
+
+  // Website Management API Methods
+  async getWebsites(params?: { status?: string; domain?: string; search?: string }): Promise<any> {
+    let url = '/ai/websites/';
+    if (params) {
+      const queryParams = new URLSearchParams();
+      if (params.status) queryParams.append('status', params.status);
+      if (params.domain) queryParams.append('domain', params.domain);
+      if (params.search) queryParams.append('search', params.search);
+      if (queryParams.toString()) {
+        url += `?${queryParams.toString()}`;
+      }
+    }
+    const response = await this.request(url);
+    return response.data;
+  }
+
+  async addWebsite(websiteData: {
+    url: string;
+    title?: string;
+    description?: string;
+    auto_refresh?: boolean;
+    refresh_interval_days?: number;
+  }): Promise<any> {
+    const response = await this.request('/ai/websites/add/', {
+      method: 'POST',
+      body: JSON.stringify(websiteData),
+    });
+    return response.data;
+  }
+
+  async getWebsiteStatus(websiteId: number): Promise<any> {
+    const response = await this.request(`/ai/websites/${websiteId}/status/`);
+    return response.data;
+  }
+
+  async refreshWebsite(websiteId: number): Promise<any> {
+    const response = await this.request(`/ai/websites/${websiteId}/refresh/`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async deleteWebsite(websiteId: number): Promise<any> {
+    const response = await this.request(`/ai/websites/${websiteId}/delete/`, {
+      method: 'DELETE',
+    });
+    return response.data;
+  }
+
+  async retryWebsiteProcessing(websiteId: number): Promise<any> {
+    const response = await this.request(`/ai/websites/${websiteId}/retry/`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async updateWebsiteSettings(websiteId: number, settings: {
+    title?: string;
+    description?: string;
+    auto_refresh?: boolean;
+    refresh_interval_days?: number;
+  }): Promise<any> {
+    const response = await this.request(`/ai/websites/${websiteId}/settings/`, {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    });
+    return response.data;
+  }
+
+  async getWebsiteStatistics(): Promise<any> {
+    const response = await this.request('/ai/websites/statistics/');
+    return response.data;
+  }
+
+  // Forum API methods
+  async getForumCategories(): Promise<any> {
+    const response = await this.request('/forum/categories/');
+    return response.data;
+  }
+
+  async getForumTags(search?: string): Promise<any> {
+    const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    const response = await this.request(`/forum/tags${params}`);
+    return response.data;
+  }
+
+  async getForumPosts(params?: {
+    page?: number;
+    page_size?: number;
+    category?: number;
+    tag?: number;
+    search?: string;
+    status?: string;
+    pinned?: boolean;
+    featured?: boolean;
+    author?: number;
+  }): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = queryParams.toString();
+    const url = `/forum/posts/${queryString ? `?${queryString}` : ''}`;
+    const response = await this.request(url);
+    return response.data;
+  }
+
+  async getForumPost(postId: number): Promise<any> {
+    const response = await this.request(`/forum/posts/${postId}/`);
+    return response.data;
+  }
+
+  async createForumPost(data: {
+    title: string;
+    content: string;
+    category?: number;
+    tag_ids?: number[];
+    is_public_visible?: boolean;
+    allow_public_reply?: boolean;
+    status?: string;
+  }): Promise<any> {
+    const response = await this.request('/forum/posts/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async updateForumPost(postId: number, data: {
+    title?: string;
+    content?: string;
+    category?: number;
+    tag_ids?: number[];
+    is_public_visible?: boolean;
+    allow_public_reply?: boolean;
+    status?: string;
+  }): Promise<any> {
+    const response = await this.request(`/forum/posts/${postId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async deleteForumPost(postId: number): Promise<void> {
+    await this.request(`/forum/posts/${postId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async likeForumPost(postId: number): Promise<any> {
+    const response = await this.request(`/forum/posts/${postId}/like/`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async pinForumPost(postId: number): Promise<any> {
+    const response = await this.request(`/forum/posts/${postId}/pin/`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async featureForumPost(postId: number): Promise<any> {
+    const response = await this.request(`/forum/posts/${postId}/feature/`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async getForumPostReplies(postId: number, params?: {
+    page?: number;
+    page_size?: number;
+    parent?: number;
+  }): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = queryParams.toString();
+    const url = `/forum/replies/?post=${postId}${queryString ? `&${queryString}` : ''}`;
+    const response = await this.request(url);
+    return response.data;
+  }
+
+  async createForumReply(data: {
+    content: string;
+    post: number;
+    parent_reply?: number;
+    quoted_reply?: number;
+    is_public_visible?: boolean;
+  }): Promise<any> {
+    const response = await this.request('/forum/replies/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async updateForumReply(replyId: number, data: {
+    content?: string;
+    is_public_visible?: boolean;
+  }): Promise<any> {
+    const response = await this.request(`/forum/replies/${replyId}/`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  }
+
+  async deleteForumReply(replyId: number): Promise<void> {
+    await this.request(`/forum/replies/${replyId}/`, {
+      method: 'DELETE',
+    });
+  }
+
+  async likeForumReply(replyId: number): Promise<any> {
+    const response = await this.request(`/forum/replies/${replyId}/like/`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async uploadForumAttachment(file: File, postId?: number, replyId?: number): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (postId) {
+      formData.append('post', postId.toString());
+    }
+    if (replyId) {
+      formData.append('reply', replyId.toString());
+    }
+
+    const url = `${this.baseURL}/forum/attachments/`;
+    const headers: HeadersInit = {};
+    
+    const token = this.getAuthToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Upload failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async getForumNotifications(params?: {
+    page?: number;
+    page_size?: number;
+    read?: boolean;
+  }): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = queryParams.toString();
+    const url = `/forum/notifications/${queryString ? `?${queryString}` : ''}`;
+    const response = await this.request(url);
+    return response.data;
+  }
+
+  async markNotificationRead(notificationId: number): Promise<any> {
+    const response = await this.request(`/forum/notifications/${notificationId}/read/`, {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async markAllNotificationsRead(): Promise<any> {
+    const response = await this.request('/forum/notifications/read-all/', {
+      method: 'POST',
+    });
+    return response.data;
+  }
+
+  async getUnreadNotificationCount(): Promise<{ count: number }> {
+    const response = await this.request<{ count: number }>('/forum/notifications/unread-count/');
+    return response.data;
+  }
+
+  async getForumMentions(params?: {
+    page?: number;
+    page_size?: number;
+    read?: boolean;
+  }): Promise<any> {
+    const queryParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString());
+        }
+      });
+    }
+    const queryString = queryParams.toString();
+    const url = `/forum/mentions/${queryString ? `?${queryString}` : ''}`;
+    const response = await this.request(url);
+    return response.data;
+  }
+
+  async markMentionRead(mentionId: number): Promise<any> {
+    const response = await this.request(`/forum/mentions/${mentionId}/read/`, {
+      method: 'POST',
     });
     return response.data;
   }

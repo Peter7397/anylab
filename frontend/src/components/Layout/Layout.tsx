@@ -3,27 +3,41 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import { AIMode } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 
 const Layout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [aiMode, setAiMode] = useState<AIMode>('performance');
   const location = useLocation();
   const navigate = useNavigate();
+  const { error: authError } = useAuth();
 
   // Check authentication and load AI mode on component mount
+  // Forum routes can be accessed without authentication (public viewing)
   useEffect(() => {
     const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
-    if (!token) {
+    
+    // Forum routes are public - don't require authentication
+    // Public forum routes: /forum and /forum/post/:id (viewing posts)
+    // Authenticated forum routes: /forum/new and /forum/post/:id/edit (editing)
+    const isPublicForumRoute = location.pathname === '/forum' || 
+                                /^\/forum\/post\/\d+$/.test(location.pathname);
+    
+    // All non-public-forum routes inside Layout require authentication
+    if (!isPublicForumRoute && !token) {
       console.log('No auth token found, redirecting to login');
       navigate('/login', { replace: true });
+      return;
     }
     
-    // Load AI mode preference
-    const savedMode = localStorage.getItem('ai_mode') as AIMode;
-    if (savedMode && (savedMode === 'performance' || savedMode === 'lightweight')) {
-      setAiMode(savedMode);
+    // Load AI mode preference (only for authenticated users)
+    if (token) {
+      const savedMode = localStorage.getItem('ai_mode') as AIMode;
+      if (savedMode && (savedMode === 'performance' || savedMode === 'lightweight')) {
+        setAiMode(savedMode);
+      }
     }
-  }, [navigate]);
+  }, [navigate, location.pathname]);
 
   const handleQuickAction = (action: string) => {
     switch (action) {
@@ -38,8 +52,8 @@ const Layout: React.FC = () => {
         navigate('/admin/analytics');
         break;
       case 'analyze':
-        // Navigate to AI chat
-        navigate('/ai/chat');
+        // Navigate to Library Manager landing page
+        navigate('/ai/knowledge/manager');
         break;
       default:
         console.log('Quick action:', action);
@@ -126,6 +140,26 @@ const Layout: React.FC = () => {
             </ol>
           </nav>
         </div>
+
+        {/* Auth Error Banner */}
+        {authError && (
+          <div className="bg-red-50 border-b border-red-200 px-6 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <svg className="w-5 h-5 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <p className="text-sm text-red-800">{authError}</p>
+              </div>
+              <button
+                onClick={() => navigate('/login')}
+                className="text-sm text-red-600 hover:text-red-800 font-medium underline"
+              >
+                Go to Login
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto p-6">

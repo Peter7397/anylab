@@ -1,30 +1,30 @@
 import React from 'react';
 
-interface InputProps {
-  placeholder?: string;
-  value?: string;
-  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  className?: string;
-  type?: string;
-  disabled?: boolean;
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  helpText?: string;
+  error?: string;
 }
 
-export const Input: React.FC<InputProps> = ({ 
-  placeholder,
-  value,
-  onChange,
-  className = '',
-  type = 'text',
-  disabled = false
-}) => {
+export const Input: React.FC<InputProps> = ({ label, helpText, error, className = '', ...props }) => {
   return (
-    <input
-      type={type}
-      placeholder={placeholder}
-      value={value}
-      onChange={onChange}
-      disabled={disabled}
-      className={`flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
-    />
+    <div className="space-y-1.5">
+      {label && (
+        <label className="text-sm font-medium text-gray-700">
+          {label}
+        </label>
+      )}
+      <input
+        className={`input ${error ? 'border-danger-300 focus:border-danger-500 focus:ring-danger-500' : ''} ${className}`}
+        {...props}
+      />
+      {error ? (
+        <p className="text-xs text-danger-600">{error}</p>
+      ) : helpText ? (
+        <p className="text-xs text-gray-500">{helpText}</p>
+      ) : null}
+    </div>
   );
 };
+
+export default Input;

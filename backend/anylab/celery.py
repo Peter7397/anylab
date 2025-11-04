@@ -65,6 +65,14 @@ app.conf.update(
             'task': 'ai_assistant.tasks.scrape_ssb_weekly',
             'schedule': crontab(hour=2, minute=0, day_of_week=0),  # Every Sunday at 2 AM
         },
+        'refresh-expired-websites': {
+            'task': 'ai_assistant.tasks.refresh_expired_websites',
+            'schedule': crontab(hour=3, minute=0),  # Every day at 3 AM
+        },
+        'process-pending-uploads': {
+            'task': 'ai_assistant.tasks.process_pending_files',
+            'schedule': 60.0,  # Every 60 seconds requeue stale pending uploads
+        },
     },
 )
 

@@ -33,6 +33,12 @@ const UsersRoles: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<Set<number>>(new Set());
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -92,8 +98,8 @@ const UsersRoles: React.FC = () => {
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUser.username || !newUser.email || !newUser.password) {
-      setError('Please fill in all required fields');
+    if (!newUser.username || !newUser.password) {
+      setError('Please fill in username and password');
       return;
     }
 
@@ -142,6 +148,78 @@ const UsersRoles: React.FC = () => {
       await loadData();
     } catch (err: any) {
       setError(err?.message || 'Failed to remove role');
+    }
+  };
+
+  const openEditUser = (user: User) => {
+    setEditingUser(user);
+    const currentRoleIds = new Set<number>((user.roles || []).map(r => r.id));
+    setSelectedRoleIds(currentRoleIds);
+    setShowEditModal(true);
+  };
+
+  const toggleSelectedRole = (roleId: number) => {
+    setSelectedRoleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(roleId)) next.delete(roleId); else next.add(roleId);
+      return next;
+    });
+  };
+
+  const saveUserRoles = async () => {
+    if (!editingUser) return;
+    try {
+      setError(null);
+      // Determine diffs
+      const current = new Set<number>((editingUser.roles || []).map(r => r.id));
+      const desired = selectedRoleIds;
+      const toAdd: number[] = [];
+      const toRemove: number[] = [];
+      roles.forEach(role => {
+        const hasNow = current.has(role.id);
+        const wants = desired.has(role.id);
+        if (!hasNow && wants) toAdd.push(role.id);
+        if (hasNow && !wants) toRemove.push(role.id);
+      });
+
+      // Apply changes
+      await Promise.all([
+        ...toAdd.map(id => apiClient.assignRole(parseInt(editingUser.id), id)),
+        ...toRemove.map(id => apiClient.removeRole(parseInt(editingUser.id), id))
+      ]);
+
+      setShowEditModal(false);
+      setEditingUser(null);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || 'Failed to save roles');
+    }
+  };
+
+  const openResetPassword = (user: User) => {
+    setEditingUser(user);
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowResetModal(true);
+  };
+
+  const submitResetPassword = async () => {
+    if (!editingUser) return;
+    if (!newPassword || newPassword.length < 4) {
+      setError('Password must be at least 4 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    try {
+      setError(null);
+      await apiClient.resetUserPassword(parseInt(editingUser.id), newPassword);
+      setShowResetModal(false);
+      setEditingUser(null);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to reset password');
     }
   };
 
@@ -207,7 +285,7 @@ const UsersRoles: React.FC = () => {
         <div className="flex space-x-3">
           <button 
             className="btn-primary"
-            onClick={() => setShowAddModal(true)}
+            onClick={() => { setNewUser({ username: '', email: '', password: '', first_name: '', last_name: '', department: '', position: '' }); setShowAddModal(true); }}
           >
             <UserPlus size={16} className="mr-2" />
             Add User
@@ -365,8 +443,14 @@ const UsersRoles: React.FC = () => {
                     {user.department || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">
+                    <button className="text-blue-600 hover:text-blue-900 mr-3" onClick={() => openEditUser(user)}>
                       <Edit size={16} />
+                    </button>
+                    <button 
+                      className="text-amber-600 hover:text-amber-800 mr-3"
+                      onClick={() => openResetPassword(user)}
+                    >
+                      Reset PW
                     </button>
                     <button 
                       className="text-red-600 hover:text-red-900"
@@ -450,19 +534,22 @@ const UsersRoles: React.FC = () => {
                   <input 
                     type="text" 
                     className="input-field"
+                    name="new_username"
+                    autoComplete="off"
                     value={newUser.username}
                     onChange={(e) => setNewUser({...newUser, username: e.target.value})}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Email *</label>
+                  <label className="block text-sm font-medium text-gray-700">Email</label>
                   <input 
                     type="email" 
                     className="input-field"
+                    name="new_email"
+                    autoComplete="off"
                     value={newUser.email}
                     onChange={(e) => setNewUser({...newUser, email: e.target.value})}
-                    required
                   />
                 </div>
                 <div>
@@ -470,6 +557,8 @@ const UsersRoles: React.FC = () => {
                   <input 
                     type="password" 
                     className="input-field"
+                    name="new_password"
+                    autoComplete="new-password"
                     value={newUser.password}
                     onChange={(e) => setNewUser({...newUser, password: e.target.value})}
                     required
@@ -524,6 +613,91 @@ const UsersRoles: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Roles Modal */}
+      {showEditModal && editingUser && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-[28rem] shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Edit Roles</h3>
+              <p className="text-sm text-gray-600 mb-4">{editingUser.first_name} {editingUser.last_name} ({editingUser.username})</p>
+              <div className="max-h-80 overflow-y-auto border rounded-md p-3">
+                {roles.length === 0 && (
+                  <div className="text-sm text-gray-500">No roles available</div>
+                )}
+                <ul className="space-y-2">
+                  {roles.map(role => (
+                    <li key={role.id} className="flex items-center justify-between">
+                      <label className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={selectedRoleIds.has(role.id)}
+                          onChange={() => toggleSelectedRole(role.id)}
+                        />
+                        <span className="text-sm text-gray-800">{role.name}</span>
+                      </label>
+                      <span className="text-xs text-gray-500">{role.description || ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="flex justify-end space-x-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setEditingUser(null); }}
+                  className="btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveUserRoles}
+                  className="btn-primary"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {showResetModal && editingUser && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Reset Password</h3>
+              <p className="text-sm text-gray-600 mb-4">{editingUser.first_name} {editingUser.last_name} ({editingUser.username})</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">New Password</label>
+                  <input
+                    type="password"
+                    className="input-field"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                  <input
+                    type="password"
+                    className="input-field"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end space-x-3 mt-4">
+                <button className="btn-secondary" onClick={() => { setShowResetModal(false); setEditingUser(null); }}>Cancel</button>
+                <button className="btn-primary" onClick={submitResetPassword}>Save</button>
+              </div>
             </div>
           </div>
         </div>

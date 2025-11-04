@@ -13,7 +13,7 @@ const Login: React.FC = () => {
     // If already logged in, redirect to dashboard
     const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
     if (token) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [navigate]);
 
@@ -23,7 +23,7 @@ const Login: React.FC = () => {
     setLoading(true);
     try {
       await apiClient.login({ username, password });
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (err: any) {
       const message = err?.message || 'Login failed. Please check your credentials and try again.';
       setError(message);

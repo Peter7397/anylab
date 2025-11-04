@@ -11,9 +11,10 @@ import {
   History,
   Trash2,
   FileCode,
-  CheckCircle2
+  CheckCircle
 } from 'lucide-react';
 import { apiClient } from '../../services/api';
+import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
 
 interface TroubleshootingAIProps {
   onOpenInViewer?: (args: { id: string; title: string; url: string; type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html' }) => void;
@@ -47,6 +48,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
     suggestions?: string[];
   }>>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const { history: unifiedHistory, recordUserPrompt, refresh: refreshUnifiedHistory } = useUnifiedChatHistory(200);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -86,6 +88,21 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Cross-post receiver for Troubleshooting
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('anylab_cross_post');
+      if (raw) {
+        const payload = JSON.parse(raw);
+        if (payload?.channel === 'troubleshooting' && typeof payload?.content === 'string') {
+          localStorage.removeItem('anylab_cross_post');
+          setInputMessage(payload.content);
+          setTimeout(() => handleSend(), 0);
+        }
+      }
+    } catch (_) {}
+  }, []);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -101,8 +118,11 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
   };
 
   const handleSend = async () => {
-    const currentQuery = inputMessage.trim() || 'Please analyze this log file';
-    if (!currentQuery && !uploadedFile) return;
+    const trimmed = inputMessage.trim();
+    // If no text and no file, do nothing
+    if (!trimmed && !uploadedFile) return;
+    // If file only, provide a sensible default prompt
+    const currentQuery = trimmed || (uploadedFile ? 'Please analyze this log file' : '');
     if (isLoading) return;
 
     const messageId = Date.now().toString();
@@ -125,6 +145,8 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
       };
 
       setMessages(prev => [...prev, userMessage]);
+
+      try { await recordUserPrompt('troubleshooting', currentQuery); } catch (e) { console.error('Failed to record unified history:', e); }
       
       // Add to history
       const historyItem = {
@@ -166,19 +188,20 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
           : item
       ));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Troubleshooting error:', error);
-      
+      const serverMessage = (error && error.message) ? String(error.message) : 'Failed to analyze log file. Please try again.';
       const errorMessage: Message = {
         id: Date.now().toString(),
         role: 'assistant',
-        content: 'Failed to analyze log file. Please try again.',
+        content: serverMessage,
         timestamp: new Date().toISOString()
       };
 
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      refreshUnifiedHistory();
     }
   };
 
@@ -324,7 +347,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                           {message.suggestions && message.suggestions.length > 0 && (
                             <div className="mt-4 pt-4 border-t border-gray-200">
                               <div className="flex items-center mb-3">
-                                <CheckCircle2 size={16} className="text-green-600 mr-2" />
+                                <CheckCircle size={16} className="text-green-600 mr-2" />
                                 <span className="text-sm font-semibold text-gray-900">Suggested Solutions:</span>
                               </div>
                               <ol className="list-decimal list-inside space-y-2">
@@ -338,17 +361,40 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                           )}
                         </div>
 
-                        <button
-                          onClick={() => copyToClipboard(message.content, message.id)}
-                          className={`ml-2 p-1 rounded ${message.role === 'user' ? 'hover:bg-blue-700' : 'hover:bg-gray-100'}`}
-                          title="Copy message"
-                        >
-                          {copiedMessageId === message.id ? (
-                            <Check className="h-4 w-4 text-green-600" />
-                          ) : (
-                            <Copy className={`h-4 w-4 ${message.role === 'user' ? 'text-white' : 'text-gray-600'}`} />
+                        <div className="flex items-center space-x-2">
+                          {message.role === 'user' && (
+                            <select
+                              onChange={(e) => {
+                                const target = e.target.value as 'chat'|'rag_basic'|'rag'|'rag_comprehensive'|'troubleshooting';
+                                if (!target) return;
+                                try {
+                                  localStorage.setItem('anylab_cross_post', JSON.stringify({ channel: target, content: message.content, ts: Date.now() }));
+                                } catch (err) {}
+                                e.currentTarget.selectedIndex = 0;
+                              }}
+                              className={`text-xs border border-gray-300 rounded px-1 py-0.5 bg-white ${message.role === 'user' ? 'text-blue-800' : 'text-gray-600'}`}
+                              defaultValue=""
+                              title="Ask in..."
+                            >
+                              <option value="">Ask in…</option>
+                              <option value="chat">Free Chat</option>
+                              <option value="rag_basic">Basic RAG</option>
+                              <option value="rag">Advanced RAG</option>
+                              <option value="rag_comprehensive">Comprehensive RAG</option>
+                            </select>
                           )}
-                        </button>
+                          <button
+                            onClick={() => copyToClipboard(message.content, message.id)}
+                            className={`ml-2 p-1 rounded ${message.role === 'user' ? 'hover:bg-blue-700' : 'hover:bg-gray-100'}`}
+                            title="Copy message"
+                          >
+                            {copiedMessageId === message.id ? (
+                              <Check className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <Copy className={`h-4 w-4 ${message.role === 'user' ? 'text-white' : 'text-gray-600'}`} />
+                            )}
+                          </button>
+                        </div>
                       </div>
                       
                       <p className={`text-xs mt-2 ${
@@ -450,15 +496,15 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">Troubleshooting History</h3>
                 <button
-                  onClick={clearHistory}
-                  className="text-sm text-red-600 hover:text-red-700"
+                  onClick={() => refreshUnifiedHistory()}
+                  className="text-sm text-blue-600 hover:text-blue-700"
                 >
-                  Clear All
+                  Refresh
                 </button>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              {chatHistory.length === 0 ? (
+              {unifiedHistory.length === 0 ? (
                 <div className="text-center py-8">
                   <History className="mx-auto h-12 w-12 text-gray-400" />
                   <h3 className="mt-2 text-sm font-medium text-gray-900">No troubleshooting history</h3>
@@ -468,48 +514,21 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {chatHistory.map((item) => (
+                  {unifiedHistory.map((item) => (
                     <div key={item.id} className="border border-gray-200 rounded-lg p-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <button
-                            onClick={() => loadFromHistory(item)}
+                            onClick={() => { setInputMessage(item.content); setShowHistory(false); }}
                             className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors text-left"
                           >
-                            {item.prompt}
+                            {item.content}
                           </button>
                           <p className="text-xs text-gray-500 mt-1">
-                            {new Date(item.timestamp).toLocaleString()}
+                            {new Date(item.created_at).toLocaleString()} • {item.channel}
                           </p>
                         </div>
-                        {item.response && (
-                          <button
-                            onClick={() => {
-                              // Load full conversation from history
-                              const newMessages: Message[] = [
-                                {
-                                  id: item.id,
-                                  role: 'user',
-                                  content: item.prompt,
-                                  timestamp: item.timestamp,
-                                  logContent: item.logContent
-                                },
-                                {
-                                  id: (parseInt(item.id) + 1).toString(),
-                                  role: 'assistant',
-                                  content: item.response || '',
-                                  timestamp: item.timestamp,
-                                  suggestions: item.suggestions
-                                }
-                              ];
-                              setMessages(newMessages);
-                              setShowHistory(false);
-                            }}
-                            className="ml-2 px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
-                          >
-                            Load
-                          </button>
-                        )}
+                        
                       </div>
                     </div>
                   ))}

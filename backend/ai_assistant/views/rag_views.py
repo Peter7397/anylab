@@ -34,6 +34,7 @@ from ..rag_service import EnhancedRAGService
 from ..improved_rag_service import enhanced_rag_service
 from ..advanced_rag_service import advanced_rag_service
 from ..comprehensive_rag_service import comprehensive_rag_service
+from ..services.graph_rag_service import graph_rag_service
 from ..serializers import (
     PDFDocumentSerializer, WebLinkSerializer, 
     KnowledgeShareSerializer, QueryHistorySerializer, DocumentSerializer
@@ -43,6 +44,7 @@ from .base_views import (
     BaseViewMixin, success_response, error_response, bad_request_response,
     internal_error_response, unauthorized_response
 )
+from users.permissions import HasFeaturePermission
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +87,7 @@ def chat_with_ollama(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, HasFeaturePermission.require('ai.rag')])
 def rag_search(request):
     """Enhanced RAG search with improved chunking and similarity scoring"""
     try:
@@ -113,7 +115,7 @@ def rag_search(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, HasFeaturePermission.require('ai.rag')])
 def advanced_rag_search(request):
     """Advanced RAG search with hybrid search and reranking"""
     try:
@@ -136,7 +138,7 @@ def advanced_rag_search(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, HasFeaturePermission.require('ai.rag')])
 def comprehensive_rag_search(request):
     """Comprehensive RAG search with maximum detail and complete answers"""
     try:
@@ -159,7 +161,29 @@ def comprehensive_rag_search(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, HasFeaturePermission.require('ai.rag')])
+def graph_rag_search(request):
+    """Graph-Enhanced RAG search combining vector similarity with knowledge graph traversal"""
+    try:
+        BaseViewMixin.log_request(request, 'graph_rag_search')
+        
+        query = request.data.get('query', '').strip()
+        if not query:
+            return bad_request_response('Query is required')
+        
+        top_k = int(request.data.get('top_k', 10))
+        
+        result = graph_rag_service.query_with_graph_rag(query, top_k=top_k, user=request.user)
+        
+        BaseViewMixin.log_response(result, 'graph_rag_search')
+        return success_response("Graph RAG search completed successfully", result)
+        
+    except Exception as e:
+        return BaseViewMixin.handle_error(e, 'graph_rag_search')
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, HasFeaturePermission.require('ai.rag')])
 def vector_search(request):
     """Vector similarity search with history tracking"""
     try:
@@ -187,7 +211,7 @@ def vector_search(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, HasFeaturePermission.require('documents.upload')])
 def upload_pdf_enhanced(request):
     """Enhanced PDF upload with automatic processing and RAG indexing"""
     try:
@@ -212,7 +236,7 @@ def upload_pdf_enhanced(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, HasFeaturePermission.require('documents.upload')])
 def upload_document_enhanced(request):
     """Enhanced document upload with automatic processing and metadata"""
     try:

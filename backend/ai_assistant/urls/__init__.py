@@ -5,6 +5,8 @@ This module provides organized URL patterns for the AI Assistant application.
 """
 
 from django.urls import path, include
+from ai_assistant.views.chat_history_views import ChatHistoryListView, ChatMessageCreateView
+from ai_assistant.views.rag_views import chat_with_ollama
 
 # Re-export from urls.py to match Django's import behavior
 urlpatterns = [
@@ -17,8 +19,13 @@ urlpatterns = [
     # Content Management endpoints
     path('content/', include('ai_assistant.urls.content_urls')),
     
-    # Chat endpoint (import inside to avoid issues)
-    path('chat/', include('ai_assistant.urls.rag_urls')),
+    # Unified Chat History endpoints
+    path('chat/history/', ChatHistoryListView.as_view(), name='chat-history'),
+    path('chat/message/', ChatMessageCreateView.as_view(), name='chat-message-create'),
+
+    # Chat endpoints (unified history/messages and legacy rag chat)
+    path('chat/', include('ai_assistant.urls.chat_urls')),
+    path('chat/ollama/', chat_with_ollama, name='chat_ollama'),
     
     # Scraper endpoints
     path('ssb/', include('ai_assistant.urls.ssb_urls')),

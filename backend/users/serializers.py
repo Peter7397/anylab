@@ -77,7 +77,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
             'employee_id', 'department', 'position', 'phone'
         ]
         extra_kwargs = {
-            'password': {'write_only': True, 'required': True}
+            'password': {'write_only': True, 'required': True},
+            'email': {'required': False, 'allow_blank': True, 'allow_null': True}
         }
     
     def create(self, validated_data):

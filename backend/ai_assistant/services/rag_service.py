@@ -84,7 +84,7 @@ class RAGService(BaseService):
         num_ctx = kwargs.get('num_ctx', getattr(settings, 'OLLAMA_NUM_CTX', 1024))
         
         # Ollama configuration
-        model = getattr(settings, 'OLLAMA_MODEL', 'qwen2.5:latest')
+        model = getattr(settings, 'OLLAMA_MODEL', 'llama3:8b')
         ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
         timeout_seconds = getattr(settings, 'OLLAMA_REQUEST_TIMEOUT', 120)
         

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# OnLab Hybrid Development Stop Script
+# AnyLab Hybrid Development Stop Script
 # This script stops the backend and frontend services
 
-echo "🛑 Stopping OnLab Hybrid Development Environment..."
+echo "🛑 Stopping AnyLab Hybrid Development Environment..."
 echo "=================================================="
 
 # Stop backend
@@ -32,9 +32,9 @@ fi
 
 # Stop Docker services (optional - uncomment if you want to stop them too)
 # echo "🐳 Stopping Docker services..."
-# docker stop onlab_postgres onlab_redis 2>/dev/null
+# docker stop anylab_postgres anylab_redis 2>/dev/null
 # echo "✅ Docker services stopped."
 
 echo ""
-echo "✅ All OnLab services stopped!"
+echo "✅ All AnyLab services stopped!"
 echo "=================================================="

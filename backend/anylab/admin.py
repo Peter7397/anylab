@@ -15,13 +15,13 @@ class CustomUserAdmin(UserAdmin):
     ordering = ('username',)
     
     fieldsets = UserAdmin.fieldsets + (
-        ('OneLab Info', {
+        ('AnyLab Info', {
             'fields': ('employee_id', 'department', 'position', 'phone', 'avatar', 'last_login_ip')
         }),
     )
     
     add_fieldsets = UserAdmin.add_fieldsets + (
-        ('OneLab Info', {
+        ('AnyLab Info', {
             'fields': ('employee_id', 'department', 'position', 'phone')
         }),
     )

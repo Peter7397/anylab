@@ -34,7 +34,7 @@
 
 ```python
 # In backend/anylab/settings.py
-OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'qwen2.5:latest')  # Use available model
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'llama3:8b')  # Use Llama 3 8B
 OLLAMA_API_URL = os.getenv('OLLAMA_API_URL', 'http://localhost:11434')  # Local Ollama
 ```
 
@@ -51,7 +51,7 @@ After fixing model names, RAG should work because:
 
 ## Next Steps
 
-1. Update `OLLAMA_MODEL` setting to use `qwen2.5:latest`
+1. Update `OLLAMA_MODEL` setting to use `llama3:8b`
 2. Verify `OLLAMA_API_URL` points to running Ollama instance
 3. Test RAG search with a simple query
 4. Check for any errors in backend logs

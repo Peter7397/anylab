@@ -6,7 +6,10 @@ app_name = 'users'
 urlpatterns = [
     # User management
     path('', views.user_list, name='user_list'),
+    path('<int:user_id>/', views.user_detail, name='user_detail'),
+    path('<int:user_id>/reset_password/', views.user_reset_password, name='user_reset_password'),
     path('profile/', views.user_profile, name='user_profile'),
+    path('me/permissions/', views.my_permissions, name='my_permissions'),
     
     # Role management
     path('roles/', views.role_list_create, name='role_list_create'),

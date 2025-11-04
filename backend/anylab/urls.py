@@ -12,7 +12,18 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
     TokenVerifyView,
 )
+from rest_framework.permissions import AllowAny
 from users import views
+
+# Override token views to allow unauthenticated access
+class PublicTokenObtainPairView(TokenObtainPairView):
+    permission_classes = [AllowAny]
+
+class PublicTokenRefreshView(TokenRefreshView):
+    permission_classes = [AllowAny]
+
+class PublicTokenVerifyView(TokenVerifyView):
+    permission_classes = [AllowAny]
 
 @csrf_exempt
 def health_check(request):
@@ -25,10 +36,10 @@ urlpatterns = [
     # Health check
     path('api/health/', health_check, name='health_check'),
     
-    # JWT Authentication
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    # JWT Authentication (public - no authentication required)
+    path('api/token/', PublicTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', PublicTokenRefreshView.as_view(), name='token_refresh'),
+    path('api/token/verify/', PublicTokenVerifyView.as_view(), name='token_verify'),
     
     # Web-based authentication
     path('login/', views.login_view, name='login'),
@@ -38,6 +49,7 @@ urlpatterns = [
     # API endpoints
     path('api/users/', include('users.urls')),
     path('api/ai/', include('ai_assistant.urls')),
+    path('api/forum/', include('forum.urls')),
 ]
 
 # Always serve media files for now to fix the viewer issue

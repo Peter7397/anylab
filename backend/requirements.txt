@@ -49,4 +49,7 @@ tokenizers==0.22.1
 
 # Web Scraping
 beautifulsoup4==4.12.3
-lxml==5.2.0 
+lxml==5.2.0
+
+# Graph Database
+neo4j==5.20.0 

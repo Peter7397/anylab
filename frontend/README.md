@@ -1,6 +1,6 @@
-# OnLab Frontend
+# AnyLab Frontend
 
-A modern React-based web interface for the OnLab lab IT operations and troubleshooting platform.
+A modern React-based web interface for the AnyLab lab IT operations and troubleshooting platform.
 
 ## Features
 
@@ -137,4 +137,4 @@ Currently using React's built-in state management. For complex state, consider:
 
 ## License
 
-This project is part of the OnLab platform.
+This project is part of the AnyLab platform.

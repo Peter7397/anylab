@@ -1,4 +1,4 @@
-# 🚀 OnLab Frontend - Startup Guide
+# 🚀 AnyLab Frontend - Startup Guide
 
 ## Quick Start (Daily Use)
 
@@ -74,7 +74,7 @@ When you run `npm start`:
 ```
 Compiled successfully!
 
-You can now view onlab-frontend in the browser.
+You can now view anylab-frontend in the browser.
 
   Local:            http://localhost:3000
   On Your Network:  http://192.168.x.x:3000

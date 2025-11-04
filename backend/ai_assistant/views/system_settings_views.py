@@ -11,7 +11,7 @@ import requests
 
 from django.conf import settings as dj_settings
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ def _get_settings_snapshot():
         },
         'rag': {
             'ollama_url': getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434'),
-            'model': getattr(dj_settings, 'OLLAMA_MODEL', 'qwen2.5:latest'),
+            'model': getattr(dj_settings, 'OLLAMA_MODEL', 'llama3:8b'),
             'request_timeout': getattr(dj_settings, 'OLLAMA_REQUEST_TIMEOUT', 120),
             'num_ctx': getattr(dj_settings, 'OLLAMA_NUM_CTX', 1024),
             'max_tokens': getattr(dj_settings, 'OLLAMA_DEFAULT_MAX_TOKENS', 256),
@@ -79,6 +79,59 @@ def get_settings(request):
 @permission_classes([IsAdminUser])
 def test_connection(request):
     """Test a connection (ollama or redis). Expects { type: 'ollama'|'redis', config?: {} }"""
+    
+    @api_view(['GET'])
+    @permission_classes([IsAuthenticated])
+    def health_check(request):
+        """Comprehensive health check for all services"""
+        health = {
+            'status': 'healthy',
+            'timestamp': timezone.now().isoformat(),
+            'services': {}
+        }
+        
+        # Check PostgreSQL
+        try:
+            from django.db import connection
+            connection.ensure_connection()
+            health['services']['postgresql'] = {'status': 'healthy'}
+        except Exception as e:
+            health['status'] = 'degraded'
+            health['services']['postgresql'] = {'status': 'unhealthy', 'error': str(e)[:100]}
+        
+        # Check Redis
+        try:
+            from django.core.cache import cache
+            cache.set('health_check', 'ok', 10)
+            if cache.get('health_check') == 'ok':
+                health['services']['redis'] = {'status': 'healthy'}
+            else:
+                health['status'] = 'degraded'
+                health['services']['redis'] = {'status': 'unhealthy', 'error': 'Cache test failed'}
+        except Exception as e:
+            health['status'] = 'degraded'
+            health['services']['redis'] = {'status': 'unhealthy', 'error': str(e)[:100]}
+        
+        # Check Neo4j
+        try:
+            from ai_assistant.services.neo4j_service import get_neo4j_service
+            neo4j = get_neo4j_service()
+            if neo4j.test_connection():
+                stats = neo4j.get_graph_stats()
+                health['services']['neo4j'] = {
+                    'status': 'healthy',
+                    'nodes': stats.get('nodes', 0),
+                    'relationships': stats.get('relationships', 0)
+                }
+            else:
+                health['status'] = 'degraded'
+                health['services']['neo4j'] = {'status': 'unhealthy', 'error': 'Connection test failed'}
+        except Exception as e:
+            health['status'] = 'degraded'
+            health['services']['neo4j'] = {'status': 'unhealthy', 'error': str(e)[:100]}
+        
+        status_code = 200 if health['status'] == 'healthy' else 503
+        return Response(health, status=status_code)
     try:
         payload = request.data if isinstance(request.data, dict) else json.loads(request.body or '{}')
     except Exception:
@@ -104,6 +157,60 @@ def test_connection(request):
             return Response({'ok': bool(pong), 'url': redis_url})
         except Exception as e:
             return Response({'ok': False, 'error': str(e), 'url': redis_url}, status=400)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def health_check(request):
+    """Comprehensive health check for all services"""
+    health = {
+        'status': 'healthy',
+        'timestamp': timezone.now().isoformat(),
+        'services': {}
+    }
+    
+    # Check PostgreSQL
+    try:
+        from django.db import connection
+        connection.ensure_connection()
+        health['services']['postgresql'] = {'status': 'healthy'}
+    except Exception as e:
+        health['status'] = 'degraded'
+        health['services']['postgresql'] = {'status': 'unhealthy', 'error': str(e)[:100]}
+    
+    # Check Redis
+    try:
+        from django.core.cache import cache
+        cache.set('health_check', 'ok', 10)
+        if cache.get('health_check') == 'ok':
+            health['services']['redis'] = {'status': 'healthy'}
+        else:
+            health['status'] = 'degraded'
+            health['services']['redis'] = {'status': 'unhealthy', 'error': 'Cache test failed'}
+    except Exception as e:
+        health['status'] = 'degraded'
+        health['services']['redis'] = {'status': 'unhealthy', 'error': str(e)[:100]}
+    
+    # Check Neo4j
+    try:
+        from ai_assistant.services.neo4j_service import get_neo4j_service
+        neo4j = get_neo4j_service()
+        if neo4j.test_connection():
+            stats = neo4j.get_graph_stats()
+            health['services']['neo4j'] = {
+                'status': 'healthy',
+                'nodes': stats.get('nodes', 0),
+                'relationships': stats.get('relationships', 0)
+            }
+        else:
+            health['status'] = 'degraded'
+            health['services']['neo4j'] = {'status': 'unhealthy', 'error': 'Connection test failed'}
+    except Exception as e:
+        health['status'] = 'degraded'
+        health['services']['neo4j'] = {'status': 'unhealthy', 'error': str(e)[:100]}
+    
+    status_code = 200 if health['status'] == 'healthy' else 503
+    return Response(health, status=status_code)
 
     return Response({'ok': False, 'error': 'Unsupported type'}, status=400)
 

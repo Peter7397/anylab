@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Database, Github, MessageSquare, Globe, RefreshCw, Play, Pause, Settings, AlertCircle, CheckCircle } from 'lucide-react';
+import { Database, Github, MessageSquareQuote, Code, RefreshCw, Play, Pause, Settings, AlertCircle, CheckCircle } from 'lucide-react';
 import { apiClient } from '../../services/api';
 
 type ScraperType = 'ssb' | 'github' | 'forum' | 'html';
@@ -34,13 +34,13 @@ const ScraperManagement: React.FC = () => {
     },
     forum: {
       name: 'Forum Scraper',
-      icon: MessageSquare,
+      icon: MessageSquareQuote,
       description: 'Scrape forum posts and discussions',
       endpoints: ['posts'],
     },
     html: {
       name: 'HTML Parser',
-      icon: Globe,
+      icon: Code,
       description: 'Parse HTML from URLs and text',
       endpoints: ['url', 'text'],
     },

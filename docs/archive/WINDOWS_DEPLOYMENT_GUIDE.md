@@ -148,7 +148,7 @@ CORS_ALLOWED_ORIGINS=http://your-frontend-domain,http://localhost:3000
 # AI Settings
 EMBEDDING_MODE=lightweight
 OLLAMA_API_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:latest
+OLLAMA_MODEL=llama3:8b
 EMBEDDING_MODEL=bge-m3
 
 # Windows-specific settings

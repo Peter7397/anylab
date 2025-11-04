@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# OnLab Hybrid Development Startup Script
+# AnyLab Hybrid Development Startup Script
 # This script starts the backend (local) and frontend (local) for development
 
-echo "🚀 Starting OnLab Hybrid Development Environment..."
+echo "🚀 Starting AnyLab Hybrid Development Environment..."
 echo "=================================================="
 
 # Function to check if a port is in use
@@ -24,17 +24,17 @@ start_backend() {
     
     # Check if PostgreSQL and Redis are running
     echo "📊 Checking Docker services..."
-    if ! docker ps | grep -q "onlab_postgres"; then
+    if ! docker ps | grep -q "anylab_postgres"; then
         echo "🐘 Starting PostgreSQL..."
-        docker run -d --name onlab_postgres -e POSTGRES_DB=onlab -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=password -p 5433:5432 postgres:15
+        docker run -d --name anylab_postgres -e POSTGRES_DB=anylab -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=password -p 5433:5432 postgres:15
         sleep 5
         # Enable pgvector extension
-        docker exec onlab_postgres psql -U postgres -d onlab -c "CREATE EXTENSION IF NOT EXISTS vector;"
+        docker exec anylab_postgres psql -U postgres -d anylab -c "CREATE EXTENSION IF NOT EXISTS vector;"
     fi
     
-    if ! docker ps | grep -q "onlab_redis"; then
+    if ! docker ps | grep -q "anylab_redis"; then
         echo "🔴 Starting Redis..."
-        docker run -d --name onlab_redis -p 6379:6379 redis:7-alpine
+        docker run -d --name anylab_redis -p 6379:6379 redis:7-alpine
     fi
     
     # Run migrations
@@ -81,18 +81,30 @@ main() {
         exit 1
     fi
     
+    # Get LAN IP address
+    LAN_IP=$(ipconfig getifaddr en0 2>/dev/null || ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
+    
     # Start services
     start_backend
     sleep 3
     start_frontend
     
     echo ""
-    echo "✅ OnLab Hybrid Development Environment Started!"
+    echo "✅ AnyLab Hybrid Development Environment Started!"
     echo "=================================================="
+    echo ""
+    echo "📍 Local Access:"
     echo "🌐 Backend: http://localhost:8000"
     echo "⚛️  Frontend: http://localhost:3000"
     echo "🔐 Login: http://localhost:8000/login/"
     echo ""
+    if [ ! -z "$LAN_IP" ]; then
+        echo "📍 LAN Access (from other devices on same network):"
+        echo "🌐 Backend: http://$LAN_IP:8000"
+        echo "⚛️  Frontend: http://$LAN_IP:3000"
+        echo "🔐 Login: http://$LAN_IP:8000/login/"
+        echo ""
+    fi
     echo "📋 Demo Credentials:"
     echo "   Username: admin"
     echo "   Password: admin123!@#"
@@ -108,7 +120,7 @@ main() {
 # Handle cleanup on exit
 cleanup() {
     echo ""
-    echo "🛑 Stopping OnLab services..."
+    echo "🛑 Stopping AnyLab services..."
     
     # Stop backend
     if [ -f "backend/.backend.pid" ]; then

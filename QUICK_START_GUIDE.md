@@ -1,4 +1,4 @@
-# 🚀 OnLab Quick Start Guide
+# 🚀 AnyLab Quick Start Guide
 
 ## Prerequisites
 - Docker Desktop running
@@ -131,7 +131,7 @@ cd backend && docker compose restart
 
 Simply run:
 ```bash
-./start-onlab.sh
+./start-hybrid.sh
 ```
 
-And enjoy your enhanced OnLab system! 🎉
+And enjoy your enhanced AnyLab system! 🎉

@@ -16,6 +16,7 @@ from .serializers import (
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
     RoleSerializer, UserRoleSerializer
 )
+from .permissions import get_merged_permissions_for_user
 import json
 
 User = get_user_model()
@@ -110,24 +111,86 @@ def user_profile(request):
             'username': request.user.username,
             'email': request.user.email,
             'is_staff': request.user.is_staff,
+            'is_superuser': getattr(request.user, 'is_superuser', False),
             'date_joined': request.user.date_joined,
         }
     })
 
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def my_permissions(request):
+    """Return merged permissions for the authenticated user"""
+    merged = get_merged_permissions_for_user(request.user)
+    return Response({ 'permissions': merged })
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def user_list(request):
-    """Get list of users"""
+    """List users (GET) or create a new user (POST) - staff only"""
     if not request.user.is_staff:
-        return Response({
-            'error': 'Permission denied'
-        }, status=status.HTTP_403_FORBIDDEN)
-    
-    users = User.objects.all()
-    serializer = UserSerializer(users, many=True)
-    return Response({
-        'users': serializer.data
-    })
+        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+    if request.method == 'GET':
+        users = User.objects.all()
+        serializer = UserSerializer(users, many=True)
+        return Response({'users': serializer.data})
+
+    # POST - create user
+    serializer = UserCreateSerializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+    return Response({'error': 'Validation error', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def user_detail(request, user_id):
+    """Retrieve, update, or delete a user - staff only"""
+    if not request.user.is_staff:
+        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        return Response(UserSerializer(user).data)
+
+    if request.method == 'PUT':
+        serializer = UserUpdateSerializer(user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(UserSerializer(user).data)
+        return Response({'error': 'Validation error', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+    # DELETE
+    user.delete()
+    return Response({'message': 'User deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def user_reset_password(request, user_id):
+    """Reset a user's password - staff only"""
+    if not request.user.is_staff:
+        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    new_password = request.data.get('password') or request.data.get('new_password')
+    if not new_password or len(new_password) < 4:
+        return Response({'error': 'Password must be at least 4 characters'}, status=status.HTTP_400_BAD_REQUEST)
+
+    user.set_password(new_password)
+    user.save()
+
+    return Response({'message': 'Password reset successfully'}, status=status.HTTP_200_OK)
 
 
 # ============= Role Management Endpoints =============
