@@ -10,17 +10,41 @@ interface TrimmedImageProps {
 const TrimmedImage: React.FC<TrimmedImageProps> = ({ src, alt = '', className, fallbackSrc }) => {
   const [renderSrc, setRenderSrc] = useState<string>(src);
   const attemptedFallback = useRef<boolean>(false);
+  const processingRef = useRef<boolean>(false);
+  const lastProcessedSrc = useRef<string>('');
 
   useEffect(() => {
+    // Reset state when src changes
+    if (lastProcessedSrc.current !== src) {
+      attemptedFallback.current = false;
+      processingRef.current = false;
+      lastProcessedSrc.current = src;
+      setRenderSrc(src);
+    }
+    
+    // Prevent processing if already processing the same src
+    if (processingRef.current) {
+      return;
+    }
+
     let active = true;
+    processingRef.current = true;
+    const currentSrc = lastProcessedSrc.current;
+    
     const image = new Image();
     image.crossOrigin = 'anonymous';
+    
     image.onload = () => {
+      if (!active || currentSrc !== lastProcessedSrc.current) {
+        processingRef.current = false;
+        return;
+      }
+      
       try {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          if (active) setRenderSrc(src);
+          processingRef.current = false;
           return;
         }
         const w = image.width;
@@ -60,27 +84,43 @@ const TrimmedImage: React.FC<TrimmedImageProps> = ({ src, alt = '', className, f
         out.height = cropH;
         const octx = out.getContext('2d');
         if (!octx) {
-          if (active) setRenderSrc(src);
+          processingRef.current = false;
           return;
         }
         octx.drawImage(image, left, top, cropW, cropH, 0, 0, cropW, cropH);
         const dataUrl = out.toDataURL();
-        if (active) setRenderSrc(dataUrl);
+        
+        // Only update if still active and src hasn't changed
+        if (active && currentSrc === lastProcessedSrc.current) {
+          setRenderSrc((prev) => prev !== dataUrl ? dataUrl : prev);
+        }
+        processingRef.current = false;
       } catch {
-        if (active) setRenderSrc(src);
+        processingRef.current = false;
       }
     };
+    
     image.onerror = () => {
+      if (!active || currentSrc !== lastProcessedSrc.current) {
+        processingRef.current = false;
+        return;
+      }
+      
       if (!attemptedFallback.current && fallbackSrc) {
         attemptedFallback.current = true;
         // try fallback
-        setRenderSrc(fallbackSrc);
+        setRenderSrc((prev) => prev !== fallbackSrc ? fallbackSrc : prev);
+        processingRef.current = false;
         return;
       }
-      if (active) setRenderSrc(src);
+      processingRef.current = false;
     };
-    image.src = src;
-    return () => { active = false; };
+    
+    image.src = currentSrc;
+    return () => { 
+      active = false;
+      processingRef.current = false;
+    };
   }, [src, fallbackSrc]);
 
   return (

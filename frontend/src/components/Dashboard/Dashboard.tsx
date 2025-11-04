@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Monitor, 
   AlertTriangle, 
@@ -20,6 +20,32 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const loadingRef = useRef(false);
+
+  const loadDashboardData = useCallback(async () => {
+    // Prevent concurrent calls
+    if (loadingRef.current) {
+      return;
+    }
+
+    loadingRef.current = true;
+    try {
+      const data = await apiClient.getDashboardStats();
+      // Only update if data actually changed
+      setStats((prevStats: any) => {
+        if (JSON.stringify(prevStats) === JSON.stringify(data)) {
+          return prevStats;
+        }
+        return data;
+      });
+      setLastUpdate(new Date());
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     loadDashboardData();
@@ -27,19 +53,7 @@ const Dashboard: React.FC = () => {
       loadDashboardData();
     }, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
-  }, []);
-
-  const loadDashboardData = async () => {
-    try {
-      const data = await apiClient.getDashboardStats();
-      setStats(data);
-      setLastUpdate(new Date());
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [loadDashboardData]);
 
   // Mock data - replace with actual API calls
   const mockSystems: System[] = [

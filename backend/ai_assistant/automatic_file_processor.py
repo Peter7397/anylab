@@ -734,8 +734,8 @@ class AutomaticFileProcessor:
                 Fetch embedding using BGE-M3 ONLY with per-chunk retry logic
                 NO FALLBACKS - Quality requirement
                 """
-        max_retries = 3
-        retry_count = 0
+                max_retries = 3
+                retry_count = 0
         
         while retry_count < max_retries:
             try:
@@ -749,7 +749,7 @@ class AutomaticFileProcessor:
                 )
                 response.raise_for_status()
                 embedding = response.json()["embedding"]
-            
+                
                 # Ensure 1024 dimensions (BGE-M3)
                 if len(embedding) != self.EMBEDDING_DIMS:
                     if len(embedding) < self.EMBEDDING_DIMS:

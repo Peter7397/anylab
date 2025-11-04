@@ -15,7 +15,7 @@ const Layout: React.FC = () => {
   // Check authentication and load AI mode on component mount
   // Forum routes can be accessed without authentication (public viewing)
   useEffect(() => {
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+    const token = localStorage.getItem('anylab_token');
     
     // Forum routes are public - don't require authentication
     // Public forum routes: /forum and /forum/post/:id (viewing posts)

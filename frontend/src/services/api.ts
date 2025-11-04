@@ -3,11 +3,12 @@
 
 // Auto-detect API base URL based on current hostname
 // This ensures the frontend always connects to the backend on the same network interface
+// CHANGED: Port 8001 to avoid conflict with 7English (port 8000)
 const getApiBaseUrl = () => {
   // Always detect based on current hostname to match the network interface
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
-  const port = '8000';
+  const port = '8001';  // CHANGED: 8000 -> 8001 to avoid conflict with 7English
   
   // If accessing via localhost/127.0.0.1, use localhost for backend
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
@@ -15,7 +16,7 @@ const getApiBaseUrl = () => {
   }
   
   // Otherwise use the same hostname (for LAN access or any IP access)
-  // This ensures if you access via 192.168.1.216:3000, it connects to 192.168.1.216:8000
+  // This ensures if you access via 192.168.1.216:3000, it connects to 192.168.1.216:8001
   return `${protocol}//${hostname}:${port}/api`;
 };
 
@@ -108,7 +109,10 @@ class ApiClient {
 
   // Set auth token in localStorage
   private setAuthToken(token: string): void {
+    console.log('API setAuthToken - Storing token with key:', JWT_STORAGE_KEY);
     localStorage.setItem(JWT_STORAGE_KEY, token);
+    const stored = localStorage.getItem(JWT_STORAGE_KEY);
+    console.log('API setAuthToken - Verification - token stored:', !!stored, stored ? stored.substring(0, 50) + '...' : 'none');
   }
 
   // Remove auth token from localStorage
@@ -206,8 +210,21 @@ class ApiClient {
         status: response.status,
         message: data.message,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('API request failed:', error);
+      
+      // If it's a network/connection error, mark backend as unhealthy
+      if (error?.message?.includes('Failed to fetch') || 
+          error?.message?.includes('NetworkError') ||
+          error?.name === 'TypeError') {
+        // Import backendHealth only when needed to avoid circular dependency
+        import('./backendHealth').then(({ backendHealth }) => {
+          backendHealth.markUnhealthy();
+        }).catch(() => {
+          // Ignore import errors
+        });
+      }
+      
       throw error;
     }
   }
@@ -353,13 +370,29 @@ class ApiClient {
 
   // Authentication Methods
   async login(credentials: LoginCredentials): Promise<AuthTokens> {
+    console.log('API login - Making login request...');
     const response = await this.publicRequest<AuthTokens>('/token/', {
       method: 'POST',
       body: JSON.stringify(credentials),
     });
 
+    console.log('API login - Response received:', {
+      hasAccess: !!response.data.access,
+      hasRefresh: !!response.data.refresh,
+      accessLength: response.data.access?.length,
+      refreshLength: response.data.refresh?.length
+    });
+
     this.setAuthToken(response.data.access);
     this.setRefreshToken(response.data.refresh);
+
+    // Verify tokens were stored
+    const storedToken = localStorage.getItem(JWT_STORAGE_KEY);
+    const storedRefresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+    console.log('API login - Storage verification:', {
+      tokenStored: !!storedToken,
+      refreshStored: !!storedRefresh
+    });
 
     return response.data;
   }
@@ -372,16 +405,26 @@ class ApiClient {
   }
 
   async getMyPermissions(): Promise<MergedPermissions> {
+    console.log('API getMyPermissions - Making request to /users/me/permissions/');
+    console.log('API getMyPermissions - Token:', this.getAuthToken() ? 'present' : 'missing');
     const response = await this.request<MyPermissionsResponse>('/users/me/permissions/');
-    return response.data.permissions || {};
+    console.log('API getMyPermissions - Raw response:', response);
+    const permissions = response.data.permissions || {};
+    console.log('API getMyPermissions - Extracted permissions:', permissions);
+    return permissions;
   }
 
   async getCurrentUser(): Promise<User> {
+    console.log('API getCurrentUser - Making request to /users/profile/');
+    console.log('API getCurrentUser - Token:', this.getAuthToken() ? 'present' : 'missing');
     const response = await this.request<{ user: User }>('/users/profile/');
-    const user = (response.data as any).user as User;
-    // Debug: Log user data to verify it's being parsed correctly
     console.log('API getCurrentUser - Raw response:', response);
+    const user = (response.data as any).user as User;
     console.log('API getCurrentUser - Extracted user:', user);
+    if (!user) {
+      console.error('API getCurrentUser - No user in response!', response.data);
+      throw new Error('Failed to get user profile: user data is missing');
+    }
     return user;
   }
 

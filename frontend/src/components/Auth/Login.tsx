@@ -11,23 +11,49 @@ const Login: React.FC = () => {
 
   useEffect(() => {
     // If already logged in, redirect to dashboard
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+    const token = localStorage.getItem('anylab_token');
     if (token) {
+      // Use replace to avoid adding to history, and prevent redirect loops
       navigate('/dashboard', { replace: true });
     }
-  }, [navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      await apiClient.login({ username, password });
-      navigate('/dashboard', { replace: true });
+      console.log('Login - Attempting to login...');
+      const tokens = await apiClient.login({ username, password });
+      console.log('Login - Login successful, tokens received:', !!tokens);
+      
+      // Verify token was stored
+      const token = localStorage.getItem('anylab_token');
+      console.log('Login - Token in localStorage:', !!token, token ? token.substring(0, 50) + '...' : 'none');
+      
+      if (!token) {
+        throw new Error('Token was not stored in localStorage');
+      }
+      
+      // Small delay to ensure localStorage is persisted
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Verify again after delay
+      const tokenAfterDelay = localStorage.getItem('anylab_token');
+      console.log('Login - Token after delay:', !!tokenAfterDelay);
+      
+      if (!tokenAfterDelay) {
+        throw new Error('Token was lost after storage');
+      }
+      
+      // Force page reload to trigger AuthContext reload
+      console.log('Login - Redirecting to dashboard...');
+      window.location.href = '/dashboard';
     } catch (err: any) {
+      console.error('Login - Login failed:', err);
       const message = err?.message || 'Login failed. Please check your credentials and try again.';
       setError(message);
-    } finally {
       setLoading(false);
     }
   };

@@ -195,7 +195,7 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),  # HARDCODED: 5 hours
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),  # HARDCODED: 1 day
     'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
+    'BLACKLIST_AFTER_ROTATION': False,  # HARDCODED: Disabled (blacklist app not installed)
     'UPDATE_LAST_LOGIN': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,  # HARDCODED: Use SECRET_KEY

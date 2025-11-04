@@ -42,8 +42,8 @@ start_backend() {
     python manage.py migrate --noinput
     
     # Start Django server
-    echo "🌐 Starting Django server on http://localhost:8000"
-    python manage.py runserver 0.0.0.0:8000 &
+    echo "🌐 Starting Django server on http://localhost:8001 (port changed to avoid conflict with 7English on 8000)"
+    python manage.py runserver 0.0.0.0:8001 &
     BACKEND_PID=$!
     echo $BACKEND_PID > .backend.pid
     cd ..
@@ -71,8 +71,8 @@ start_frontend() {
 # Main execution
 main() {
     # Check if ports are available
-    if ! check_port 8000; then
-        echo "❌ Backend port 8000 is already in use. Please stop the existing service."
+    if ! check_port 8001; then
+        echo "❌ Backend port 8001 is already in use. Please stop the existing service."
         exit 1
     fi
     
@@ -94,15 +94,15 @@ main() {
     echo "=================================================="
     echo ""
     echo "📍 Local Access:"
-    echo "🌐 Backend: http://localhost:8000"
+    echo "🌐 Backend: http://localhost:8001"
     echo "⚛️  Frontend: http://localhost:3000"
-    echo "🔐 Login: http://localhost:8000/login/"
+    echo "🔐 Login: http://localhost:8001/login/"
     echo ""
     if [ ! -z "$LAN_IP" ]; then
         echo "📍 LAN Access (from other devices on same network):"
-        echo "🌐 Backend: http://$LAN_IP:8000"
+        echo "🌐 Backend: http://$LAN_IP:8001"
         echo "⚛️  Frontend: http://$LAN_IP:3000"
-        echo "🔐 Login: http://$LAN_IP:8000/login/"
+        echo "🔐 Login: http://$LAN_IP:8001/login/"
         echo ""
     fi
     echo "📋 Demo Credentials:"

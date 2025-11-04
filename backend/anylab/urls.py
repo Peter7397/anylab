@@ -30,7 +30,28 @@ def health_check(request):
     """Health check endpoint for Docker"""
     return JsonResponse({"status": "healthy", "service": "anylab-backend"})
 
+def root_redirect(request):
+    """Handle root URL - redirect to frontend or show info"""
+    from django.http import HttpResponseRedirect, HttpResponse
+    from django.conf import settings
+    
+    # Get the hostname from the request
+    hostname = request.get_host().split(':')[0]
+    protocol = 'https' if request.is_secure() else 'http'
+    
+    # If accessing via localhost/127.0.0.1, redirect to frontend on port 3000
+    if hostname in ['localhost', '127.0.0.1']:
+        frontend_url = f'{protocol}://localhost:3000/'
+        return HttpResponseRedirect(frontend_url)
+    else:
+        # For LAN access, redirect to frontend on same hostname
+        frontend_url = f'{protocol}://{hostname}:3000/'
+        return HttpResponseRedirect(frontend_url)
+
 urlpatterns = [
+    # Root URL - redirect to frontend
+    path('', root_redirect, name='root'),
+    
     path('admin/', admin.site.urls),
     
     # Health check

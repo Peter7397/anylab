@@ -550,9 +550,9 @@ const ChatAssistant: React.FC = () => {
       )}
 
       {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-w-0">
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6">
             {messages.length === 0 ? (
@@ -675,7 +675,7 @@ const ChatAssistant: React.FC = () => {
 
         {/* History Sidebar */}
         {showHistory && (
-          <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
+          <div className="w-80 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium text-gray-900">Chat History</h3>

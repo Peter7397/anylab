@@ -6,6 +6,11 @@ from ai_assistant.models import (
     AIModel, AIConversationTemplate, AIUsageLog
 )
 
+# Customize Django Admin Site
+admin.site.site_header = "AnyLab Administration"
+admin.site.site_title = "AnyLab Admin"
+admin.site.index_title = "Welcome to AnyLab Administration"
+
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):

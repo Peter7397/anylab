@@ -23,7 +23,7 @@ fi
 # Start the development server
 echo "🎯 Starting React development server..."
 echo "📍 Frontend will be available at: http://localhost:3000"
-echo "🔧 Backend should be running at: http://localhost:8000"
+echo "🔧 Backend should be running at: http://localhost:8001 (changed from 8000 to avoid conflict with 7English)"
 echo ""
 echo "💡 To stop: Press Ctrl+C"
 echo ""

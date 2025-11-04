@@ -15,6 +15,12 @@ DEFAULT_ROLES = [
                 'help_portal.edit': True,
                 'ai.rag': True,
                 'knowledge.view': True,
+                'forum.view': True,
+                'forum.post': True,
+                'forum.reply': True,
+                'forum.edit': True,
+                'forum.moderate': True,
+                'forum.manage': True,
             }
         }
     },
@@ -25,6 +31,10 @@ DEFAULT_ROLES = [
             'features': {
                 'documents.upload': True,
                 'knowledge.view': True,
+                'forum.view': True,
+                'forum.post': True,
+                'forum.reply': True,
+                'forum.edit': True,
             }
         }
     },
@@ -36,6 +46,10 @@ DEFAULT_ROLES = [
                 'documents.bulk_import': True,
                 'documents.upload': True,
                 'knowledge.view': True,
+                'forum.view': True,
+                'forum.post': True,
+                'forum.reply': True,
+                'forum.edit': True,
             }
         }
     },
@@ -45,6 +59,10 @@ DEFAULT_ROLES = [
         'permissions': {
             'features': {
                 'help_portal.edit': True,
+                'forum.view': True,
+                'forum.post': True,
+                'forum.reply': True,
+                'forum.edit': True,
             }
         }
     },
@@ -54,6 +72,35 @@ DEFAULT_ROLES = [
         'permissions': {
             'features': {
                 'ai.rag': True,
+                'forum.view': True,
+                'forum.post': True,
+                'forum.reply': True,
+                'forum.edit': True,
+            }
+        }
+    },
+    {
+        'name': 'forum_moderator',
+        'description': 'Can moderate forum posts and replies',
+        'permissions': {
+            'features': {
+                'forum.view': True,
+                'forum.post': True,
+                'forum.reply': True,
+                'forum.edit': True,
+                'forum.moderate': True,
+            }
+        }
+    },
+    {
+        'name': 'forum_user',
+        'description': 'Can view, post, and reply in forum',
+        'permissions': {
+            'features': {
+                'forum.view': True,
+                'forum.post': True,
+                'forum.reply': True,
+                'forum.edit': True,
             }
         }
     },
@@ -62,6 +109,7 @@ DEFAULT_ROLES = [
         'description': 'Read-only viewer',
         'permissions': {
             'features': {
+                'forum.view': True,
             }
         }
     },

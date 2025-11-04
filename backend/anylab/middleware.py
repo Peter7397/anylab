@@ -8,6 +8,9 @@ import re
 class LoginRequiredMiddleware:
     """
     Middleware to require authentication for all pages except login and admin.
+    Note: Django admin has its own built-in protection that requires is_staff=True.
+    This middleware allows admin requests to pass through, and Django admin will
+    enforce the staff requirement.
     """
     
     def __init__(self, get_response):
@@ -15,7 +18,7 @@ class LoginRequiredMiddleware:
         # Define URLs that don't require authentication
         # Note: All /api/* routes are handled separately (passed through to DRF)
         self.exempt_urls = [
-            r'^admin/',
+            r'^admin/',  # Django admin handles its own authentication (requires is_staff)
             r'^static/',
             r'^media/',
             r'^login/',
@@ -38,7 +41,8 @@ class LoginRequiredMiddleware:
             # DRF will handle JWT authentication and return 401 if needed
                 return self.get_response(request)
         
-        # If exempt, allow the request to proceed
+        # If exempt (including admin), allow the request to proceed
+        # Django admin will enforce is_staff requirement internally
         if is_exempt:
             return self.get_response(request)
         

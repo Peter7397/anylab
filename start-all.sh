@@ -53,8 +53,8 @@ if ! pgrep -f "manage.py runserver" > /dev/null; then
     DB_PORT=5433 python manage.py migrate --noinput
     
     # Start Django
-    echo "   Starting Django server on http://localhost:8000"
-    DB_PORT=5433 python manage.py runserver 0.0.0.0:8000 > ../logs/django.log 2>&1 &
+    echo "   Starting Django server on http://localhost:8001 (port changed to avoid conflict with 7English on 8000)"
+    DB_PORT=5433 python manage.py runserver 0.0.0.0:8001 > ../logs/django.log 2>&1 &
     BACKEND_PID=$!
     echo $BACKEND_PID > .backend.pid
     cd ..
@@ -140,7 +140,7 @@ echo "✅ All services started!"
 echo ""
 echo "📍 Access URLs:"
 echo "   Frontend: http://localhost:3000"
-echo "   Backend:  http://localhost:8000"
+echo "   Backend:  http://localhost:8001 (changed from 8000 to avoid conflict with 7English)"
 echo "   Neo4j:    http://localhost:7474"
 echo ""
 echo "📊 Logs:"
