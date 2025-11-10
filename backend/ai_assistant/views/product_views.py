@@ -112,6 +112,41 @@ def get_product_documents(request, product_category):
         return BaseViewMixin.handle_error(e, 'get_product_documents')
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_available_products(request):
+    """Return list of available product categories with document counts.
+    Used by the frontend to hide empty sidebar items and reveal newly discovered products.
+    """
+    try:
+        BaseViewMixin.log_request(request, 'get_available_products')
+
+        # Aggregate distinct product categories from metadata
+        # Support JSON stored as dict or string
+        categories: dict[str, int] = {}
+
+        qs = DocumentFile.objects.all().only('id', 'metadata')
+        for doc in qs:
+            try:
+                metadata = json.loads(doc.metadata) if isinstance(doc.metadata, str) else (doc.metadata or {})
+            except json.JSONDecodeError:
+                metadata = {}
+            category = metadata.get('product_category')
+            if not category or not str(category).strip():
+                continue
+            categories[category] = categories.get(category, 0) + 1
+
+        result = [
+            { 'product_category': name, 'document_count': count }
+            for name, count in sorted(categories.items(), key=lambda kv: kv[0].lower())
+        ]
+
+        BaseViewMixin.log_response({'total': len(result)}, 'get_available_products')
+        return success_response("Available products retrieved", { 'products': result, 'total': len(result) })
+    except Exception as e:
+        return BaseViewMixin.handle_error(e, 'get_available_products')
+
+
 def _is_latest_version(documents, current_version):
     """Check if current_version is the latest among all versions"""
     try:

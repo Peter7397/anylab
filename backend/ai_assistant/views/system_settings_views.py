@@ -10,6 +10,7 @@ import redis
 import requests
 
 from django.conf import settings as dj_settings
+from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
@@ -157,6 +158,44 @@ def test_connection(request):
             return Response({'ok': bool(pong), 'url': redis_url})
         except Exception as e:
             return Response({'ok': False, 'error': str(e), 'url': redis_url}, status=400)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def switch_ai_mode(request):
+    """Switch AI mode (performance/lightweight) for the current user."""
+    try:
+        mode = request.data.get('mode')
+        if mode not in ['performance', 'lightweight']:
+            return Response(
+                {'error': 'Invalid mode. Must be "performance" or "lightweight"'},
+                status=400
+            )
+        
+        # Update the global embedding service mode
+        from ai_assistant.services import embedding_service
+        success = embedding_service.switch_mode(mode)
+        
+        if success:
+            # Store user preference (you can extend this to save to user profile)
+            # For now, we'll just update the service
+            logger.info(f"User {request.user.username} switched to {mode} mode")
+            return Response({
+                'success': True,
+                'mode': mode,
+                'message': f'Switched to {mode} mode successfully'
+            })
+        else:
+            return Response(
+                {'error': f'Failed to switch to {mode} mode. Model may not be available.'},
+                status=500
+            )
+    except Exception as e:
+        logger.error(f"Error switching AI mode: {e}")
+        return Response(
+            {'error': str(e)},
+            status=500
+        )
 
 
 @api_view(['GET'])

@@ -1,100 +1,68 @@
-# 🧹 Cleanup and Archive Summary
+# Cleanup Summary - Cloudflare Tunnel Setup
 
-**Date:** November 4, 2025  
-**Status:** ✅ Completed Successfully
+## What Was Fixed
 
-## Overview
+The white page issue was caused by **Cloudflare Tunnel routing all traffic to the frontend** (port 3000), bypassing nginx. The tunnel configuration has been updated to properly route API requests to the backend.
 
-A comprehensive cleanup and archive operation was performed on the AnyLab codebase. All files were safely archived (not deleted) and the system was verified to still run correctly after cleanup.
+## Changes Made
 
-## What Was Archived
+### 1. Cloudflare Tunnel Configuration Updated
+**File**: `~/.cloudflared/config.yml`
 
-### 📚 Documentation Files (32 files)
-Old documentation files were moved to `docs/archive/cleanup-20251104/old-docs/`:
-- Implementation completion reports
-- Setup and installation guides (Neo4j, Graph RAG)
-- Progress tracking documents
-- Configuration investigation docs
+- Added path-based routing for `/api/*`, `/admin/*`, `/media/*`, `/static/*` → Backend (port 8001)
+- Everything else routes to Frontend (port 3000)
+- Tunnel restarted with new configuration
 
-**Essential docs kept in root:**
-- ✅ README.md
-- ✅ QUICK_START_GUIDE.md
-- ✅ TESTING_GUIDE.md
-- ✅ ProjectDetails.md
-- ✅ VERSION
+### 2. Backend Health Check Fixed
+**File**: `frontend/src/services/backendHealth.ts`
 
-### 🗑️ macOS Resource Fork Files (72,790 files)
-All `._*` files (macOS resource forks) were safely removed. These are system files that don't affect functionality.
+- Updated to use correct API URL when accessing via domain (uses domain, not hardcoded port)
 
-### 📋 Log Files
-- `backend_startup.log` → archived
-- `frontend.log` → archived
-- Old backend logs (>7 days) → archived
+### 3. Documentation Updated
+- Created `CLOUDFLARE_TUNNEL_SETUP.md` - Main documentation for tunnel setup
+- Updated `README.md` - Changed infrastructure section to mention Cloudflare Tunnel
+- Updated `DOMAIN_SETUP_GUIDE.md` - Noted that Cloudflare Tunnel is used, nginx not required
+- Updated `QUICK_DOMAIN_SETUP.md` - Simplified to focus on Cloudflare Tunnel
 
-### 🧪 Test Files
-- `create_test_pdf.py` → archived
-- `backend/test_pdf_processing.py` → archived
-- `test_documents/` directory → archived
-- 9 `.mhtml` test files from media → archived
+### 4. Cleaned Up Diagnostic Files
+Deleted temporary troubleshooting files:
+- `WHITE_PAGE_DIAGNOSIS.md`
+- `FIX_WHITE_PAGE_SUMMARY.md`
+- `DOMAIN_WHITE_PAGE_FIX.md`
+- `NGINX_API_FIX.md`
+- `CLOUDFLARE_CACHE_FIX.md`
+- `BYPASS_CLOUDFLARE.md`
 
-### 📦 Unused Code
-- `appmon/` directory → archived (not referenced in codebase)
-- `cleanup-duplicates.sh` → archived
+## Current Setup
 
-## Archive Location
+**Remote Access**: Cloudflare Tunnel (no nginx needed)
+- Tunnel config: `~/.cloudflared/config.yml`
+- Tunnel name: `anylab`
+- Domain: `anylab.dpdns.org`
 
-All archived files are located at:
-```
-docs/archive/cleanup-20251104/
-├── old-docs/          # Documentation files
-├── logs/              # Log files
-├── test-files/        # Test scripts and documents
-├── unused-scripts/    # Utility scripts
-└── appmon/            # AppMon directory
-```
+**Local Access**: Direct ports
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:8001`
 
-## System Verification
+## Nginx Status
 
-✅ **Backend:** Django system check passed  
-✅ **Frontend:** package.json valid and working  
-✅ **Critical Files:** All essential files remain intact  
-✅ **Imports:** Django imports working correctly  
+**Nginx is still installed** but **NOT used** for remote access. It's running but not required for the Cloudflare Tunnel setup.
 
-## Restore Instructions
-
-If you need to restore any archived file:
-
+If you want to remove nginx completely (optional):
 ```bash
-# Find the file
-find docs/archive/cleanup-20251104 -name "filename"
+# Stop nginx
+sudo nginx -s stop
 
-# Restore it
-cp docs/archive/cleanup-20251104/path/to/file /original/location/
+# Remove nginx config (optional)
+sudo rm /etc/nginx/sites-enabled/anylab
+sudo rm /etc/nginx/sites-available/anylab
 ```
 
-## Next Steps
+**Note**: Keep nginx config files in the project (`nginx/anylab.conf`) for reference, but they're not needed for Cloudflare Tunnel.
 
-1. ✅ **Done:** Cleanup completed
-2. ✅ **Done:** System verified
-3. **Recommended:** Test the system with `./start-hybrid.sh`
-4. **Optional:** Review archive contents to ensure nothing important was moved
+## Verification
 
-## Files Kept in Root
-
-These essential files remain in the project root:
-- All startup scripts (`start-*.sh`, `stop-*.sh`)
-- `docker-compose.yml`
-- `README.md`
-- `QUICK_START_GUIDE.md`
-- `TESTING_GUIDE.md`
-- `ProjectDetails.md`
-- All backend and frontend code directories
-
-## Cleanup Log
-
-Full cleanup log available at: `cleanup.log`
-
----
-
-**Note:** All files were archived, not deleted. They can be restored at any time from `docs/archive/cleanup-20251104/`.
-
+✅ **Remote access working**: https://anylab.dpdns.org  
+✅ **API working**: https://anylab.dpdns.org/api/health/ returns JSON  
+✅ **Frontend working**: React app loads correctly  
+✅ **Documentation updated**: Reflects Cloudflare Tunnel usage

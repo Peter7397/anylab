@@ -282,12 +282,65 @@ class RAGService(BaseService):
             })
             
             # Calculate file hash first for deduplication
-            file_hash = hashlib.md5(file.read()).hexdigest()
-            file.seek(0)  # Reset file pointer
+            # Read file content into memory to calculate hash
+            file_content = file.read()
+            file_hash = hashlib.md5(file_content).hexdigest()
             
             # Check for duplicates BEFORE saving file
             existing_file = UploadedFile.objects.filter(file_hash=file_hash).first()
             if existing_file:
+                # Verify the physical file exists; if missing, restore it and requeue processing
+                try:
+                    existing_path = existing_file.filename
+                    if not existing_path.startswith('uploads/'):
+                        existing_path = os.path.join('uploads', existing_path)
+                    full_existing_path = os.path.join(settings.MEDIA_ROOT, existing_path)
+                except Exception:
+                    full_existing_path = None
+
+                if not full_existing_path or not os.path.exists(full_existing_path):
+                    # Save current file content to disk under a safe filename
+                    uploads_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
+                    os.makedirs(uploads_dir, exist_ok=True)
+
+                    from django.core.files.storage import default_storage
+                    original_filename = getattr(file, 'name', 'uploaded_file')
+                    safe_filename = default_storage.get_valid_name(original_filename)
+                    restore_path = os.path.join(uploads_dir, safe_filename)
+                    base_name, ext = os.path.splitext(safe_filename)
+                    counter = 1
+                    while os.path.exists(restore_path):
+                        safe_filename = f"{base_name}_{counter}{ext}"
+                        restore_path = os.path.join(uploads_dir, safe_filename)
+                        counter += 1
+
+                    with open(restore_path, 'wb') as f:
+                        f.write(file_content)
+
+                    # Update DB record to point to restored file
+                    existing_file.filename = os.path.join('uploads', safe_filename)
+                    try:
+                        existing_file.file_size = os.path.getsize(restore_path)
+                    except Exception:
+                        pass
+                    existing_file.processing_status = 'pending'
+                    existing_file.processing_error = ''
+                    existing_file.save(update_fields=['filename', 'file_size', 'processing_status', 'processing_error'])
+
+                    # Manually enqueue processing since post_save(created=False) won't trigger the signal
+                    try:
+                        from ai_assistant.tasks import process_file_automatically
+                        process_file_automatically.delay(existing_file.id)
+                    except Exception:
+                        logger.warning("Could not enqueue processing task for restored file", exc_info=True)
+
+                    return self.success_response("File restored and scheduled for processing", {
+                        'uploaded_file_id': existing_file.id,
+                        'filename': existing_file.filename,
+                        'message': 'File was missing on disk and has been restored. Processing scheduled.'
+                    })
+
+                # Physical file exists; return existing record
                 return self.success_response("File already exists", {
                     'uploaded_file_id': existing_file.id,
                     'filename': existing_file.filename,
@@ -298,10 +351,29 @@ class RAGService(BaseService):
             uploads_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
             os.makedirs(uploads_dir, exist_ok=True)  # Create directory if it doesn't exist
             
-            fs = FileSystemStorage(location=uploads_dir)
-            filename = fs.save(file.name, file)
-            file_path = fs.path(filename)
-            relative_path = os.path.join('uploads', filename)
+            # Save file content directly to ensure it's written
+            # FileSystemStorage might have issues with file pointer after read()
+            from django.core.files.base import ContentFile
+            from django.core.files.storage import default_storage
+            
+            # Generate unique filename if needed
+            original_filename = file.name
+            safe_filename = default_storage.get_valid_name(original_filename)
+            file_path = os.path.join(uploads_dir, safe_filename)
+            
+            # Handle filename conflicts by adding suffix
+            counter = 1
+            base_name, ext = os.path.splitext(safe_filename)
+            while os.path.exists(file_path):
+                safe_filename = f"{base_name}_{counter}{ext}"
+                file_path = os.path.join(uploads_dir, safe_filename)
+                counter += 1
+            
+            # Write file content directly
+            with open(file_path, 'wb') as f:
+                f.write(file_content)
+            
+            relative_path = os.path.join('uploads', safe_filename)
             
             # Create UploadedFile record FIRST (before processing)
             # This will trigger the signal that queues Celery processing

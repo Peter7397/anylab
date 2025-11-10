@@ -8,7 +8,7 @@ AnyLab0812 is a practical, end-to-end knowledge platform for labs. It helps team
 - **Why it matters**: Reduces time spent searching manuals, policies, and SOPs; improves consistency and onboarding; raises confidence in answers.
 - **How it’s used**: Upload content, manage it in the Knowledge Library, then use RAG search or the AI Assistant to ask questions with traceable sources.
 
-**Slogan: AI Next to Your Lab**
+**Slogan: Smart Knowledge, Securely in Your Lab**
 
 ## 🚀 Features
 
@@ -79,8 +79,8 @@ AnyLab0812/
 ### Infrastructure
 - **Docker** - Containerization
 - **Docker Compose** - Multi-container orchestration
-- **Nginx** - Reverse proxy
-- **SSL/TLS** - Secure communication
+- **Cloudflare Tunnel** - Secure remote access (replaces nginx reverse proxy)
+- **SSL/TLS** - Secure communication via Cloudflare
 
 ## 📋 Prerequisites
 
@@ -117,8 +117,8 @@ cd backend && docker compose up -d
 
 ### 4. Access the Application
 - **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **Admin Panel**: http://localhost:8000/admin
+- **Backend API**: http://localhost:8001 (changed from 8000 to avoid conflict with 7English)
+- **Admin Panel**: http://localhost:8001/admin
 
 ## 🔧 Development Setup
 
@@ -143,6 +143,7 @@ npm start
 
 - [Backend API Documentation](backend/API_DOCUMENTATION.md)
 - [AI Assistant API Reference](backend/ai_assistant/API_DOCUMENTATION.md)
+- [Cloudflare Tunnel Setup](CLOUDFLARE_TUNNEL_SETUP.md) - Remote access configuration
 - [Website Integration Documentation](WEBSITE_INTEGRATION_DOCUMENTATION.md)
 - [Quick Start Guide](QUICK_START_GUIDE.md)
 - [Testing Guide](TESTING_GUIDE.md)
@@ -209,4 +210,4 @@ For support and questions:
 
 ---
 
-**AnyLab0812** - AI Next to Your Lab with intelligent management solutions.
+**AnyLab0812** - Smart Knowledge, Securely in Your Lab with intelligent management solutions.

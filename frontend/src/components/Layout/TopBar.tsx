@@ -42,7 +42,7 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
   const quickActions = [
     { name: 'Scraper Manager', icon: Radar, action: 'scan' },
     { name: 'Refresh', icon: RefreshCw, action: 'refresh' },
-    { name: 'Analytical Dashboard', icon: FileText, action: 'report' },
+    { name: 'Analytics', icon: FileText, action: 'report' },
     { name: 'Library Manager', icon: Sparkles, action: 'analyze' },
   ];
 
@@ -99,16 +99,18 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
             <button
               onClick={() => setShowAIModeMenu(!showAIModeMenu)}
               className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+              title="AI Mode: Switch between Performance (full-precision models) and Lightweight (quantized models) modes. Performance mode offers maximum accuracy but requires more resources. Lightweight mode uses less resources and is suitable for lower-spec systems."
             >
               <Sparkles size={16} />
-              <span>{aiMode === 'performance' ? 'Performance' : 'Lightweight'}</span>
+              <span>AI Mode: {aiMode === 'performance' ? 'Performance' : 'Lightweight'}</span>
               <ChevronDown size={16} />
             </button>
 
             {showAIModeMenu && (
               <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                 <div className="p-4">
-                  <h3 className="text-sm font-medium text-gray-900 mb-3">AI Mode Selection</h3>
+                  <h3 className="text-sm font-medium text-gray-900 mb-1">AI Mode Selection</h3>
+                  <p className="text-xs text-gray-500 mb-3">Choose between Performance and Lightweight modes based on your system capabilities</p>
                   <div className="space-y-3">
                     {aiModes.map((mode) => (
                       <div

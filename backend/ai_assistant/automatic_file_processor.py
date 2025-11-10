@@ -736,57 +736,56 @@ class AutomaticFileProcessor:
                 """
                 max_retries = 3
                 retry_count = 0
-        
-        while retry_count < max_retries:
-            try:
-                response = requests.post(
-                    f"{self.ollama_url}/api/embeddings",
-                    json={
-                        "model": self.EMBEDDING_MODEL,
-                        "prompt": text
-                    },
-                    timeout=60  # Timeout per request
-                )
-                response.raise_for_status()
-                embedding = response.json()["embedding"]
-                
-                # Ensure 1024 dimensions (BGE-M3)
-                if len(embedding) != self.EMBEDDING_DIMS:
-                    if len(embedding) < self.EMBEDDING_DIMS:
-                        embedding = list(embedding) + [0.0] * (self.EMBEDDING_DIMS - len(embedding))
-                    else:
-                        embedding = embedding[:self.EMBEDDING_DIMS]
-                
-                # Cache it for future use
-                text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-                cache_key = f"embedding_bge_m3_{text_hash}"
-                cache.set(cache_key, embedding, EMBEDDING_CACHE_TTL)
-                
-                return idx, embedding
-                
-            except requests.exceptions.Timeout:
-                retry_count += 1
-                logger.warning(f"BGE-M3 timeout for chunk {idx} (attempt {retry_count}/{max_retries})")
-                if retry_count >= max_retries:
-                    raise Exception(f"BGE-M3 embedding timeout for chunk {idx} after {max_retries} attempts")
-                # Exponential backoff
-                time.sleep(2 ** retry_count)
-                
-            except requests.exceptions.RequestException as e:
-                retry_count += 1
-                logger.warning(f"BGE-M3 request error for chunk {idx} (attempt {retry_count}/{max_retries}): {e}")
-                if retry_count >= max_retries:
-                    raise Exception(f"BGE-M3 embedding failed for chunk {idx}: {str(e)}")
-                # Exponential backoff
-                time.sleep(2 ** retry_count)
-                
-            except Exception as e:
-                logger.error(f"BGE-M3 embedding error for chunk {idx}: {e}")
-                retry_count += 1
-                if retry_count >= max_retries:
-                    raise Exception(f"BGE-M3 embedding failed for chunk {idx}: {str(e)}")
-                time.sleep(2 ** retry_count)
-                
+                while retry_count < max_retries:
+                    try:
+                        response = requests.post(
+                            f"{self.ollama_url}/api/embeddings",
+                            json={
+                                "model": self.EMBEDDING_MODEL,
+                                "prompt": text
+                            },
+                            timeout=60  # Timeout per request
+                        )
+                        response.raise_for_status()
+                        embedding = response.json()["embedding"]
+                        
+                        # Ensure 1024 dimensions (BGE-M3)
+                        if len(embedding) != self.EMBEDDING_DIMS:
+                            if len(embedding) < self.EMBEDDING_DIMS:
+                                embedding = list(embedding) + [0.0] * (self.EMBEDDING_DIMS - len(embedding))
+                            else:
+                                embedding = embedding[:self.EMBEDDING_DIMS]
+                        
+                        # Cache it for future use
+                        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+                        cache_key = f"embedding_bge_m3_{text_hash}"
+                        cache.set(cache_key, embedding, EMBEDDING_CACHE_TTL)
+                        
+                        return idx, embedding
+                        
+                    except requests.exceptions.Timeout:
+                        retry_count += 1
+                        logger.warning(f"BGE-M3 timeout for chunk {idx} (attempt {retry_count}/{max_retries})")
+                        if retry_count >= max_retries:
+                            raise Exception(f"BGE-M3 embedding timeout for chunk {idx} after {max_retries} attempts")
+                        # Exponential backoff
+                        time.sleep(2 ** retry_count)
+                        
+                    except requests.exceptions.RequestException as e:
+                        retry_count += 1
+                        logger.warning(f"BGE-M3 request error for chunk {idx} (attempt {retry_count}/{max_retries}): {e}")
+                        if retry_count >= max_retries:
+                            raise Exception(f"BGE-M3 embedding failed for chunk {idx}: {str(e)}")
+                        # Exponential backoff
+                        time.sleep(2 ** retry_count)
+                        
+                    except Exception as e:
+                        logger.error(f"BGE-M3 embedding error for chunk {idx}: {e}")
+                        retry_count += 1
+                        if retry_count >= max_retries:
+                            raise Exception(f"BGE-M3 embedding failed for chunk {idx}: {str(e)}")
+                        time.sleep(2 ** retry_count)
+                # If loop exits
                 raise Exception(f"Failed to get BGE-M3 embedding for chunk {idx} after all retries")
             
             # Use ThreadPoolExecutor for parallel processing
@@ -805,16 +804,12 @@ class AutomaticFileProcessor:
                         failed_chunks.append((idx, str(e)))
                         # Don't raise here - collect all failures and handle after
                 
-                # If we have failures, log them but don't fail the entire batch
-                # This allows partial success (other chunks can still be processed)
+                # If we have failures, log them and use zero vectors to keep pipeline moving
                 if failed_chunks:
                     logger.error(f"Failed to process {len(failed_chunks)} chunks out of {len(api_calls_needed)}")
                     for idx, error in failed_chunks:
                         logger.error(f"  Chunk {idx} failed: {error}")
-                    # Only raise if ALL chunks failed
-                    if len(failed_chunks) == len(api_calls_needed):
-                        raise Exception(f"All {len(api_calls_needed)} chunks failed embedding generation")
-                    # For partial failures, use zero vectors for failed chunks
+                    # For any failures (even if all), use zero vectors so processing can complete
                     for idx, error in failed_chunks:
                         results[idx] = [0.0] * self.EMBEDDING_DIMS
                         logger.warning(f"Using zero vector for failed chunk {idx}")

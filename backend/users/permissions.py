@@ -22,6 +22,9 @@ def get_merged_permissions_for_user(user) -> Dict[str, Any]:
                 'ai.rag': True,
                 'knowledge.view': True,
                 'admin': True,
+                'documents.upload': True,  # Added: Allow document uploads
+                'documents.bulk_import': True,  # Added: Allow bulk imports
+                'help_portal.edit': True,  # Added: Allow help portal editing
                 'forum.view': True,
                 'forum.post': True,
                 'forum.reply': True,

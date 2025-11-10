@@ -13,6 +13,7 @@ from django.utils import timezone
 from .neo4j_service import get_neo4j_service
 from .graph_entity_extractor import GraphEntityExtractor, ExtractedEntity
 from ..models import UploadedFile, DocumentFile, DocumentChunk
+from ..rag_service import EnhancedRAGService
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,8 @@ class GraphBuilder:
         """Initialize graph builder"""
         self.neo4j = get_neo4j_service()
         self.entity_extractor = GraphEntityExtractor()
-        logger.info("GraphBuilder initialized")
+        self.rag_service = EnhancedRAGService()  # For generating embeddings
+        logger.info("GraphBuilder initialized with embedding support")
     
     def build_graph_from_document(self, uploaded_file: UploadedFile, chunks: List[DocumentChunk] = None) -> Dict[str, Any]:
         """
@@ -54,11 +56,14 @@ class GraphBuilder:
             # Create document node
             document_node_id = self._create_document_node(uploaded_file)
             
-            # Extract entities
+            # Extract entities (now includes concepts and important information)
             entities = self.entity_extractor.extract_entities(
                 content, 
                 document_id=str(uploaded_file.id)
             )
+            
+            # Calculate importance scores for chunks
+            chunk_importance = self._calculate_chunk_importance(chunks, entities)
             
             # Create entity nodes and relationships
             entity_nodes_created = 0
@@ -155,8 +160,23 @@ class GraphBuilder:
             return document_id
     
     def _create_or_get_entity_node(self, entity: ExtractedEntity) -> str:
-        """Create or get entity node in Neo4j"""
+        """Create or get entity node in Neo4j with embedding"""
         entity_id = self.entity_extractor._generate_entity_id(entity)
+        
+        # Generate embedding for entity (for semantic similarity search)
+        embedding = None
+        try:
+            # Use entity text for embedding (includes context for better semantic matching)
+            embedding_text = entity.text
+            if entity.context:
+                # Include context for better semantic understanding
+                embedding_text = f"{entity.text} {entity.context[:200]}"
+            
+            embedding = self.rag_service.get_embedding_from_ollama(embedding_text)
+            logger.debug(f"Generated embedding for entity: {entity.text[:50]}...")
+        except Exception as e:
+            logger.warning(f"Failed to generate embedding for entity {entity.text[:50]}: {e}")
+            # Continue without embedding - entity will still be created
         
         query = """
         MERGE (e:Entity {id: $entity_id})
@@ -166,13 +186,15 @@ class GraphBuilder:
             e.type = $type,
             e.confidence = $confidence,
             e.created = $created_at,
-            e.occurrence_count = 1
+            e.occurrence_count = 1,
+            e.embedding = CASE WHEN $embedding IS NOT NULL THEN $embedding ELSE e.embedding END
         ON MATCH SET
             e.name = $name,
             e.normalized_name = $normalized_name,
             e.type = $type,
             e.occurrence_count = COALESCE(e.occurrence_count, 0) + 1,
-            e.updated = $updated_at
+            e.updated = $updated_at,
+            e.embedding = CASE WHEN $embedding IS NOT NULL THEN $embedding ELSE e.embedding END
         RETURN e.id AS id
         """
         
@@ -186,6 +208,7 @@ class GraphBuilder:
                 'confidence': entity.confidence,
                 'created_at': now,
                 'updated_at': now,
+                'embedding': embedding,  # Store as array property in Neo4j
             })
             
             if result:
@@ -277,6 +300,67 @@ class GraphBuilder:
         except Exception as e:
             logger.error(f"Error creating document relationship: {e}")
             return False
+    
+    def _calculate_chunk_importance(self, chunks: List[DocumentChunk], entities: List) -> Dict[int, float]:
+        """
+        Calculate importance scores for chunks based on:
+        1. Presence of important entities (concepts, key terms, important info)
+        2. Position in document (introduction/conclusion often more important)
+        3. Section headers and key phrases
+        4. Length and content quality
+        """
+        chunk_scores = {}
+        
+        if not chunks:
+            return chunk_scores
+        
+        # Create entity position map
+        entity_positions = {}
+        for entity in entities:
+            entity_type = entity.entity_type
+            importance = entity.confidence
+            
+            # Higher importance for conceptual entities
+            if entity_type in ['CONCEPT', 'KEY_TERM', 'IMPORTANT_INFO', 'KEY_POINT']:
+                importance *= 1.5
+            
+            # Map entity positions to chunks
+            for chunk in chunks:
+                chunk_start = getattr(chunk, 'start_pos', 0)
+                chunk_end = chunk_start + len(chunk.content)
+                
+                if entity.start_pos >= chunk_start and entity.end_pos <= chunk_end:
+                    if chunk.id not in chunk_scores:
+                        chunk_scores[chunk.id] = 0.0
+                    chunk_scores[chunk.id] += importance
+        
+        # Boost scores for chunks in important positions
+        total_chunks = len(chunks)
+        for idx, chunk in enumerate(chunks):
+            if chunk.id not in chunk_scores:
+                chunk_scores[chunk.id] = 0.5  # Base score
+            
+            # Boost for introduction (first 10% of chunks)
+            if idx < total_chunks * 0.1:
+                chunk_scores[chunk.id] += 0.2
+            
+            # Boost for conclusion (last 10% of chunks)
+            if idx >= total_chunks * 0.9:
+                chunk_scores[chunk.id] += 0.2
+            
+            # Boost for chunks with section headers
+            content_lower = chunk.content.lower()
+            if any(keyword in content_lower for keyword in ['summary', 'conclusion', 'overview', 'key point']):
+                chunk_scores[chunk.id] += 0.3
+        
+        # Normalize scores to 0-1 range
+        if chunk_scores:
+            max_score = max(chunk_scores.values())
+            if max_score > 0:
+                chunk_scores = {k: min(v / max_score, 1.0) for k, v in chunk_scores.items()}
+        
+        logger.info(f"Calculated importance scores for {len(chunk_scores)} chunks")
+        return chunk_scores
     
     def get_graph_statistics(self) -> Dict[str, Any]:
         """Get statistics about the knowledge graph"""

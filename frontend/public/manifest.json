@@ -1,9 +1,9 @@
 {
-  "short_name": "OnLab",
-  "name": "OnLab - One AI solution for every lab",
+  "short_name": "AnyLab",
+  "name": "AnyLab - Smart Knowledge, Securely in Your Lab",
   "icons": [
     {
-      "src": "ai-favicon-32.png",
+      "src": "ai-favicon.png",
       "sizes": "32x32",
       "type": "image/png"
     },

@@ -57,7 +57,7 @@ const HomePage: React.FC = () => {
               </div>
               <div>
               <h1 className="text-2xl font-bold text-gray-900">AnyLab</h1>
-              <span className="text-sm text-gray-500">AI Next to Your Lab</span>
+              <span className="text-sm text-gray-500">Smart Knowledge, Securely in Your Lab</span>
               </div>
             </div>
             <Link
@@ -404,7 +404,7 @@ const HomePage: React.FC = () => {
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-800 text-center text-sm">
-            <p>&copy; 2024 AnyLab. AI Next to Your Lab.</p>
+            <p>&copy; 2024 AnyLab. Smart Knowledge, Securely in Your Lab.</p>
         </div>
       </div>
       </footer>

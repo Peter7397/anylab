@@ -42,7 +42,22 @@ class BackendHealthService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
       
-      const response = await fetch(`${window.location.protocol}//${window.location.hostname}:8001/api/health/`, {
+      // Use the same API base URL logic as api.ts
+      const hostname = window.location.hostname;
+      const protocol = window.location.protocol;
+      let healthUrl: string;
+      
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        healthUrl = `${protocol}//localhost:8001/api/health/`;
+      } else if (hostname === 'anylab.dpdns.org') {
+        // When accessing via domain, use same domain (nginx will proxy)
+        healthUrl = `${protocol}//${hostname}/api/health/`;
+      } else {
+        // For LAN access, use same hostname with port 8001
+        healthUrl = `${protocol}//${hostname}:8001/api/health/`;
+      }
+      
+      const response = await fetch(healthUrl, {
         method: 'GET',
         signal: controller.signal,
         cache: 'no-cache',

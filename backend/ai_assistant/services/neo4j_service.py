@@ -122,19 +122,15 @@ class Neo4jService:
         """Get basic statistics about the graph"""
         stats_query = """
         MATCH (n)
-        RETURN 
-            count(n) as total_nodes,
-            count(DISTINCT labels(n)[0]) as label_count,
-            labels(n)[0] as label,
-            count(*) as count
+        WITH labels(n)[0] AS label, count(n) AS count
+        RETURN label, count
         ORDER BY count DESC
         """
         
         relationship_query = """
         MATCH ()-[r]->()
-        RETURN 
-            type(r) as relationship_type,
-            count(*) as count
+        WITH type(r) AS relationship_type, count(*) AS count
+        RETURN relationship_type, count
         ORDER BY count DESC
         """
         
@@ -142,17 +138,31 @@ class Neo4jService:
             nodes = self.execute_query(stats_query)
             relationships = self.execute_query(relationship_query)
             
+            # Get entity type breakdown
+            entity_type_query = """
+            MATCH (e:Entity)
+            WITH e.type AS entity_type, count(e) AS count
+            RETURN entity_type, count
+            ORDER BY count DESC
+            """
+            entity_types = self.execute_query(entity_type_query)
+            
+            total_nodes = sum(node.get('count', 0) for node in nodes)
+            total_relationships = sum(rel.get('count', 0) for rel in relationships)
+            
             return {
                 'nodes': nodes,
                 'relationships': relationships,
-                'total_nodes': sum(node.get('count', 0) for node in nodes),
-                'total_relationships': sum(rel.get('count', 0) for rel in relationships),
+                'entity_types': entity_types,
+                'total_nodes': total_nodes,
+                'total_relationships': total_relationships,
             }
         except Exception as e:
             logger.error(f"Error getting graph stats: {e}")
             return {
                 'nodes': [],
                 'relationships': [],
+                'entity_types': [],
                 'total_nodes': 0,
                 'total_relationships': 0,
             }

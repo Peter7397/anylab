@@ -35,7 +35,12 @@ class Command(BaseCommand):
         parser.add_argument(
             '--force',
             action='store_true',
-            help='Rebuild graph even if document already has graph data',
+            help='Rebuild graph even if document already has graph data (clears existing graph data)',
+        )
+        parser.add_argument(
+            '--clear-existing',
+            action='store_true',
+            help='Clear existing graph data before rebuilding (use with --force)',
         )
 
     def handle(self, *args, **options):
@@ -44,10 +49,29 @@ class Command(BaseCommand):
         status = options.get('status', 'ready')
         force = options.get('force', False)
 
-        self.stdout.write(self.style.SUCCESS('Starting graph construction...'))
+        self.stdout.write(self.style.SUCCESS('Starting graph construction with improved entity extraction...'))
+        self.stdout.write('  - LLM-based concept extraction: Enabled')
+        self.stdout.write('  - Importance scoring: Enabled')
+        self.stdout.write('  - Enhanced entity types: CONCEPT, KEY_TERM, IMPORTANT_INFO, etc.')
 
         # Initialize graph builder
         graph_builder = GraphBuilder()
+        
+        # Clear existing graph data if requested
+        clear_existing = options.get('clear_existing', False)
+        if clear_existing:
+            self.stdout.write(self.style.WARNING('Clearing existing graph data...'))
+            try:
+                from ai_assistant.services.neo4j_service import get_neo4j_service
+                neo4j = get_neo4j_service()
+                # Clear all graph data
+                clear_query = "MATCH (n) DETACH DELETE n"
+                neo4j.execute_query(clear_query)
+                self.stdout.write(self.style.SUCCESS('  ✅ Existing graph data cleared'))
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f'  ❌ Error clearing graph: {e}'))
+                if not force:
+                    return
 
         # Get documents to process
         if document_id:
@@ -88,16 +112,33 @@ class Command(BaseCommand):
                         failed += 1
                         continue
                     
-                    # Build graph
+                    # Clear existing graph data for this document if force is enabled
+                    if force:
+                        try:
+                            from ai_assistant.services.neo4j_service import get_neo4j_service
+                            neo4j = get_neo4j_service()
+                            clear_doc_query = "MATCH (d:Document {id: $doc_id})-[r]-() DELETE r, d"
+                            neo4j.execute_query(clear_doc_query, {'doc_id': str(uploaded_file.id)})
+                        except Exception as e:
+                            logger.warning(f"Could not clear existing graph for doc {uploaded_file.id}: {e}")
+                    
+                    # Build graph with improved extraction
                     result = graph_builder.build_graph_from_document(uploaded_file, list(chunks))
                     
                     if result.get('success'):
+                        entity_count = result.get('entities_extracted', 0)
+                        relationship_count = result.get('relationships_created', 0)
                         self.stdout.write(
                             self.style.SUCCESS(
-                                f'  ✅ Success: {result["entities_extracted"]} entities, '
-                                f'{result["relationships_created"]} relationships'
+                                f'  ✅ Success: {entity_count} entities extracted, '
+                                f'{relationship_count} relationships created'
                             )
                         )
+                        # Show entity type breakdown if available
+                        if entity_count > 0:
+                            self.stdout.write(
+                                f'     (Includes concepts, key terms, and important information)'
+                            )
                         successful += 1
                     else:
                         self.stdout.write(

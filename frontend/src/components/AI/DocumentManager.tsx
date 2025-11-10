@@ -66,7 +66,6 @@ interface DocumentManagerProps {
 const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defaultDocType = 'all' }) => {
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [searchParams, setSearchParams] = useState<DocumentSearchParams>({
     query: '',
     search_type: 'both',
@@ -88,6 +87,16 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     sort_order: 'desc'
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  // NEW: Individual metadata per file
+  const [fileMetadata, setFileMetadata] = useState<Array<{
+    file: File;
+    title: string;
+    description: string;
+    document_type: string;
+    product_category: string;
+    content_type: string;
+    version: string;
+  }>>([]);
   const [uploadForm, setUploadForm] = useState({
     title: '',
     description: '',
@@ -97,6 +106,30 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     content_type: ''
   });
   const [showUploadModal, setShowUploadModal] = useState(false);
+  
+  // NEW: Background upload state
+  const [uploadQueue, setUploadQueue] = useState<Array<{
+    id: string;
+    file: File;
+    metadata: {
+      title: string;
+      description: string;
+      document_type: string;
+      product_category: string;
+      content_type: string;
+      version: string;
+    };
+    status: 'queued' | 'uploading' | 'processing' | 'completed' | 'failed';
+    progress: number;
+    error?: string;
+    documentId?: number;
+  }>>([]);
+  const [showUploadProgress, setShowUploadProgress] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadBatchSize] = useState(5); // Upload 5 files at a time
+  // NEW: State for "Apply to All" dropdowns
+  const [applyProductKey, setApplyProductKey] = useState(0);
+  const [applyContentTypeKey, setApplyContentTypeKey] = useState(0);
   const [selectedDocument, setSelectedDocument] = useState<DocumentFile | null>(null);
   const [showViewer, setShowViewer] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +149,19 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   const [bulkResults, setBulkResults] = useState<any>(null);
   const [selectedFolder, setSelectedFolder] = useState('');
   const [uploadSource, setUploadSource] = useState<'server' | 'browser'>('browser');
+  // NEW: Bulk import metadata (for browser folder selection)
+  const [bulkFileMetadata, setBulkFileMetadata] = useState<Array<{
+    file: File;
+    title: string;
+    description: string;
+    document_type: string;
+    product_category: string;
+    content_type: string;
+    version: string;
+  }>>([]);
+  // NEW: State for bulk import "Apply to All" dropdowns
+  const [bulkApplyProductKey, setBulkApplyProductKey] = useState(0);
+  const [bulkApplyContentTypeKey, setBulkApplyContentTypeKey] = useState(0);
   
   // NEW: File type filtering state
   const [enabledFileTypes, setEnabledFileTypes] = useState<Set<string>>(new Set(['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx', 'html', 'mhtml']));
@@ -125,6 +171,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   const [importStatus, setImportStatus] = useState<any>(null);
   const [progressInterval, setProgressInterval] = useState<NodeJS.Timeout | null>(null);
   const [jobMonitoring, setJobMonitoring] = useState(false);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   // Document type configurations
   const documentTypes = [
@@ -188,15 +235,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     }
   }, [defaultDocType]);
 
-  // Debug: Check authentication status
+  // Debug: Check authentication status (non-blocking)
   useEffect(() => {
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+    const token = localStorage.getItem('anylab_token');
     console.log('Auth token exists:', !!token);
-    if (token) {
-      console.log('Token preview:', token.substring(0, 50) + '...');
-    } else {
-      console.log('No auth token found - please log in first');
-    }
   }, []);
 
   const loadDocuments = async () => {
@@ -274,6 +316,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
 
   // NEW: Auto-poll documents list while any are processing
   useEffect(() => {
+    if (!autoRefreshEnabled) return;
     const hasActive = documents.some(d => {
       const ps: any = (d as any).processing_status;
       const sVal: string | undefined = typeof ps === 'string' ? ps : ps?.status;
@@ -284,11 +327,26 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       loadDocuments();
     }, 3000);
     return () => clearInterval(interval);
-  }, [documents]);
+  }, [documents, autoRefreshEnabled]);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
+
+    // NEW: File count and size limits
+    const MAX_FILES = 50;
+    const MAX_TOTAL_SIZE_MB = 500; // 500 MB total
+    
+    if (files.length > MAX_FILES) {
+      setError(`Too many files selected. Maximum ${MAX_FILES} files allowed.`);
+      return;
+    }
+
+    const totalSizeMB = files.reduce((sum, file) => sum + file.size, 0) / (1024 * 1024);
+    if (totalSizeMB > MAX_TOTAL_SIZE_MB) {
+      setError(`Total file size too large (${totalSizeMB.toFixed(2)} MB). Maximum ${MAX_TOTAL_SIZE_MB} MB allowed.`);
+      return;
+    }
 
     const validFiles: File[] = [];
     const invalidFiles: string[] = [];
@@ -312,7 +370,30 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
 
     if (validFiles.length > 0) {
       setSelectedFiles(validFiles);
-      // Set document type based on first file
+      
+      // NEW: Initialize individual metadata for each file
+      const metadata = validFiles.map(file => {
+        const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+        const selectedType = documentTypes.find(t => 
+          t.extensions.includes(extension)
+        ) || documentTypes[0];
+        
+        const baseTitle = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+        
+        return {
+          file,
+          title: baseTitle,
+          description: '',
+          document_type: selectedType.value,
+          product_category: uploadForm.product_category || '',
+          content_type: uploadForm.content_type || '',
+          version: uploadForm.version || ''
+        };
+      });
+      
+      setFileMetadata(metadata);
+      
+      // Set document type based on first file for form defaults
       const firstFile = validFiles[0];
       const extension = '.' + firstFile.name.split('.').pop()?.toLowerCase();
       const selectedType = documentTypes.find(t => 
@@ -327,64 +408,184 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       }
     }
   };
+  // NEW: Validate file metadata before upload
+  const validateFileMetadata = (): boolean => {
+    for (const meta of fileMetadata) {
+      if (!meta.title.trim()) {
+        setError(`Title is required for file: ${meta.file.name}`);
+        return false;
+      }
+      // Product category and content type are optional - auto-detection will handle them
+    }
+    return true;
+  };
 
+  // NEW: Background upload with batching
   const handleUpload = async () => {
-    if (selectedFiles.length === 0) {
+    // Handle both new metadata-based uploads and legacy single-file uploads
+    if (fileMetadata.length === 0 && selectedFiles.length === 0) {
       setError('Please select at least one file');
       return;
     }
 
-    setUploading(true);
-    setError(null);
+    // If files selected but no metadata initialized (legacy single file mode)
+    let metadataToUse: typeof fileMetadata = fileMetadata;
+    if (fileMetadata.length === 0 && selectedFiles.length > 0) {
+      // Initialize metadata from form
+      metadataToUse = selectedFiles.map(file => {
+        const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+        const selectedType = documentTypes.find(t => 
+          t.extensions.includes(extension)
+        ) || documentTypes[0];
+        
+        return {
+          file,
+          title: uploadForm.title.trim() || file.name.replace(/\.[^/.]+$/, ''),
+          description: uploadForm.description,
+          document_type: uploadForm.document_type,
+          product_category: uploadForm.product_category,
+          content_type: uploadForm.content_type,
+          version: uploadForm.version
+        };
+      });
+      setFileMetadata(metadataToUse);
+    }
 
-    // Debug: Check auth token before upload
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
-    console.log('Upload attempt - Auth token exists:', !!token);
-    if (!token) {
-      setError('Not authenticated. Please log in first.');
-      setUploading(false);
+    // Use the correct metadata (either from state or just initialized)
+    const finalMetadata = fileMetadata.length > 0 ? fileMetadata : metadataToUse;
+    
+    if (!finalMetadata || finalMetadata.length === 0) {
+      setError('No files to upload');
       return;
     }
-
-    try {
-      // Upload all files through the standard document upload flow
-      // This ensures chunks and embeddings are created for RAG
-      const uploadPromises = selectedFiles.map(async (file, index) => {
-        const title = uploadForm.title.trim() 
-          ? `${uploadForm.title}${selectedFiles.length > 1 ? ` (${index + 1})` : ''}`
-          : file.name.replace(/\.[^/.]+$/, ''); // Remove file extension
-        
-        return apiClient.uploadDocument(
-          file, 
-          title, 
-          uploadForm.description, 
-          uploadForm.document_type,
-          uploadForm.product_category,
-          uploadForm.content_type,
-          uploadForm.version
-        );
-      });
-
-      await Promise.all(uploadPromises);
-
-      setSuccess(`Successfully uploaded ${selectedFiles.length} document(s)!`);
-      setUploadForm({ 
-        title: '', 
-        description: '', 
-        document_type: 'pdf',
-        product_category: '',
-        version: '',
-        content_type: ''
-      });
-      setSelectedFiles([]);
-      setShowUploadModal(false);
-      loadDocuments(); // Reload the list
-    } catch (err: any) {
-      console.error('Upload error:', err);
-      setError(err.message || 'Failed to upload document(s)');
-    } finally {
-      setUploading(false);
+    
+    // Validate each file's metadata (only title is required, product/content type will be auto-detected)
+    for (const meta of finalMetadata) {
+      if (!meta.title.trim()) {
+        setError(`Title is required for file: ${meta.file.name}`);
+        return;
+      }
+      // Product category and content type are optional - backend will auto-detect if not provided
     }
+
+    setError(null);
+    
+    // Create upload queue
+    const queue = finalMetadata.map((meta, index) => ({
+      id: `upload-${Date.now()}-${index}`,
+      file: meta.file,
+      metadata: {
+        title: meta.title,
+        description: meta.description,
+        document_type: meta.document_type,
+        product_category: meta.product_category,
+        content_type: meta.content_type,
+        version: meta.version
+      },
+      status: 'queued' as const,
+      progress: 0
+    }));
+
+    setUploadQueue(queue);
+    setShowUploadProgress(true);
+    setIsUploading(true);
+    setShowUploadModal(false); // Close modal immediately - background upload
+    
+    // Start uploading in batches
+    uploadFilesInBatches(queue);
+  };
+
+  // NEW: Upload files in batches to prevent system hang
+  const uploadFilesInBatches = async (queue: typeof uploadQueue) => {
+    const batches: typeof queue[] = [];
+    
+    // Split queue into batches
+    for (let i = 0; i < queue.length; i += uploadBatchSize) {
+      batches.push(queue.slice(i, i + uploadBatchSize));
+    }
+
+    // Process batches sequentially
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // Upload all files in current batch concurrently
+      const batchPromises = batch.map(async (item) => {
+        // Update status to uploading
+        setUploadQueue(prev => prev.map(q => 
+          q.id === item.id ? { ...q, status: 'uploading', progress: 10 } : q
+        ));
+
+        try {
+          const result = await apiClient.uploadDocument(
+            item.file,
+            item.metadata.title,
+            item.metadata.description,
+            item.metadata.document_type,
+            item.metadata.product_category,
+            item.metadata.content_type,
+            item.metadata.version
+          );
+
+          // Update status to processing (backend will process via Celery)
+          setUploadQueue(prev => prev.map(q => 
+            q.id === item.id ? { 
+              ...q, 
+              status: 'processing', 
+              progress: 50,
+              documentId: result.document_id || result.uploaded_file_id
+            } : q
+          ));
+
+          // Wait a bit then mark as completed (processing continues in background)
+          setTimeout(() => {
+            setUploadQueue(prev => prev.map(q => 
+              q.id === item.id ? { ...q, status: 'completed', progress: 100 } : q
+            ));
+          }, 1000);
+
+          return { success: true, item };
+        } catch (err: any) {
+          console.error('Upload error for file:', item.file.name, err);
+          setUploadQueue(prev => prev.map(q => 
+            q.id === item.id ? { 
+              ...q, 
+              status: 'failed', 
+              progress: 0,
+              error: err.message || 'Upload failed'
+            } : q
+          ));
+          return { success: false, item, error: err };
+        }
+      });
+
+      // Wait for current batch to complete before starting next
+      await Promise.all(batchPromises);
+      
+      // Small delay between batches to prevent overwhelming the system
+      if (batchIndex < batches.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    // All uploads complete
+    setIsUploading(false);
+    setSuccess(`Upload queue completed! ${queue.filter(q => q.status === 'completed').length} successful, ${queue.filter(q => q.status === 'failed').length} failed.`);
+    
+    // Reload documents after a short delay
+    setTimeout(() => {
+      loadDocuments();
+    }, 2000);
+
+    // Auto-hide progress panel after 5 seconds if all completed
+    setTimeout(() => {
+      setUploadQueue(prev => {
+        const allDone = prev.every(q => q.status === 'completed' || q.status === 'failed');
+        if (allDone) {
+          // Keep panel visible but allow user to close it
+        }
+        return prev;
+      });
+    }, 5000);
   };
 
   const handleSearch = async () => {
@@ -630,6 +831,21 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     const allFiles = Array.from(event.target.files || []);
     if (allFiles.length === 0) return;
 
+    // NEW: File count and size limits for bulk import
+    const MAX_FILES = 50;
+    const MAX_TOTAL_SIZE_MB = 500;
+    
+    if (allFiles.length > MAX_FILES) {
+      setError(`Too many files selected. Maximum ${MAX_FILES} files allowed.`);
+      return;
+    }
+
+    const totalSizeMB = allFiles.reduce((sum, file) => sum + file.size, 0) / (1024 * 1024);
+    if (totalSizeMB > MAX_TOTAL_SIZE_MB) {
+      setError(`Total file size too large (${totalSizeMB.toFixed(2)} MB). Maximum ${MAX_TOTAL_SIZE_MB} MB allowed.`);
+      return;
+    }
+
     // Filter files based on enabled types
     const validFiles: File[] = [];
     const filteredOut: File[] = [];
@@ -665,6 +881,34 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     // Store valid files
     setSelectedFiles(validFiles);
     setFilteredOutFiles(filteredOut);
+    
+    // NEW: Initialize metadata for bulk import files
+    const metadata = validFiles.map(file => {
+      const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+      const selectedType = documentTypes.find(t => 
+        t.extensions.includes(extension)
+      ) || documentTypes[0];
+      
+      const baseTitle = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      
+      // Auto-detect product category from filename
+      let product_category = '';
+      const filename = file.name.toLowerCase();
+      if (filename.includes('openlab')) product_category = 'openlab_cds';
+      else if (filename.includes('masshunter')) product_category = 'masshunter_workstation';
+      
+      return {
+        file,
+        title: baseTitle,
+        description: `Bulk imported: ${file.name}`,
+        document_type: selectedType.value,
+        product_category: product_category,
+        content_type: '',
+        version: ''
+      };
+    });
+    
+    setBulkFileMetadata(metadata);
     
     // Convert to bulkFiles format for display
     const folderFiles = validFiles.map((file: File) => ({
@@ -712,76 +956,81 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     }
   };
 
-  // NEW: Handle bulk import from browser folder
+  // NEW: Handle bulk import from browser folder with metadata table and batching
   const handleBulkImportFromBrowser = async () => {
-    if (selectedFiles.length === 0) {
+    if (bulkFileMetadata.length === 0 && selectedFiles.length === 0) {
       setError('Please select a folder first');
       return;
     }
 
-    setBulkProcessing(true);
-    setJobMonitoring(true);
-    setError(null);
-
-    try {
-      // Upload files one by one
-      const uploadPromises = selectedFiles.map(async (file) => {
-        // Auto-detect document type from file extension
+    // Use metadata if available, otherwise initialize from files
+    let metadataToUse = bulkFileMetadata;
+    if (bulkFileMetadata.length === 0 && selectedFiles.length > 0) {
+      metadataToUse = selectedFiles.map(file => {
         const extension = '.' + file.name.split('.').pop()?.toLowerCase();
-        const documentType = documentTypes.find(t => t.extensions.includes(extension))?.value || 'pdf';
+        const selectedType = documentTypes.find(t => 
+          t.extensions.includes(extension)
+        ) || documentTypes[0];
         
-        // Auto-detect product category from filename
+        const baseTitle = file.name.replace(/\.[^/.]+$/, '');
         let product_category = '';
         const filename = file.name.toLowerCase();
         if (filename.includes('openlab')) product_category = 'openlab_cds';
         else if (filename.includes('masshunter')) product_category = 'masshunter_workstation';
         
-        return apiClient.uploadDocument(
+        return {
           file,
-          file.name.replace(/\.[^/.]+$/, ''), // Remove extension
-          `Bulk imported: ${file.name}`,
-          documentType,
-          product_category,
-          '', // content_type - will be auto-detected
-          ''  // version - will be auto-detected
-        );
+          title: baseTitle,
+          description: `Bulk imported: ${file.name}`,
+          document_type: selectedType.value,
+          product_category: product_category,
+          content_type: '',
+          version: ''
+        };
       });
+      setBulkFileMetadata(metadataToUse);
+    }
 
-      // Track progress
-      let successCount = 0;
-      let failCount = 0;
-      
-      await Promise.all(uploadPromises.map(p => 
-        p.then(() => successCount++)
-          .catch(() => failCount++)
-      ));
+    // Validate metadata (only title is required)
+    for (const meta of metadataToUse) {
+      if (!meta.title.trim()) {
+        setError(`Title is required for file: ${meta.file.name}`);
+        return;
+      }
+    }
 
-      setSuccess(`Upload completed! ${successCount} successful, ${failCount} failed`);
-      setBulkResults({
-        successful: successCount,
-        failed: failCount,
-        skipped: 0
-      });
-      
-      // Reload documents
-      loadDocuments();
-      
-      // Reset state after 3 seconds
-      setTimeout(() => {
-        setJobMonitoring(false);
-        setBulkProcessing(false);
-        setShowBulkUploadModal(false);
-        setBulkFiles([]);
-        setSelectedFiles([]);
-        setBulkResults(null);
-        setSelectedFolder('');
-      }, 3000);
-      
-    } catch (err: any) {
-      setError(err.message || 'Failed to upload files');
+    setError(null);
+    
+    // Create upload queue (same as regular upload)
+    const queue = metadataToUse.map((meta, index) => ({
+      id: `bulk-upload-${Date.now()}-${index}`,
+      file: meta.file,
+      metadata: {
+        title: meta.title,
+        description: meta.description,
+        document_type: meta.document_type,
+        product_category: meta.product_category,
+        content_type: meta.content_type,
+        version: meta.version
+      },
+      status: 'queued' as const,
+      progress: 0
+    }));
+
+    setUploadQueue(queue);
+    setShowUploadProgress(true);
+    setIsUploading(true);
+    setBulkProcessing(true);
+    setShowBulkUploadModal(false); // Close modal immediately - background upload
+    
+    // Start uploading in batches (reuse the same function)
+    uploadFilesInBatches(queue);
+    
+    // Reset bulk import specific state after upload starts
+    setTimeout(() => {
       setBulkProcessing(false);
       setJobMonitoring(false);
-    }
+    }, 100);
   };
 
   const handleBulkImport = async () => {
@@ -886,6 +1135,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           <p className="text-gray-600">Upload, view, and manage your documents (PDF, Word, Excel, PowerPoint, Text)</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => setAutoRefreshEnabled(v => !v)}
+            className={`px-3 py-2 rounded-lg border transition-colors ${autoRefreshEnabled ? 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+            title="Toggle automatic refresh while processing"
+          >
+            {autoRefreshEnabled ? 'Auto-Refresh: On' : 'Auto-Refresh: Off'}
+          </button>
           <button
             onClick={handleExtractMetadata}
             disabled={extracting}
@@ -1313,11 +1569,15 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       {/* Upload Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Upload Document</h3>
+              <h3 className="text-lg font-semibold">Upload Document{fileMetadata.length > 1 ? `s (${fileMetadata.length} files)` : ''}</h3>
               <button
-                onClick={() => setShowUploadModal(false)}
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setSelectedFiles([]);
+                  setFileMetadata([]);
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X size={20} />
@@ -1325,22 +1585,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Document Type
-                </label>
-                <select
-                  value={uploadForm.document_type}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, document_type: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  {documentTypes.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                  <option value="SSB_KPR">SSB/KPR File (.mhtml, .html, .txt)</option>
-                </select>
-              </div>
-
+              {/* File Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Document Files (Multiple Selection)
@@ -1348,108 +1593,260 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 <input
                   type="file"
                   multiple
-                  accept={getAcceptedExtensions(uploadForm.document_type)}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.rtf,.mhtml,.html"
                   onChange={handleFileSelect}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 {selectedFiles.length > 0 && (
                   <div className="mt-2">
-                    <p className="text-sm text-gray-600 mb-2">Selected files ({selectedFiles.length}):</p>
-                    <div className="max-h-32 overflow-y-auto space-y-1">
-                      {selectedFiles.map((file, index) => (
-                        <div key={index} className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
-                          {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                        </div>
-                      ))}
-                    </div>
+                    <p className="text-sm text-gray-600 mb-2">
+                      Selected {selectedFiles.length} file(s) - Total size: {(selectedFiles.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2)} MB
+                    </p>
                   </div>
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  value={uploadForm.title}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Enter document title"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              {/* NEW: Metadata Table for Multiple Files */}
+              {fileMetadata.length > 0 && (
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      File Metadata {fileMetadata.length > 1 && '(Edit each file individually)'}
+                    </label>
+                    {fileMetadata.length > 1 && (
+                      <div className="flex gap-2">
+                        <select
+                          key={applyProductKey}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setFileMetadata(prev => prev.map(m => ({ ...m, product_category: e.target.value })));
+                              // Reset dropdown by changing key
+                              setApplyProductKey(prev => prev + 1);
+                            }
+                          }}
+                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 border border-blue-300 focus:outline-none cursor-pointer"
+                          defaultValue=""
+                        >
+                          <option value="">Apply Product to All</option>
+                          {productCategories.filter(cat => cat.value).map(category => (
+                            <option key={category.value} value={category.value}>{category.label}</option>
+                          ))}
+                        </select>
+                        <select
+                          key={applyContentTypeKey}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setFileMetadata(prev => prev.map(m => ({ ...m, content_type: e.target.value })));
+                              // Reset dropdown by changing key
+                              setApplyContentTypeKey(prev => prev + 1);
+                            }
+                          }}
+                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 border border-blue-300 focus:outline-none cursor-pointer"
+                          defaultValue=""
+                        >
+                          <option value="">Apply Content Type to All</option>
+                          {contentTypes.filter(type => type.value).map(type => (
+                            <option key={type.value} value={type.value}>{type.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="border border-gray-300 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Filename</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Title *</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Description</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Product</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Content Type</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Version</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Size</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fileMetadata.map((meta, index) => (
+                            <tr key={index} className="border-b hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-700">
+                                <div className="max-w-xs truncate" title={meta.file.name}>
+                                  {meta.file.name}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={meta.title}
+                                  onChange={(e) => {
+                                    const newMetadata = [...fileMetadata];
+                                    newMetadata[index].title = e.target.value;
+                                    setFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  placeholder="Enter title"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={meta.description}
+                                  onChange={(e) => {
+                                    const newMetadata = [...fileMetadata];
+                                    newMetadata[index].description = e.target.value;
+                                    setFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  placeholder="Optional"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <select
+                                  value={meta.product_category}
+                                  onChange={(e) => {
+                                    const newMetadata = [...fileMetadata];
+                                    newMetadata[index].product_category = e.target.value;
+                                    setFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                >
+                                  {productCategories.map(cat => (
+                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <select
+                                  value={meta.content_type}
+                                  onChange={(e) => {
+                                    const newMetadata = [...fileMetadata];
+                                    newMetadata[index].content_type = e.target.value;
+                                    setFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                >
+                                  {contentTypes.map(type => (
+                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={meta.version}
+                                  onChange={(e) => {
+                                    const newMetadata = [...fileMetadata];
+                                    newMetadata[index].version = e.target.value;
+                                    setFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  placeholder="e.g., 3.2.1"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-gray-600 text-xs">
+                                {(meta.file.size / 1024 / 1024).toFixed(2)} MB
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={uploadForm.description}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Enter document description (optional)"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              {/* Single File Form (fallback for single file) */}
+              {fileMetadata.length === 0 && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Title *
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadForm.title}
+                      onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
+                      placeholder="Enter document title"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Category *
-                </label>
-                <select
-                  value={uploadForm.product_category}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, product_category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  {productCategories.map(category => (
-                    <option key={category.value} value={category.value}>{category.label}</option>
-                  ))}
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={uploadForm.description}
+                      onChange={(e) => setUploadForm(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Enter document description (optional)"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Document Type *
-                </label>
-                <select
-                  value={uploadForm.content_type}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, content_type: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  {contentTypes.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Product Category <span className="text-gray-500 text-xs">(optional - will be auto-detected)</span>
+                    </label>
+                    <select
+                      value={uploadForm.product_category}
+                      onChange={(e) => setUploadForm(prev => ({ ...prev, product_category: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {productCategories.map(category => (
+                        <option key={category.value} value={category.value}>{category.label}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Version (optional)
-                </label>
-                <input
-                  type="text"
-                  value={uploadForm.version}
-                  onChange={(e) => setUploadForm(prev => ({ ...prev, version: e.target.value }))}
-                  placeholder="e.g., 3.2.1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Content Type <span className="text-gray-500 text-xs">(optional - will be auto-detected)</span>
+                    </label>
+                    <select
+                      value={uploadForm.content_type}
+                      onChange={(e) => setUploadForm(prev => ({ ...prev, content_type: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {contentTypes.map(type => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className="flex gap-3 pt-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Version (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadForm.version}
+                      onChange={(e) => setUploadForm(prev => ({ ...prev, version: e.target.value }))}
+                      placeholder="e.g., 3.2.1"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex gap-3 pt-4 border-t">
                 <button
-                  onClick={() => setShowUploadModal(false)}
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setSelectedFiles([]);
+                    setFileMetadata([]);
+                  }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleUpload}
-                  disabled={uploading || selectedFiles.length === 0}
+                  disabled={isUploading || fileMetadata.length === 0}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {uploading ? `Uploading ${selectedFiles.length} file(s)...` : `Upload ${selectedFiles.length} file(s)`}
+                  {isUploading ? 'Uploading...' : `Upload ${fileMetadata.length} file(s)`}
                 </button>
               </div>
             </div>
@@ -1504,13 +1901,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Category *
+                  Product Category <span className="text-gray-500 text-xs">(optional)</span>
                 </label>
                 <select
                   value={editMetadata.product_category}
                   onChange={(e) => setEditMetadata(prev => ({ ...prev, product_category: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
                 >
                   {productCategories.map(category => (
                     <option key={category.value} value={category.value}>{category.label}</option>
@@ -1520,13 +1916,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Document Type *
+                  Document Type <span className="text-gray-500 text-xs">(optional)</span>
                 </label>
                 <select
                   value={editMetadata.content_type}
                   onChange={(e) => setEditMetadata(prev => ({ ...prev, content_type: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
                 >
                   {contentTypes.map(type => (
                     <option key={type.value} value={type.value}>{type.label}</option>
@@ -1753,8 +2148,156 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 </div>
               )}
 
-              {/* File List with Status Indicators */}
-              {bulkFiles.length > 0 && (
+              {/* NEW: Metadata Table for Bulk Import (Browser Folder) */}
+              {uploadSource === 'browser' && bulkFileMetadata.length > 0 && (
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      File Metadata {bulkFileMetadata.length > 1 && '(Edit each file individually)'}
+                    </label>
+                    {bulkFileMetadata.length > 1 && (
+                      <div className="flex gap-2">
+                        <select
+                          key={bulkApplyProductKey}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setBulkFileMetadata(prev => prev.map(m => ({ ...m, product_category: e.target.value })));
+                              setBulkApplyProductKey(prev => prev + 1);
+                            }
+                          }}
+                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 border border-blue-300 focus:outline-none cursor-pointer"
+                          defaultValue=""
+                        >
+                          <option value="">Apply Product to All</option>
+                          {productCategories.filter(cat => cat.value).map(category => (
+                            <option key={category.value} value={category.value}>{category.label}</option>
+                          ))}
+                        </select>
+                        <select
+                          key={bulkApplyContentTypeKey}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              setBulkFileMetadata(prev => prev.map(m => ({ ...m, content_type: e.target.value })));
+                              setBulkApplyContentTypeKey(prev => prev + 1);
+                            }
+                          }}
+                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 border border-blue-300 focus:outline-none cursor-pointer"
+                          defaultValue=""
+                        >
+                          <option value="">Apply Content Type to All</option>
+                          {contentTypes.filter(type => type.value).map(type => (
+                            <option key={type.value} value={type.value}>{type.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="border border-gray-300 rounded-lg overflow-hidden">
+                    <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Filename</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Title *</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Description</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Product</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Content Type</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Version</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Size</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {bulkFileMetadata.map((meta, index) => (
+                            <tr key={index} className="border-b hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-700">
+                                <div className="max-w-xs truncate" title={meta.file.name}>
+                                  {meta.file.name}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={meta.title}
+                                  onChange={(e) => {
+                                    const newMetadata = [...bulkFileMetadata];
+                                    newMetadata[index].title = e.target.value;
+                                    setBulkFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  placeholder="Enter title"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={meta.description}
+                                  onChange={(e) => {
+                                    const newMetadata = [...bulkFileMetadata];
+                                    newMetadata[index].description = e.target.value;
+                                    setBulkFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  placeholder="Optional"
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <select
+                                  value={meta.product_category}
+                                  onChange={(e) => {
+                                    const newMetadata = [...bulkFileMetadata];
+                                    newMetadata[index].product_category = e.target.value;
+                                    setBulkFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                >
+                                  {productCategories.map(cat => (
+                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <select
+                                  value={meta.content_type}
+                                  onChange={(e) => {
+                                    const newMetadata = [...bulkFileMetadata];
+                                    newMetadata[index].content_type = e.target.value;
+                                    setBulkFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                >
+                                  {contentTypes.map(type => (
+                                    <option key={type.value} value={type.value}>{type.label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  value={meta.version}
+                                  onChange={(e) => {
+                                    const newMetadata = [...bulkFileMetadata];
+                                    newMetadata[index].version = e.target.value;
+                                    setBulkFileMetadata(newMetadata);
+                                  }}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  placeholder="e.g., 3.2.1"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-gray-600 text-xs">
+                                {(meta.file.size / 1024 / 1024).toFixed(2)} MB
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* File List with Status Indicators (for server-side import) */}
+              {uploadSource === 'server' && bulkFiles.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Files ({bulkFiles.length})
@@ -1926,19 +2469,22 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     setSelectedFiles([]);
                     setUploadSource('browser');
                     setFilteredOutFiles([]);
+                    setBulkFileMetadata([]);
                     setEnabledFileTypes(new Set(['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx', 'html', 'mhtml']));
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Close
                 </button>
-                {!jobMonitoring && bulkFiles.length > 0 && (
+                {!jobMonitoring && (
                   <button
                     onClick={uploadSource === 'browser' ? handleBulkImportFromBrowser : handleBulkImport}
-                    disabled={bulkProcessing}
+                    disabled={bulkProcessing || (uploadSource === 'browser' && bulkFileMetadata.length === 0 && selectedFiles.length === 0) || (uploadSource === 'server' && bulkFiles.length === 0)}
                     className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {bulkProcessing ? `Importing ${bulkFiles.length} files...` : `Import ${bulkFiles.length} files`}
+                    {bulkProcessing 
+                      ? `Importing ${uploadSource === 'browser' ? bulkFileMetadata.length : bulkFiles.length} files...` 
+                      : `Import ${uploadSource === 'browser' ? bulkFileMetadata.length : bulkFiles.length} files`}
                   </button>
                 )}
                 {jobMonitoring && (
@@ -1958,6 +2504,135 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: Background Upload Progress Panel */}
+      {showUploadProgress && uploadQueue.length > 0 && (
+        <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-2xl border border-gray-300 z-50 w-96 max-h-[600px] flex flex-col">
+          <div className="flex justify-between items-center p-4 border-b bg-blue-50">
+            <div className="flex items-center gap-2">
+              <div className={`animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent ${!isUploading ? 'hidden' : ''}`}></div>
+              <h3 className="font-semibold text-gray-900">
+                Upload Progress ({uploadQueue.filter(q => q.status === 'completed').length}/{uploadQueue.length})
+              </h3>
+            </div>
+            <button
+              onClick={() => {
+                if (!isUploading) {
+                  setShowUploadProgress(false);
+                  setUploadQueue([]);
+                }
+              }}
+              className="text-gray-400 hover:text-gray-600"
+              disabled={isUploading}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          
+          <div className="overflow-y-auto flex-1 p-4">
+            <div className="space-y-2">
+              {uploadQueue.map((item) => {
+                const getStatusColor = () => {
+                  switch (item.status) {
+                    case 'queued': return 'text-gray-500';
+                    case 'uploading': return 'text-blue-600';
+                    case 'processing': return 'text-yellow-600';
+                    case 'completed': return 'text-green-600';
+                    case 'failed': return 'text-red-600';
+                    default: return 'text-gray-500';
+                  }
+                };
+
+                const getStatusIcon = () => {
+                  switch (item.status) {
+                    case 'queued': return '⏳';
+                    case 'uploading': return '⬆️';
+                    case 'processing': return '⚙️';
+                    case 'completed': return '✓';
+                    case 'failed': return '✗';
+                    default: return '⏳';
+                  }
+                };
+
+                return (
+                  <div
+                    key={item.id}
+                    className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50"
+                  >
+                    <div className="flex items-start justify-between mb-1">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={getStatusColor()}>{getStatusIcon()}</span>
+                          <span className="text-sm font-medium text-gray-900 truncate" title={item.file.name}>
+                            {item.file.name}
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {(item.file.size / 1024 / 1024).toFixed(2)} MB
+                        </div>
+                      </div>
+                      <span className={`text-xs font-medium ${getStatusColor()}`}>
+                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                      </span>
+                    </div>
+                    
+                    {/* Progress bar */}
+                    <div className="mt-2">
+                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                        <div
+                          className={`h-1.5 rounded-full transition-all ${
+                            item.status === 'completed' ? 'bg-green-500' :
+                            item.status === 'failed' ? 'bg-red-500' :
+                            item.status === 'processing' ? 'bg-yellow-500' :
+                            'bg-blue-500'
+                          }`}
+                          style={{ width: `${item.progress}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Error message */}
+                    {item.error && (
+                      <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded">
+                        {item.error}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Summary */}
+          <div className="border-t p-4 bg-gray-50">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div>
+                <div className="text-gray-600">Queued</div>
+                <div className="font-semibold text-gray-700">
+                  {uploadQueue.filter(q => q.status === 'queued').length}
+                </div>
+              </div>
+              <div>
+                <div className="text-blue-600">In Progress</div>
+                <div className="font-semibold text-blue-700">
+                  {uploadQueue.filter(q => q.status === 'uploading' || q.status === 'processing').length}
+                </div>
+              </div>
+              <div>
+                <div className="text-green-600">Completed</div>
+                <div className="font-semibold text-green-700">
+                  {uploadQueue.filter(q => q.status === 'completed').length}
+                </div>
+              </div>
+            </div>
+            {uploadQueue.some(q => q.status === 'failed') && (
+              <div className="mt-2 text-xs text-red-600">
+                Failed: {uploadQueue.filter(q => q.status === 'failed').length}
+              </div>
+            )}
           </div>
         </div>
       )}

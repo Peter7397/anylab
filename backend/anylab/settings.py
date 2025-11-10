@@ -227,6 +227,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://192.168.1.15:3000',  # Client PC access
     'http://10.96.17.21:3000',
     'https://anylab.dpdns.org',
+    'http://anylab.dpdns.org',  # Allow HTTP for initial setup
 ]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = False
@@ -313,6 +314,7 @@ EMBEDDING_OFFLINE_ONLY = True  # HARDCODED: Force offline embeddings
 EMBEDDING_DIM = 1024  # HARDCODED: Embedding dimension for BGE-M3
 EMBEDDING_PERFORMANCE_MODEL = 'BAAI/bge-m3'  # HARDCODED: Performance model
 EMBEDDING_LIGHTWEIGHT_MODEL = 'sentence-transformers/all-MiniLM-L6-v2'  # HARDCODED: Lightweight model
+EMBEDDING_CONCURRENCY = 3  # Limit concurrent embedding requests to Ollama for stability
 
 # Logging Configuration
 LOGGING = {

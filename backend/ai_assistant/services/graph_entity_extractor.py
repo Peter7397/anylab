@@ -3,13 +3,17 @@ Enhanced Entity Extraction for Graph RAG
 
 This service extracts domain-specific entities from documents for storage in Neo4j.
 Includes entity linking, disambiguation, and normalization.
+Now includes LLM-based extraction for concepts and important information.
 """
 
 import logging
 import re
+import json
+import requests
 from typing import List, Dict, Any, Optional, Set
 from dataclasses import dataclass
 import hashlib
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +81,10 @@ class GraphEntityExtractor:
     def __init__(self):
         """Initialize entity extractor"""
         self.compiled_patterns = self._compile_patterns()
-        logger.info("GraphEntityExtractor initialized")
+        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        self.model_name = getattr(settings, 'OLLAMA_MODEL', 'llama3:8b')
+        self.use_llm_extraction = True  # Enable LLM-based extraction for concepts
+        logger.info("GraphEntityExtractor initialized with LLM-based extraction")
     
     def _compile_patterns(self) -> Dict[str, List[re.Pattern]]:
         """Compile regex patterns for entity extraction"""
@@ -90,7 +97,7 @@ class GraphEntityExtractor:
     
     def extract_entities(self, content: str, document_id: str = None) -> List[ExtractedEntity]:
         """
-        Extract entities from content
+        Extract entities from content using both pattern-based and LLM-based extraction
         
         Args:
             content: Document content text
@@ -101,13 +108,26 @@ class GraphEntityExtractor:
         """
         entities = []
         
-        # Extract using patterns
+        # Step 1: Extract using patterns (fast, reliable for known entities)
         pattern_entities = self._extract_with_patterns(content)
         entities.extend(pattern_entities)
         
-        # Extract problems and solutions (heuristic-based)
+        # Step 2: Extract problems and solutions (heuristic-based)
         problem_solution_entities = self._extract_problems_and_solutions(content)
         entities.extend(problem_solution_entities)
+        
+        # Step 3: LLM-based extraction for concepts and important information
+        if self.use_llm_extraction and len(content) > 100:
+            try:
+                llm_entities = self._extract_with_llm(content)
+                entities.extend(llm_entities)
+                logger.info(f"LLM extraction found {len(llm_entities)} additional entities")
+            except Exception as e:
+                logger.warning(f"LLM extraction failed, continuing with pattern-based only: {e}")
+        
+        # Step 4: Extract key concepts and important information
+        concept_entities = self._extract_key_concepts(content)
+        entities.extend(concept_entities)
         
         # Normalize and deduplicate
         normalized_entities = self._normalize_entities(entities)
@@ -116,7 +136,7 @@ class GraphEntityExtractor:
         for entity in normalized_entities:
             entity.context = self._get_entity_context(content, entity.start_pos, entity.end_pos)
         
-        logger.info(f"Extracted {len(normalized_entities)} entities from document {document_id}")
+        logger.info(f"Extracted {len(normalized_entities)} total entities from document {document_id}")
         
         return normalized_entities
     
@@ -280,6 +300,136 @@ class GraphEntityExtractor:
                             links[entity_id].append(self._generate_entity_id(other_entity))
         
         return links
+    
+    def _extract_with_llm(self, content: str, max_length: int = 4000) -> List[ExtractedEntity]:
+        """
+        Extract entities using LLM for better concept understanding
+        
+        This extracts:
+        - Key concepts and topics
+        - Important technical terms
+        - Main ideas and themes
+        - Domain-specific concepts
+        """
+        entities = []
+        
+        # Truncate content if too long (to avoid token limits)
+        content_sample = content[:max_length] if len(content) > max_length else content
+        
+        prompt = f"""Extract important entities, concepts, and key information from this technical documentation.
+
+Focus on:
+1. Key technical concepts and terms
+2. Important procedures or methods
+3. Main topics and themes
+4. Critical information points
+5. Domain-specific terminology
+
+Return a JSON array of entities, each with:
+- "text": the extracted text/phrase
+- "type": one of: CONCEPT, KEY_TERM, PROCEDURE, TOPIC, IMPORTANT_INFO
+- "importance": score from 0.0 to 1.0 (higher = more important)
+
+Document content:
+{content_sample}
+
+Return ONLY valid JSON array, no other text:"""
+
+        try:
+            response = requests.post(
+                f"{self.ollama_url}/api/chat",
+                json={
+                    "model": self.model_name,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.1,  # Low temperature for consistent extraction
+                        "num_predict": 2000,
+                        "num_ctx": 4096
+                    }
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            response_text = response.json()["message"]["content"].strip()
+            
+            # Try to extract JSON from response (may have markdown code blocks)
+            json_match = re.search(r'\[.*\]', response_text, re.DOTALL)
+            if json_match:
+                response_text = json_match.group(0)
+            
+            extracted_data = json.loads(response_text)
+            
+            # Convert to ExtractedEntity objects
+            for idx, item in enumerate(extracted_data):
+                if isinstance(item, dict) and 'text' in item:
+                    text = item['text']
+                    entity_type = item.get('type', 'CONCEPT')
+                    importance = item.get('importance', 0.7)
+                    
+                    # Find position in original content
+                    pos = content.find(text)
+                    if pos == -1:
+                        # Try to find similar text
+                        pos = content.lower().find(text.lower())
+                    
+                    if pos >= 0:
+                        entities.append(ExtractedEntity(
+                            text=text,
+                            normalized_text=text.lower().strip(),
+                            entity_type=entity_type,
+                            start_pos=pos,
+                            end_pos=pos + len(text),
+                            confidence=importance,
+                            context="",
+                            metadata={'extraction_method': 'llm', 'importance': importance}
+                        ))
+            
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse LLM extraction JSON: {e}")
+        except Exception as e:
+            logger.warning(f"LLM extraction error: {e}")
+        
+        return entities
+    
+    def _extract_key_concepts(self, content: str) -> List[ExtractedEntity]:
+        """
+        Extract key concepts using heuristics for important information
+        
+        Looks for:
+        - Summary sections
+        - Conclusion sections
+        - Key points (bulleted lists)
+        - Important definitions
+        """
+        entities = []
+        
+        # Find summary/conclusion sections
+        summary_patterns = [
+            (r'(?:summary|conclusion|overview|key points?)[:.]?\s*\n(.{50,300})', 'IMPORTANT_INFO', 0.9),
+            (r'(?:important|note|warning|caution)[:.]?\s*\n(.{30,200})', 'IMPORTANT_INFO', 0.85),
+            (r'^\s*[•\-\*]\s+(.{20,150})', 'KEY_POINT', 0.8),  # Bullet points
+            (r'(?:definition|defined as|means)[:.]?\s*(.{20,200})', 'CONCEPT', 0.75),
+        ]
+        
+        for pattern, entity_type, confidence in summary_patterns:
+            for match in re.finditer(pattern, content, re.IGNORECASE | re.MULTILINE):
+                text = match.group(1).strip() if match.groups() else match.group(0).strip()
+                if len(text) > 15:  # Minimum length
+                    entities.append(ExtractedEntity(
+                        text=text[:200],  # Limit length
+                        normalized_text=text.lower().strip()[:200],
+                        entity_type=entity_type,
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        confidence=confidence,
+                        context="",
+                        metadata={'extraction_method': 'heuristic_concept'}
+                    ))
+        
+        return entities
     
     def _generate_entity_id(self, entity: ExtractedEntity) -> str:
         """Generate unique ID for an entity"""

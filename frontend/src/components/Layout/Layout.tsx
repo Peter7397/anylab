@@ -60,19 +60,27 @@ const Layout: React.FC = () => {
     }
   };
 
-  const handleAIModeChange = (mode: AIMode) => {
-    setAiMode(mode);
-    // Store AI mode preference
-    localStorage.setItem('ai_mode', mode);
-    
-    // Show notification about mode change
-    console.log(`AI Mode switched to: ${mode}`);
-    
-    // You can add logic here to:
-    // 1. Update API endpoints based on mode
-    // 2. Change model parameters
-    // 3. Adjust caching strategies
-    // 4. Notify backend of mode change
+  const handleAIModeChange = async (mode: AIMode) => {
+    try {
+      // Call backend API to switch mode
+      const { apiClient } = await import('../../services/api');
+      const response = await apiClient.switchAIMode(mode);
+      
+      if (response.success) {
+        setAiMode(mode);
+        // Store AI mode preference
+        localStorage.setItem('ai_mode', mode);
+        console.log(`AI Mode switched to: ${mode}`, response.message);
+      } else {
+        console.error('Failed to switch AI mode:', response.error);
+        // Optionally show error notification to user
+      }
+    } catch (error: any) {
+      console.error('Error switching AI mode:', error);
+      // Fallback: still update local state even if backend call fails
+      setAiMode(mode);
+      localStorage.setItem('ai_mode', mode);
+    }
   };
 
   // Generate breadcrumbs from current path

@@ -39,6 +39,7 @@ export ENABLE_ASYNC_FILE_PROCESSING=${ENABLE_ASYNC_FILE_PROCESSING:-true}
 
 # Start single worker instance with controlled concurrency
 # This ensures only one worker process (with child workers)
-exec ./venv/bin/celery -A anylab worker -l info -Q ai_queue,default --concurrency=4
+# Use the venv python to avoid stale shebang in celery entrypoint
+exec ./venv/bin/python -m celery -A anylab worker -l info -Q ai_queue,default --concurrency=4
 
 

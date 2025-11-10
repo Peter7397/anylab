@@ -15,6 +15,12 @@ const getApiBaseUrl = () => {
     return `${protocol}//localhost:${port}/api`;
   }
   
+  // If accessing via domain name (anylab.dpdns.org), use same domain without port
+  // Nginx will handle routing to the backend
+  if (hostname === 'anylab.dpdns.org') {
+    return `${protocol}//${hostname}/api`;
+  }
+  
   // Otherwise use the same hostname (for LAN access or any IP access)
   // This ensures if you access via 192.168.1.216:3000, it connects to 192.168.1.216:8001
   return `${protocol}//${hostname}:${port}/api`;
@@ -1120,26 +1126,10 @@ class ApiClient {
       formData.append('description', description);
     }
 
-    const url = `${this.baseURL}/ai/pdfs/upload/`;
-    const headers: HeadersInit = {};
-    
-    const token = this.getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Upload failed: ${response.status}`);
-    }
-
-    return response.json();
+    // Use the post method which handles FormData and authentication properly
+    // This ensures token refresh logic is applied and errors are handled consistently
+    const response = await this.post('/ai/pdfs/upload/', formData);
+    return response.data;
   }
 
   async getPDFs(): Promise<any> {
@@ -1223,12 +1213,12 @@ class ApiClient {
       processing_started_at?: string | null;
       processing_completed_at?: string | null;
       progress_percentage?: number;
-    }>(`/ai/docs/files/${fileId}/status/`);
+    }>(`/ai/documents/files/${fileId}/status/`);
     return response.data;
   }
 
   async retryFileProcessing(fileId: number): Promise<{ uploaded_file_id: number; status: string }>{
-    const response = await this.request<{ uploaded_file_id: number; status: string }>(`/ai/docs/files/${fileId}/retry/`, {
+    const response = await this.request<{ uploaded_file_id: number; status: string }>(`/ai/documents/files/${fileId}/retry/`, {
       method: 'POST',
     });
     return response.data;
@@ -1262,26 +1252,10 @@ class ApiClient {
       formData.append('version', version);
     }
 
-    const url = `${this.baseURL}/ai/documents/upload/`;
-    const headers: HeadersInit = {};
-    
-    const token = this.getAuthToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Upload failed: ${response.status}`);
-    }
-
-    return response.json();
+    // Use the post method which handles FormData and authentication properly
+    // This ensures token refresh logic is applied and errors are handled consistently
+    const response = await this.post('/ai/documents/upload/', formData);
+    return response.data;
   }
 
   async downloadDocument(docId: number): Promise<Blob> {
@@ -1332,6 +1306,13 @@ class ApiClient {
     }
     const response = await this.request(url);
     return response.data;
+  }
+
+  async getAvailableProducts(): Promise<{ products: Array<{ product_category: string; document_count: number }> }> {
+    const response = await this.request<{ products: Array<{ product_category: string; document_count: number }> }>(
+      '/ai/products/available/'
+    );
+    return response.data as any;
   }
 
   async searchDocuments(query: string, searchType: 'title' | 'content' | 'both' = 'both', documentType: string = 'all'): Promise<any> {
@@ -1390,6 +1371,14 @@ class ApiClient {
     const response = await this.request('/ai/admin/settings/test-connection/', {
       method: 'POST',
       body: JSON.stringify({ type, config })
+    });
+    return response.data;
+  }
+
+  async switchAIMode(mode: 'performance' | 'lightweight'): Promise<any> {
+    const response = await this.request('/ai/admin/settings/switch-ai-mode/', {
+      method: 'POST',
+      body: JSON.stringify({ mode })
     });
     return response.data;
   }

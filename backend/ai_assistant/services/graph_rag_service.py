@@ -37,19 +37,27 @@ class GraphRAGService(ComprehensiveRAGService):
         Steps:
         1. Vector similarity search (existing)
         2. Extract entities from query
-        3. Graph-based document search
+        3. Graph-based document search (with semantic matching)
         4. Merge and rerank results
+        
+        Returns enhanced results with semantic entity information
         """
         try:
             # Step 1: Vector similarity search (existing comprehensive search)
             vector_results = self.search_for_comprehensive_results(query, top_k=top_k * 2)
             
+            # Boost scores for chunks with high importance
+            vector_results = self._boost_important_chunks(vector_results)
+            
             logger.info(f"Vector search found {len(vector_results)} results")
             
-            # Step 2: Graph-based search
+            # Step 2: Graph-based search (now includes semantic entity matching)
             graph_results = self.graph_query_service.find_documents_by_entities(query, max_results=top_k)
             
             logger.info(f"Graph search found {len(graph_results)} results")
+            
+            # Store entity information for later use
+            self._query_entity_info = self._extract_entity_information(graph_results)
             
             # Step 3: Merge results
             merged_results = self._merge_vector_and_graph_results(vector_results, graph_results, top_k)
@@ -64,7 +72,39 @@ class GraphRAGService(ComprehensiveRAGService):
         except Exception as e:
             logger.error(f"Error in hybrid graph search: {e}", exc_info=True)
             # Fallback to vector search only
+            self._query_entity_info = {'exact_matches': 0, 'semantic_matches': 0, 'entities': []}
             return self.search_for_comprehensive_results(query, top_k)
+    
+    def _extract_entity_information(self, graph_results: List[Dict]) -> Dict[str, Any]:
+        """Extract and summarize entity match information from graph results"""
+        exact_matches = []
+        semantic_matches = []
+        
+        for result in graph_results:
+            matched_entities = result.get('matched_entities', [])
+            for entity in matched_entities:
+                if entity.get('semantic_match', False):
+                    semantic_matches.append({
+                        'name': entity.get('name'),
+                        'type': entity.get('type'),
+                        'similarity': entity.get('similarity', 0)
+                    })
+                else:
+                    exact_matches.append({
+                        'name': entity.get('name'),
+                        'type': entity.get('type')
+                    })
+        
+        # Remove duplicates
+        exact_matches = [dict(t) for t in {tuple(d.items()) for d in exact_matches}]
+        semantic_matches = [dict(t) for t in {tuple(d.items()) for d in semantic_matches}]
+        
+        return {
+            'exact_matches': len(exact_matches),
+            'semantic_matches': len(semantic_matches),
+            'exact_entities': exact_matches[:10],  # Top 10
+            'semantic_entities': semantic_matches[:10]  # Top 10
+        }
     
     def _merge_vector_and_graph_results(
         self, 
@@ -243,6 +283,7 @@ class GraphRAGService(ComprehensiveRAGService):
         Complete Graph RAG pipeline
         
         Combines vector search + graph traversal for enhanced retrieval and response
+        Now includes semantic entity matching information
         """
         try:
             # Create cache key
@@ -255,8 +296,19 @@ class GraphRAGService(ComprehensiveRAGService):
                 logger.info(f"Using cached graph RAG result: {query[:30]}...")
                 return cached_result
             
+            # Initialize entity info
+            self._query_entity_info = {'exact_matches': 0, 'semantic_matches': 0, 'exact_entities': [], 'semantic_entities': []}
+            
             # Hybrid search with graph
             relevant_docs = self.hybrid_search_with_graph(query, top_k)
+            
+            # Get entity information from the search
+            entity_info = getattr(self, '_query_entity_info', {
+                'exact_matches': 0, 
+                'semantic_matches': 0,
+                'exact_entities': [],
+                'semantic_entities': []
+            })
             
             if not relevant_docs:
                 response = "I don't have enough information in my knowledge base to provide an answer."
@@ -269,8 +321,11 @@ class GraphRAGService(ComprehensiveRAGService):
                         "vector_results": 0,
                         "graph_results": 0,
                         "merged_results": 0,
-                        "graph_enhanced": 0
-                    }
+                        "graph_enhanced": 0,
+                        "semantic_entity_matches": 0,
+                        "exact_entity_matches": 0
+                    },
+                    "entity_matches": entity_info
                 }
             else:
                 # Generate enhanced prompt
@@ -291,7 +346,15 @@ class GraphRAGService(ComprehensiveRAGService):
                         "total_results": len(relevant_docs),
                         "graph_enhanced": graph_enhanced_count,
                         "vector_only": len(relevant_docs) - graph_enhanced_count,
-                        "query_entities": relevant_docs[0].get('graph_context', {}).get('query_entities', []) if relevant_docs else []
+                        "query_entities": relevant_docs[0].get('graph_context', {}).get('query_entities', []) if relevant_docs else [],
+                        "semantic_entity_matches": entity_info.get('semantic_matches', 0),
+                        "exact_entity_matches": entity_info.get('exact_matches', 0)
+                    },
+                    "entity_matches": {
+                        "exact_entities": entity_info.get('exact_entities', []),
+                        "semantic_entities": entity_info.get('semantic_entities', []),
+                        "total_exact": entity_info.get('exact_matches', 0),
+                        "total_semantic": entity_info.get('semantic_matches', 0)
                     }
                 }
             
@@ -323,6 +386,40 @@ class GraphRAGService(ComprehensiveRAGService):
                 "search_method": "error",
                 "graph_stats": {"error": str(e)}
             }
+    
+    def _boost_important_chunks(self, results: List[Dict]) -> List[Dict]:
+        """
+        Boost scores for chunks containing important information
+        
+        Looks for chunks with:
+        - High entity importance scores
+        - Summary/conclusion sections
+        - Key points and important notes
+        """
+        for result in results:
+            content = result.get('content', '').lower()
+            current_score = result.get('final_rerank_score', result.get('hybrid_score', 0))
+            
+            # Boost for important sections
+            importance_keywords = [
+                'summary', 'conclusion', 'overview', 'key point', 'important',
+                'note:', 'warning:', 'caution:', 'critical'
+            ]
+            
+            boost = 1.0
+            for keyword in importance_keywords:
+                if keyword in content:
+                    boost += 0.1  # 10% boost per important keyword
+            
+            # Apply boost
+            if boost > 1.0:
+                result['final_rerank_score'] = current_score * min(boost, 1.3)  # Max 30% boost
+                result['importance_boost'] = True
+        
+        # Re-sort by boosted scores
+        results.sort(key=lambda x: x.get('final_rerank_score', x.get('hybrid_score', 0)), reverse=True)
+        
+        return results
 
 
 # Global Graph RAG service instance

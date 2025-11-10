@@ -44,6 +44,7 @@ import {
         ToggleRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { apiClient } from '../../services/api';
 import TrimmedImage from '../ui/TrimmedImage';
 
 interface SidebarProps {
@@ -223,18 +224,6 @@ const labInformaticsNavigation = [
                 ],
         },
         {
-                name: 'Troubleshooting',
-                href: '/troubleshooting/overview',
-                icon: AlertTriangle,
-                children: [
-                        { name: 'Critical Issues', href: '/troubleshooting/critical', icon: AlertTriangle },
-                        { name: 'Common Issues', href: '/troubleshooting/common', icon: Monitor },
-                        { name: 'Error Codes', href: '/troubleshooting/error-codes', icon: FileSearch },
-                        { name: 'KPR Database', href: '/troubleshooting/kpr', icon: Database },
-                        { name: 'Solution Finder', href: '/troubleshooting/solutions', icon: Search },
-                ],
-        },
-        {
                 name: 'Administration',
                 href: '/admin/users',
                 icon: Settings,
@@ -255,6 +244,32 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 const saved = localStorage.getItem('anylab_organization_mode');
                 return (saved as OrganizationMode) || 'general';
         });
+
+        const [availableCategories, setAvailableCategories] = useState<Set<string>>(new Set());
+        const [discoveredCategories, setDiscoveredCategories] = useState<string[]>([]);
+
+        // Load available product categories once authenticated
+        useEffect(() => {
+                const loadAvailable = async () => {
+                        if (loading) return;
+                        try {
+                                const data = await apiClient.getAvailableProducts();
+                                const cats = new Set<string>((data.products || []).map((p: any) => String(p.product_category).toLowerCase()));
+                                setAvailableCategories(cats);
+
+                                // Track categories not present in static navigation (for lab-informatics mode)
+                                const knownCats = new Set<string>([
+                                        'openlab','masshunter','vnmrj','gc','lc','ms','nmr','spectroscopy'
+                                ]);
+                                const discovered: string[] = [];
+                                cats.forEach(c => { if (!knownCats.has(c)) discovered.push(c); });
+                                setDiscoveredCategories(discovered.sort());
+                        } catch (e) {
+                                // Ignore errors; sidebar will show defaults
+                        }
+                };
+                loadAvailable();
+        }, [loading]);
 
         // Debug logging (remove in production)
         useEffect(() => {
@@ -284,7 +299,67 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 setOrganizationMode(prev => prev === 'general' ? 'lab-informatics' : 'general');
         };
 
-        const navigation = organizationMode === 'general' ? generalAgilentNavigation : labInformaticsNavigation;
+        // Helper: extract top-level category from href
+        const extractCategory = (href: string): { domain: 'lab'|'prod'|null; category: string|null } => {
+                if (href.startsWith('/lab-informatics/')) {
+                        const parts = href.split('/').filter(Boolean);
+                        return { domain: 'lab', category: parts[1] || null };
+                }
+                if (href.startsWith('/products/')) {
+                        const parts = href.split('/').filter(Boolean);
+                        return { domain: 'prod', category: parts[1] || null };
+                }
+                return { domain: null, category: null };
+        };
+
+        const baseNavigation = organizationMode === 'general' ? generalAgilentNavigation : labInformaticsNavigation;
+
+        // Map backend product_category to route /lab-informatics/:suite/:product
+        const categoryToRoute = (category: string): string => {
+                const c = (category || '').toLowerCase();
+                // Known mappings
+                const map: Record<string, [string, string]> = {
+                        'openlab_cds': ['openlab','cds'],
+                        'openlab_ecm': ['openlab','ecm'],
+                        'openlab_eln': ['openlab','eln'],
+                        'openlab_server': ['openlab','server'],
+                        'masshunter_workstation': ['masshunter','workstation'],
+                        'masshunter_quantitative': ['masshunter','quantitative'],
+                        'masshunter_qualitative': ['masshunter','qualitative'],
+                        'masshunter_bioconfirm': ['masshunter','bioconfirm'],
+                        'masshunter_metabolomics': ['masshunter','metabolomics'],
+                        'vnmrj_current': ['vnmrj','current'],
+                        'vnmrj_legacy': ['vnmrj','legacy'],
+                };
+                if (map[c]) {
+                        const [suite, product] = map[c];
+                        return `/lab-informatics/${suite}/${product}`;
+                }
+                // Fallback: split at first underscore
+                const idx = c.indexOf('_');
+                if (idx > 0) {
+                        const suite = c.slice(0, idx);
+                        const product = c.slice(idx + 1);
+                        return `/lab-informatics/${suite}/${product}`;
+                }
+                // Last resort: direct under lab-informatics
+                return `/lab-informatics/${c}/general`;
+        };
+
+        // Filter out items with no available content based on category presence
+        const navigation = baseNavigation
+                .map((item: any) => {
+                        const { category } = extractCategory(item.href);
+                        // If item maps to a category, hide when not available (unless no availability loaded yet)
+                        if (category && availableCategories.size > 0) {
+                                const present = availableCategories.has(category.toLowerCase());
+                                if (!present) {
+                                        return null;
+                                }
+                        }
+                        return item;
+                })
+                .filter(Boolean) as any[];
 
         const routeFeatureMap = (href: string): string | null => {
                 if (href.startsWith('/admin/')) return 'admin';
@@ -396,7 +471,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                 />
                                                 <div>
                                                         <h1 className="text-xl font-bold text-gray-900">AnyLab</h1>
-                                                        <p className="text-xs text-gray-500">AI Next to Your Lab</p>
+                                                        <p className="text-xs text-gray-500">Smart Knowledge, Securely in Your Lab</p>
                                                 </div>
                                         </div>
                                 )}
@@ -559,6 +634,22 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                 </div>
                                         );
                                 })}
+
+                                {/* Discovered products (not in static lists) */}
+                                {!collapsed && discoveredCategories.length > 0 && organizationMode === 'lab-informatics' && (
+                                        <div className="mt-4">
+                                                <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Discovered Products</div>
+                                                <div className="mt-2 space-y-1 ml-0">
+                                                        {discoveredCategories.map((cat) => (
+                                                                <Link key={cat} to={categoryToRoute(cat)}
+                                                                        className={`sidebar-item sidebar-item-inactive`}>
+                                                                        <Code size={18} className="mr-3" />
+                                                                        <span className="flex-1">{cat.replace(/-/g,' ').toUpperCase()}</span>
+                                                                </Link>
+                                                        ))}
+                                                </div>
+                                        </div>
+                                )}
                         </nav>
                 </div>
         );

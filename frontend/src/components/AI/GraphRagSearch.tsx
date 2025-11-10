@@ -44,6 +44,15 @@ interface GraphStats {
   graph_enhanced: number;
   vector_only: number;
   query_entities: Array<{ name: string; type: string; normalized?: string }>;
+  semantic_entity_matches?: number;
+  exact_entity_matches?: number;
+}
+
+interface EntityMatches {
+  exact_entities: Array<{ name: string; type: string }>;
+  semantic_entities: Array<{ name: string; type: string; similarity: number }>;
+  total_exact: number;
+  total_semantic: number;
 }
 
 const GraphRagSearch: React.FC = () => {
@@ -64,6 +73,7 @@ const GraphRagSearch: React.FC = () => {
   }>>([]);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [graphStats, setGraphStats] = useState<GraphStats | null>(null);
+  const [entityMatches, setEntityMatches] = useState<EntityMatches | null>(null);
   const [performanceStats, setPerformanceStats] = useState<any>(null);
   const [currentQuery, setCurrentQuery] = useState<string>('');
   const [showGraphModal, setShowGraphModal] = useState(false);
@@ -174,6 +184,11 @@ const GraphRagSearch: React.FC = () => {
         if (res.graph_stats.query_entities.length > 0) {
           setShowEntities(true);
         }
+      }
+      
+      // Set entity matches information
+      if (res.entity_matches) {
+        setEntityMatches(res.entity_matches);
       }
 
       setPerformanceStats({

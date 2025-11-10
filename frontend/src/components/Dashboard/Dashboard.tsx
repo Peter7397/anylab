@@ -11,7 +11,11 @@ import {
   Database,
   Search,
   Loader,
-  RefreshCw
+  RefreshCw,
+  Network,
+  Sparkles,
+  Tag,
+  GitBranch
 } from 'lucide-react';
 import { System } from '../../types';
 import { apiClient } from '../../services/api';
@@ -130,6 +134,97 @@ const Dashboard: React.FC = () => {
           );
         })}
       </div>
+
+      {/* GraphRAG Section */}
+      {stats?.graphrag && (
+        <div className="card bg-gradient-to-br from-green-50 to-blue-50">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Network className="text-green-600" size={24} />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">GraphRAG Knowledge Graph</h2>
+                <p className="text-sm text-gray-600">Entity embeddings & semantic search</p>
+              </div>
+            </div>
+          </div>
+
+          {/* GraphRAG Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            {/* Entity Embeddings */}
+            <div className="bg-white rounded-lg p-4 border border-green-200">
+              <div className="flex items-center justify-between mb-2">
+                <Sparkles className="text-purple-600" size={20} />
+                <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
+                  {stats.graphrag.entities.coverage_percentage}%
+                </span>
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{stats.graphrag.entities.with_embeddings}</p>
+              <p className="text-sm text-gray-600">Entity Embeddings</p>
+              <div className="mt-2 bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${stats.graphrag.entities.coverage_percentage}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Total Entities */}
+            <div className="bg-white rounded-lg p-4 border border-green-200">
+              <Tag className="text-blue-600 mb-2" size={20} />
+              <p className="text-2xl font-bold text-gray-900">{stats.graphrag.entities.total}</p>
+              <p className="text-sm text-gray-600">Total Entities</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.graphrag.entities.without_embeddings} pending
+              </p>
+            </div>
+
+            {/* Graph Nodes */}
+            <div className="bg-white rounded-lg p-4 border border-green-200">
+              <GitBranch className="text-green-600 mb-2" size={20} />
+              <p className="text-2xl font-bold text-gray-900">{stats.graphrag.graph.total_nodes}</p>
+              <p className="text-sm text-gray-600">Graph Nodes</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.graphrag.graph.documents_in_graph} documents
+              </p>
+            </div>
+
+            {/* GraphRAG Queries */}
+            <div className="bg-white rounded-lg p-4 border border-green-200">
+              <Network className="text-indigo-600 mb-2" size={20} />
+              <p className="text-2xl font-bold text-gray-900">{stats.graphrag.queries.today}</p>
+              <p className="text-sm text-gray-600">Queries Today</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {stats.graphrag.queries.total} total
+              </p>
+            </div>
+          </div>
+
+          {/* Recent GraphRAG Queries */}
+          {stats.graphrag.recent_queries && stats.graphrag.recent_queries.length > 0 && (
+            <div className="bg-white rounded-lg p-4 border border-green-200">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+                <Search className="mr-2 text-green-600" size={16} />
+                Recent GraphRAG Queries
+              </h3>
+              <div className="space-y-2">
+                {stats.graphrag.recent_queries.map((query: any) => (
+                  <div key={query.id} className="flex items-start space-x-2 p-2 bg-gray-50 rounded">
+                    <Sparkles className="text-green-600 mt-0.5 flex-shrink-0" size={14} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900 truncate">{query.query}</p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(query.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
