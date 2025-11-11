@@ -102,7 +102,7 @@ const License: React.FC = () => {
         <h2 className="text-lg font-semibold">Import License</h2>
         <form onSubmit={onImport} className="mt-3 flex items-center gap-3">
           <input type="file" accept=".lic,.json,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
-          <button type="submit" disabled={loading || !file} className={`px-4 py-2 rounded bg-indigo-600 text-white text-sm ${(!file||loading)?'opacity-60 cursor-not-allowed':''}`}>Import</button>
+          <button type="submit" disabled={loading || !file} className={`px-4 py-2 rounded bg-primary-600 text-white text-sm ${(!file||loading)?'opacity-60 cursor-not-allowed':''}`}>Import</button>
         </form>
         <p className="text-xs text-gray-500 mt-2">Any authenticated user can import a license. Only admins can view the full list and perform admin actions.</p>
       </div>

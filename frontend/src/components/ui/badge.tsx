@@ -15,7 +15,7 @@ export const Badge: React.FC<BadgeProps> = ({
   
   const variantClasses = {
     brand: 'bg-primary-50 text-primary-800',
-    info: 'bg-blue-50 text-blue-800',
+    info: 'bg-emerald-50 text-emerald-800',
     warn: 'bg-warning-50 text-warning-800',
     danger: 'bg-danger-50 text-danger-800',
     neutral: 'bg-gray-100 text-gray-800',

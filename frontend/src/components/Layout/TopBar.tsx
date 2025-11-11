@@ -157,11 +157,23 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                 <div className="py-1">
-                  <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                  <button 
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigate('/profile');
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
                     <User size={16} className="mr-3" />
                     Profile
                   </button>
-                  <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                  <button 
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      navigate('/settings');
+                    }}
+                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                  >
                     <Settings size={16} className="mr-3" />
                     Settings
                   </button>

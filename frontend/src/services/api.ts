@@ -434,6 +434,14 @@ class ApiClient {
     return user;
   }
 
+  async updateCurrentUser(userData: Partial<User>): Promise<User> {
+    const response = await this.request<{ user: User }>('/users/profile/', {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    });
+    return (response.data as any).user as User;
+  }
+
   // Health Check
   async healthCheck(): Promise<any> {
     const response = await fetch(`${this.baseURL}/health/`);

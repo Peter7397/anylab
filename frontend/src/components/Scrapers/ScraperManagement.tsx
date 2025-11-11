@@ -211,13 +211,13 @@ const ScraperManagement: React.FC = () => {
                 <div className="flex items-start">
                   <div className={`p-3 rounded-lg ${
                     key === 'ssb' ? 'bg-blue-100' :
-                    key === 'github' ? 'bg-purple-100' :
+                    key === 'github' ? 'bg-lime-100' :
                     key === 'forum' ? 'bg-green-100' :
                     'bg-yellow-100'
                   }`}>
                     <Icon className={
                       key === 'ssb' ? 'text-blue-600' :
-                      key === 'github' ? 'text-purple-600' :
+                      key === 'github' ? 'text-lime-600' :
                       key === 'forum' ? 'text-green-600' :
                       'text-yellow-600'
                     } size={32} />

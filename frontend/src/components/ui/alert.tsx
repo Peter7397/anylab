@@ -14,7 +14,7 @@ export const Alert: React.FC<AlertProps> = ({
   const baseClasses = 'relative w-full rounded-lg border p-4';
   
   const variantClasses = {
-    default: 'bg-blue-50 border-blue-200 text-blue-800',
+    default: 'bg-emerald-50 border-emerald-200 text-emerald-800',
     destructive: 'bg-red-50 border-red-200 text-red-800'
   };
 

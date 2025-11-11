@@ -101,20 +101,49 @@ def api_logout(request):
         'message': 'Logout successful'
     }, status=status.HTTP_200_OK)
 
-@api_view(['GET'])
+@api_view(['GET', 'PUT'])
 @permission_classes([IsAuthenticated])
 def user_profile(request):
-    """Get current user profile"""
-    return Response({
-        'user': {
-            'id': request.user.id,
-            'username': request.user.username,
-            'email': request.user.email,
-            'is_staff': request.user.is_staff,
-            'is_superuser': getattr(request.user, 'is_superuser', False),
-            'date_joined': request.user.date_joined,
-        }
-    })
+    """Get or update current user profile"""
+    if request.method == 'GET':
+        return Response({
+            'user': {
+                'id': request.user.id,
+                'username': request.user.username,
+                'email': request.user.email,
+                'first_name': request.user.first_name,
+                'last_name': request.user.last_name,
+                'employee_id': request.user.employee_id,
+                'department': request.user.department,
+                'position': request.user.position,
+                'phone': request.user.phone,
+                'is_staff': request.user.is_staff,
+                'is_superuser': getattr(request.user, 'is_superuser', False),
+                'date_joined': request.user.date_joined,
+            }
+        })
+    
+    # PUT - Update current user profile
+    serializer = UserUpdateSerializer(request.user, data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response({
+            'user': {
+                'id': request.user.id,
+                'username': request.user.username,
+                'email': request.user.email,
+                'first_name': request.user.first_name,
+                'last_name': request.user.last_name,
+                'employee_id': request.user.employee_id,
+                'department': request.user.department,
+                'position': request.user.position,
+                'phone': request.user.phone,
+                'is_staff': request.user.is_staff,
+                'is_superuser': getattr(request.user, 'is_superuser', False),
+                'date_joined': request.user.date_joined,
+            }
+        })
+    return Response({'error': 'Validation error', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])

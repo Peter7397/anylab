@@ -78,7 +78,7 @@
     @apply bg-primary-50 text-primary-700 border-primary-200;
   }
   .badge-info {
-    @apply bg-blue-50 text-blue-700 border-blue-200;
+    @apply bg-emerald-50 text-emerald-700 border-emerald-200;
   }
   .badge-warn {
     @apply bg-warning-50 text-warning-800 border-warning-200;

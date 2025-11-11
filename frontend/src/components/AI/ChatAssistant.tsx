@@ -82,8 +82,8 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
   if (isLegacyFormat) {
     // Legacy format - just display as strings
     return (
-      <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-        <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center">
+      <div className="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+        <h4 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center">
           <FileText size={14} className="mr-1" />
           参考文献 ({sources.length})
         </h4>
@@ -102,8 +102,8 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
   const mostRelevantSource = sources[0];
   
   return (
-    <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-      <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center">
+    <div className="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
+      <h4 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center">
         <FileText size={14} className="mr-1" />
         最相关参考文献
       </h4>
@@ -126,7 +126,7 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
           {mostRelevantSource.uploaded_file_id && (
             <button
               onClick={() => handleViewDocument(mostRelevantSource)}
-              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
+              className="p-1 text-primary-600 hover:text-primary-800 hover:bg-primary-100 rounded transition-colors"
               title="在查看器中打开文档"
             >
               <Eye size={14} />
@@ -135,7 +135,7 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
           {mostRelevantSource.download_url && (
             <button
               onClick={() => handleDownload(mostRelevantSource.download_url, mostRelevantSource.filename || mostRelevantSource.title || 'document')}
-              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
+              className="p-1 text-primary-600 hover:text-primary-800 hover:bg-primary-100 rounded transition-colors"
               title="下载文档"
             >
               <Download size={14} />
@@ -492,8 +492,8 @@ const ChatAssistant: React.FC = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <MessageSquare className="h-6 w-6 text-blue-600" />
+            <div className="p-2 bg-primary-100 rounded-lg">
+              <MessageSquare className="h-6 w-6 text-primary-600" />
             </div>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">Free AI Chat</h1>
@@ -504,7 +504,7 @@ const ChatAssistant: React.FC = () => {
             {performanceStats && (
               <button
                 onClick={() => setShowPerformanceStats(!showPerformanceStats)}
-                className="flex items-center px-3 py-1 text-sm text-blue-600 hover:text-blue-700"
+                className="flex items-center px-3 py-1 text-sm text-primary-600 hover:text-primary-700"
               >
                 <Zap className="mr-1 h-4 w-4" />
                 Performance
@@ -523,25 +523,25 @@ const ChatAssistant: React.FC = () => {
 
       {/* Performance Stats */}
       {showPerformanceStats && performanceStats && (
-        <div className="bg-blue-50 border-b border-blue-200 px-6 py-3">
+        <div className="bg-emerald-50 border-b border-emerald-200 px-6 py-3">
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center space-x-4">
               <span className="flex items-center">
-                <Clock className="mr-1 h-4 w-4 text-blue-600" />
+                <Clock className="mr-1 h-4 w-4 text-primary-600" />
                 Response: {performanceStats.responseTime}ms
               </span>
               <span className="flex items-center">
-                <Target className="mr-1 h-4 w-4 text-blue-600" />
+                <Target className="mr-1 h-4 w-4 text-primary-600" />
                 Model: {performanceStats.ollama_model}
               </span>
               <span className="flex items-center">
-                <FileText className="mr-1 h-4 w-4 text-blue-600" />
+                <FileText className="mr-1 h-4 w-4 text-primary-600" />
                 Queries: {performanceStats.recent_queries?.total_queries || 0}
               </span>
             </div>
             <button
               onClick={() => setShowPerformanceStats(false)}
-              className="text-blue-600 hover:text-blue-700"
+              className="text-primary-600 hover:text-primary-700"
             >
               <X className="h-4 w-4" />
             </button>
@@ -572,7 +572,7 @@ const ChatAssistant: React.FC = () => {
                     <div className={`flex-1 ${message.type === 'user' ? 'text-right' : 'text-left'}`}>
                       <div className={`inline-block max-w-3xl rounded-lg px-4 py-2 ${
                         message.type === 'user' 
-                          ? 'bg-blue-600 text-white' 
+                          ? 'bg-primary-600 text-white' 
                           : 'bg-white border border-gray-200'
                       }`}>
                         <div className="flex items-start justify-between">
@@ -619,7 +619,7 @@ const ChatAssistant: React.FC = () => {
                         </div>
                         
                         <p className={`text-xs mt-2 ${
-                          message.type === 'user' ? 'text-blue-200' : 'text-gray-500'
+                          message.type === 'user' ? 'text-emerald-200' : 'text-gray-500'
                         }`}>
                           {new Date(message.timestamp).toLocaleString()}
                         </p>
@@ -634,7 +634,7 @@ const ChatAssistant: React.FC = () => {
               <div className="flex justify-start">
                 <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
                   <div className="flex items-center space-x-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
                     <span className="text-gray-600">AI is thinking...</span>
                   </div>
                 </div>
@@ -653,7 +653,7 @@ const ChatAssistant: React.FC = () => {
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleComposerKeyPress}
                   placeholder="Ask anything (Free AI Chat)..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   rows={3}
                   disabled={isLoading}
                 />
@@ -661,7 +661,7 @@ const ChatAssistant: React.FC = () => {
               <button
                 onClick={handleSendMessage}
                 disabled={!inputMessage.trim() || isLoading}
-                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="h-5 w-5" />
               </button>
@@ -681,7 +681,7 @@ const ChatAssistant: React.FC = () => {
                 <h3 className="text-lg font-medium text-gray-900">Chat History</h3>
                 <button
                   onClick={() => refreshUnifiedHistory()}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-primary-600 hover:text-primary-700"
                 >
                   Refresh
                 </button>

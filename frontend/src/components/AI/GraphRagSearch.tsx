@@ -302,20 +302,20 @@ const GraphRagSearch: React.FC = () => {
     if (source === 'vector+graph') {
       return 'bg-green-100 text-green-800 border-green-300';
     } else if (source === 'graph') {
-      return 'bg-purple-100 text-purple-800 border-purple-300';
+      return 'bg-lime-100 text-lime-800 border-lime-300';
     }
-    return 'bg-blue-100 text-blue-800 border-blue-300';
+    return 'bg-emerald-100 text-emerald-800 border-emerald-300';
   };
 
   const getEntityTypeColor = (type: string) => {
     const colors: { [key: string]: string } = {
-      'PRODUCT': 'bg-indigo-100 text-indigo-800',
-      'VERSION': 'bg-blue-100 text-blue-800',
+      'PRODUCT': 'bg-primary-100 text-primary-800',
+      'VERSION': 'bg-teal-100 text-teal-800',
       'ERROR_CODE': 'bg-red-100 text-red-800',
       'SOLUTION': 'bg-green-100 text-green-800',
       'PROBLEM': 'bg-orange-100 text-orange-800',
       'OS': 'bg-yellow-100 text-yellow-800',
-      'DATABASE': 'bg-purple-100 text-purple-800',
+      'DATABASE': 'bg-lime-100 text-lime-800',
     };
     return colors[type] || 'bg-gray-100 text-gray-800';
   };
@@ -364,7 +364,7 @@ const GraphRagSearch: React.FC = () => {
             {graphStats && graphStats.query_entities.length > 0 && (
               <button
                 onClick={() => setShowEntities(!showEntities)}
-                className="flex items-center px-3 py-1 text-sm text-indigo-600 hover:text-indigo-700"
+                className="flex items-center px-3 py-1 text-sm text-teal-600 hover:text-teal-700"
               >
                 <Tag className="mr-1 h-4 w-4" />
                 Entities
@@ -395,12 +395,12 @@ const GraphRagSearch: React.FC = () => {
                 <span className="font-medium text-green-700">Graph-Enhanced: {graphStats.graph_enhanced}</span>
               </span>
               <span className="flex items-center">
-                <FileText className="mr-1 h-4 w-4 text-blue-600" />
+                <FileText className="mr-1 h-4 w-4 text-emerald-600" />
                 Vector Only: {graphStats.vector_only}
               </span>
               {graphStats.query_entities.length > 0 && (
                 <span className="flex items-center">
-                  <Tag className="mr-1 h-4 w-4 text-indigo-600" />
+                  <Tag className="mr-1 h-4 w-4 text-teal-600" />
                   Entities: {graphStats.query_entities.length}
                 </span>
               )}
@@ -417,12 +417,12 @@ const GraphRagSearch: React.FC = () => {
 
       {/* Entity Panel */}
       {showEntities && graphStats && graphStats.query_entities.length > 0 && (
-        <div className="bg-indigo-50 border-b border-indigo-200 px-6 py-3">
+        <div className="bg-teal-50 border-b border-teal-200 px-6 py-3">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-indigo-900">Extracted Entities</h3>
+            <h3 className="text-sm font-medium text-teal-900">Extracted Entities</h3>
             <button
               onClick={() => setShowEntities(false)}
-              className="text-indigo-600 hover:text-indigo-700"
+              className="text-teal-600 hover:text-teal-700"
             >
               <ChevronUp className="h-4 w-4" />
             </button>
@@ -703,13 +703,13 @@ const GraphRagSearch: React.FC = () => {
                         <p className="text-sm text-gray-600">Nodes</p>
                         <p className="text-2xl font-bold text-green-600">{graphData.stats.total_nodes}</p>
                       </div>
-                      <div className="bg-blue-50 rounded-lg p-4">
+                      <div className="bg-emerald-50 rounded-lg p-4">
                         <p className="text-sm text-gray-600">Relationships</p>
-                        <p className="text-2xl font-bold text-blue-600">{graphData.stats.total_edges}</p>
+                        <p className="text-2xl font-bold text-emerald-600">{graphData.stats.total_edges}</p>
                       </div>
-                      <div className="bg-indigo-50 rounded-lg p-4">
+                      <div className="bg-teal-50 rounded-lg p-4">
                         <p className="text-sm text-gray-600">Query Entities</p>
-                        <p className="text-2xl font-bold text-indigo-600">{graphData.stats.query_entities}</p>
+                        <p className="text-2xl font-bold text-teal-600">{graphData.stats.query_entities}</p>
                       </div>
                     </div>
                   )}
@@ -754,7 +754,7 @@ const GraphRagSearch: React.FC = () => {
                         {graphData.nodes.filter((n: any) => n.group === 'related_entity').length > 0 && (
                           <div className="mb-6">
                             <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                              <GitBranch className="mr-2 h-4 w-4 text-indigo-600" />
+                              <GitBranch className="mr-2 h-4 w-4 text-teal-600" />
                               Related Entities
                             </h4>
                             <div className="flex flex-wrap gap-2">
@@ -779,7 +779,7 @@ const GraphRagSearch: React.FC = () => {
                         {graphData.nodes.filter((n: any) => n.type === 'document').length > 0 && (
                           <div>
                             <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                              <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                              <FileText className="mr-2 h-4 w-4 text-emerald-600" />
                               Related Documents
                             </h4>
                             <div className="space-y-2">
@@ -788,7 +788,7 @@ const GraphRagSearch: React.FC = () => {
                                 .map((node: any) => (
                                   <div
                                     key={node.id}
-                                    className="px-3 py-2 bg-blue-50 border border-blue-200 text-blue-800 rounded text-sm"
+                                    className="px-3 py-2 bg-emerald-50 border border-blue-200 text-blue-800 rounded text-sm"
                                   >
                                     {node.label}
                                   </div>

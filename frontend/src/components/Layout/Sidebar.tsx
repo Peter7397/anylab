@@ -3,6 +3,8 @@ import { Link, useLocation } from 'react-router-dom';
 import {
         Settings,
         MessageSquare,
+        MessageCircle,
+        Sparkles,
         Wrench,
         ChevronLeft,
         ChevronRight,
@@ -75,7 +77,7 @@ const generalAgilentNavigation = [
         {
                 name: 'AI Assistant',
                 href: '/ai/chat',
-                icon: MessageSquare,
+                icon: Sparkles,
                 children: [
                         { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
                         { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
@@ -88,7 +90,7 @@ const generalAgilentNavigation = [
         {
                 name: 'Forum',
                 href: '/forum',
-                icon: MessageSquare,
+                icon: MessageCircle,
         },
         {
                 name: 'Gas Chromatography',
@@ -175,7 +177,7 @@ const labInformaticsNavigation = [
         {
                 name: 'AI Assistant',
                 href: '/ai/chat',
-                icon: MessageSquare,
+                icon: Sparkles,
                 children: [
                         { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
                         { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
@@ -188,7 +190,7 @@ const labInformaticsNavigation = [
         {
                 name: 'Forum',
                 href: '/forum',
-                icon: MessageSquare,
+                icon: MessageCircle,
         },
         {
                 name: 'OpenLab Software Suite',

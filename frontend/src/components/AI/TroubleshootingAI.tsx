@@ -255,8 +255,8 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-orange-100 rounded-lg">
-              <AlertCircle className="h-6 w-6 text-orange-600" />
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <AlertCircle className="h-6 w-6 text-amber-600" />
             </div>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">Troubleshooting AI</h1>
@@ -477,7 +477,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
               <button
                 onClick={handleSend}
                 disabled={isLoading || (!inputMessage.trim() && !uploadedFile)}
-                className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="h-5 w-5" />
               </button>
@@ -520,7 +520,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                         <div className="flex-1">
                           <button
                             onClick={() => { setInputMessage(item.content); setShowHistory(false); }}
-                            className="text-sm font-medium text-gray-900 hover:text-orange-600 transition-colors text-left"
+                            className="text-sm font-medium text-gray-900 hover:text-amber-600 transition-colors text-left"
                           >
                             {item.content}
                           </button>

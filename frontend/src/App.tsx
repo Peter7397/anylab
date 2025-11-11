@@ -29,6 +29,8 @@ import Forum from './components/Forum/Forum';
 import ForumPost from './components/Forum/ForumPost';
 import PostEditor from './components/Forum/PostEditor';
 import HomePage from './components/Home/HomePage';
+import Profile from './components/User/Profile';
+import Settings from './components/User/Settings';
 import { AuthProvider } from './context/AuthContext';
 import RequireFeature from './components/Auth/RequireFeature';
 
@@ -50,6 +52,10 @@ function App() {
                                         <Route path="/forum/post/:id" element={<ForumPost />} />
                                         {/* Dashboard (redirects from / to /dashboard if authenticated) */}
                                         <Route path="/dashboard" element={<Dashboard />} />
+
+                                        {/* User Profile and Settings */}
+                                        <Route path="/profile" element={<Profile />} />
+                                        <Route path="/settings" element={<Settings />} />
 
                                 {/* AI Assistant (requires ai.rag) */}
                                 <Route path="/ai/chat" element={<RequireFeature feature="ai.rag"><ChatAssistant /></RequireFeature>} />

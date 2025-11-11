@@ -39,20 +39,20 @@ const HomePage: React.FC = () => {
   if (isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
       </div>
     );
   }
 
   // Public landing page for unauthenticated users
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-teal-600 rounded-lg flex items-center justify-center">
                 <Brain className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -62,7 +62,7 @@ const HomePage: React.FC = () => {
             </div>
             <Link
               to="/login"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
             >
               <LogIn className="w-4 h-4" />
               Sign In
@@ -74,13 +74,13 @@ const HomePage: React.FC = () => {
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
         <div className="text-center mb-16">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-medium mb-6">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
             AI-Powered Laboratory Knowledge Platform
           </div>
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
             Centralize, Search, and
-            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent"> Collaborate</span>
+            <span className="bg-gradient-to-r from-primary-600 to-teal-600 bg-clip-text text-transparent"> Collaborate</span>
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-8">
             Transform your laboratory documentation into an intelligent knowledge base. 
@@ -89,7 +89,7 @@ const HomePage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               to="/login"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-lg shadow-lg"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-lg shadow-lg"
             >
               Get Started
               <ArrowRight className="w-5 h-5" />
@@ -106,8 +106,8 @@ const HomePage: React.FC = () => {
         {/* Feature Highlights Grid */}
         <div className="grid md:grid-cols-3 gap-6 mb-16">
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-              <Brain className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
+              <Brain className="w-6 h-6 text-primary-600" />
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">AI-Powered Search</h3>
             <p className="text-gray-600">
@@ -126,8 +126,8 @@ const HomePage: React.FC = () => {
             </p>
           </div>
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-              <Database className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 bg-lime-100 rounded-lg flex items-center justify-center mb-4">
+              <Database className="w-6 h-6 text-lime-600" />
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Knowledge Library</h3>
             <p className="text-gray-600">
@@ -150,9 +150,9 @@ const HomePage: React.FC = () => {
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* AI Assistant */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+            <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 border border-emerald-200">
               <div className="flex items-center gap-3 mb-4">
-                <Brain className="w-8 h-8 text-blue-600" />
+                <Brain className="w-8 h-8 text-emerald-600" />
                 <h3 className="text-xl font-bold text-gray-900">AI Assistant</h3>
               </div>
               <p className="text-gray-700 mb-4">
@@ -202,9 +202,9 @@ const HomePage: React.FC = () => {
             </div>
 
             {/* Knowledge Library */}
-            <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-6 border border-purple-200">
+            <div className="bg-gradient-to-br from-lime-50 to-emerald-50 rounded-xl p-6 border border-lime-200">
               <div className="flex items-center gap-3 mb-4">
-                <BookOpen className="w-8 h-8 text-purple-600" />
+                <BookOpen className="w-8 h-8 text-lime-600" />
                 <h3 className="text-xl font-bold text-gray-900">Knowledge Library</h3>
               </div>
               <p className="text-gray-700 mb-4">
@@ -254,9 +254,9 @@ const HomePage: React.FC = () => {
             </div>
 
             {/* Lab Informatics */}
-            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200">
+            <div className="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl p-6 border border-teal-200">
               <div className="flex items-center gap-3 mb-4">
-                <Database className="w-8 h-8 text-indigo-600" />
+                <Database className="w-8 h-8 text-teal-600" />
                 <h3 className="text-xl font-bold text-gray-900">Lab Informatics</h3>
               </div>
               <p className="text-gray-700 mb-4">
@@ -280,9 +280,9 @@ const HomePage: React.FC = () => {
             </div>
 
             {/* Community Forum */}
-            <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl p-6 border border-pink-200">
+            <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
               <div className="flex items-center gap-3 mb-4">
-                <MessageSquare className="w-8 h-8 text-pink-600" />
+                <MessageSquare className="w-8 h-8 text-green-600" />
                 <h3 className="text-xl font-bold text-gray-900">Community Forum</h3>
               </div>
               <p className="text-gray-700 mb-4">
@@ -324,12 +324,12 @@ const HomePage: React.FC = () => {
               <p className="text-sm text-gray-600">Qwen 2.5-7B Model</p>
             </div>
             <div className="bg-white rounded-lg p-6 text-center border border-gray-200">
-              <Layers className="w-10 h-10 text-blue-500 mx-auto mb-3" />
+              <Layers className="w-10 h-10 text-primary-500 mx-auto mb-3" />
               <h4 className="font-semibold text-gray-900 mb-2">pgvector</h4>
               <p className="text-sm text-gray-600">Vector Database</p>
             </div>
             <div className="bg-white rounded-lg p-6 text-center border border-gray-200">
-              <Network className="w-10 h-10 text-purple-500 mx-auto mb-3" />
+              <Network className="w-10 h-10 text-lime-500 mx-auto mb-3" />
               <h4 className="font-semibold text-gray-900 mb-2">Hybrid Search</h4>
               <p className="text-sm text-gray-600">BM25 + Vector</p>
             </div>
@@ -343,18 +343,18 @@ const HomePage: React.FC = () => {
       </section>
 
         {/* CTA Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-indigo-600 py-20">
+      <section className="bg-gradient-to-r from-primary-600 to-teal-600 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl font-bold text-white mb-4">
             Ready to Transform Your Lab Knowledge Management?
           </h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-emerald-100 mb-8 max-w-2xl mx-auto">
             Join teams who are already using AI to streamline documentation search, 
             improve troubleshooting, and enhance collaboration.
           </p>
           <Link
             to="/login"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-600 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg shadow-lg"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary-600 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg shadow-lg"
           >
             Get Started Free
             <ArrowRight className="w-5 h-5" />
@@ -368,7 +368,7 @@ const HomePage: React.FC = () => {
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Brain className="w-6 h-6 text-blue-400" />
+                <Brain className="w-6 h-6 text-emerald-400" />
                 <span className="text-white font-bold text-lg">AnyLab</span>
               </div>
               <p className="text-sm">
@@ -396,7 +396,7 @@ const HomePage: React.FC = () => {
               <h4 className="text-white font-semibold mb-4">Get Started</h4>
               <Link
                 to="/login"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
               >
                 Sign In
                 <ArrowRight className="w-4 h-4" />

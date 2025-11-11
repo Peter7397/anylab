@@ -701,7 +701,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                 </button>
                 <button
                   onClick={testTextExtraction}
-                  className="px-2 py-1 text-sm bg-purple-500 text-white border border-purple-500 rounded hover:bg-purple-600"
+                  className="px-2 py-1 text-sm bg-lime-500 text-white border border-purple-500 rounded hover:bg-lime-600"
                 >
                   Extract
                 </button>

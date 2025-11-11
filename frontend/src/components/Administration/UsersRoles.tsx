@@ -334,8 +334,8 @@ const UsersRoles: React.FC = () => {
         </div>
         <div className="card">
           <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <Shield className="text-yellow-600" size={24} />
+            <div className="p-2 bg-amber-100 rounded-lg">
+              <Shield className="text-amber-600" size={24} />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Roles</p>

@@ -143,6 +143,8 @@ npm start
 
 - [Backend API Documentation](backend/API_DOCUMENTATION.md)
 - [AI Assistant API Reference](backend/ai_assistant/API_DOCUMENTATION.md)
+- [Chinese Localization Guide](CHINESE_LOCALIZATION_GUIDE.md) - Comprehensive guide for implementing Chinese (Simplified) localization
+- [Backup Guide](BACKUP_GUIDE.md) - Complete backup and restore procedures
 - [Cloudflare Tunnel Setup](CLOUDFLARE_TUNNEL_SETUP.md) - Remote access configuration
 - [Website Integration Documentation](WEBSITE_INTEGRATION_DOCUMENTATION.md)
 - [Quick Start Guide](QUICK_START_GUIDE.md)

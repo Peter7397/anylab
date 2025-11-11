@@ -719,19 +719,19 @@ const HelpPortal: React.FC = () => {
                 </div>
                 <p className="text-2xl font-bold text-red-900 mt-1">{websiteStatistics.failed_websites}</p>
               </div>
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+              <div className="bg-lime-50 rounded-lg p-4 border border-lime-200">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-purple-700">Total Chunks</span>
-                  <FileText className="w-5 h-5 text-purple-600" />
+                  <span className="text-sm font-medium text-lime-700">Total Chunks</span>
+                  <FileText className="w-5 h-5 text-lime-600" />
                 </div>
-                <p className="text-2xl font-bold text-purple-900 mt-1">{websiteStatistics.total_chunks}</p>
+                <p className="text-2xl font-bold text-lime-900 mt-1">{websiteStatistics.total_chunks}</p>
               </div>
-              <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+              <div className="bg-teal-50 rounded-lg p-4 border border-teal-200">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-indigo-700">Success Rate</span>
-                  <CheckCircle className="w-5 h-5 text-indigo-600" />
+                  <span className="text-sm font-medium text-teal-700">Success Rate</span>
+                  <CheckCircle className="w-5 h-5 text-teal-600" />
                 </div>
-                <p className="text-2xl font-bold text-indigo-900 mt-1">{websiteStatistics.success_rate}%</p>
+                <p className="text-2xl font-bold text-teal-900 mt-1">{websiteStatistics.success_rate}%</p>
               </div>
             </div>
           )}

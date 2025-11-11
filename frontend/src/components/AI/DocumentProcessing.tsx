@@ -115,7 +115,7 @@ const DocumentProcessing: React.FC = () => {
             onClick={() => setActiveTab('video')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'video'
-                ? 'border-blue-500 text-blue-600'
+                ? 'border-blue-500 text-emerald-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
@@ -126,7 +126,7 @@ const DocumentProcessing: React.FC = () => {
             onClick={() => setActiveTab('image')}
             className={`py-4 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'image'
-                ? 'border-blue-500 text-blue-600'
+                ? 'border-blue-500 text-emerald-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             }`}
           >
@@ -180,7 +180,7 @@ const DocumentProcessing: React.FC = () => {
                     <div className="flex text-sm text-gray-600">
                       <label
                         htmlFor="file-input"
-                        className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none"
+                        className="relative cursor-pointer bg-white rounded-md font-medium text-emerald-600 hover:text-blue-500 focus-within:outline-none"
                       >
                         <span>Upload a file</span>
                         <input
@@ -267,12 +267,12 @@ const DocumentProcessing: React.FC = () => {
                     <div className="flex-1">
                       <div className="flex items-center">
                         <div className={`p-2 rounded-lg ${
-                          file.type === 'video' ? 'bg-blue-100' : 'bg-purple-100'
+                          file.type === 'video' ? 'bg-emerald-100' : 'bg-lime-100'
                         }`}>
                           {file.type === 'video' ? (
-                            <FileVideo className={`${file.type === 'video' ? 'text-blue-600' : 'text-purple-600'}`} size={20} />
+                            <FileVideo className={`${file.type === 'video' ? 'text-emerald-600' : 'text-lime-600'}`} size={20} />
                           ) : (
-                            <Image className="text-purple-600" size={20} />
+                            <Image className="text-lime-600" size={20} />
                           )}
                         </div>
                         <div className="ml-4">

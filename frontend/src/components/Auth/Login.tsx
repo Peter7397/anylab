@@ -86,7 +86,7 @@ const Login: React.FC = () => {
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
               placeholder="your.username"
             />
           </div>
@@ -102,7 +102,7 @@ const Login: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               required
-              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-primary-500 focus:ring-primary-500"
               placeholder="••••••••"
             />
           </div>
@@ -110,7 +110,7 @@ const Login: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full inline-flex justify-center items-center rounded-md bg-indigo-600 px-4 py-2 text-white font-medium shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+            className={`w-full inline-flex justify-center items-center rounded-md bg-primary-600 px-4 py-2 text-white font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
@@ -119,7 +119,7 @@ const Login: React.FC = () => {
         <div className="mt-4 text-center">
           <button
             type="button"
-            className="text-sm text-indigo-600 hover:text-indigo-700"
+            className="text-sm text-primary-600 hover:text-primary-700"
             onClick={() => alert('Please contact your administrator to reset your password.')}
           >
             Forgot your password?

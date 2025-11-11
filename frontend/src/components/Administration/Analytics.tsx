@@ -11,7 +11,7 @@ interface AnalyticsData {
   behaviorStats?: any;
 }
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+const COLORS = ['#16a34a', '#0d9488', '#65a30d', '#059669', '#f59e0b', '#ef4444'];
 
 const Analytics: React.FC = () => {
   const [data, setData] = useState<AnalyticsData>({});
@@ -189,8 +189,8 @@ const Analytics: React.FC = () => {
             </div>
             <div className="card">
               <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <Users className="text-purple-600" size={24} />
+                <div className="p-2 bg-lime-100 rounded-lg">
+                  <Users className="text-lime-600" size={24} />
                 </div>
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Recent Activity</p>
@@ -217,7 +217,7 @@ const Analytics: React.FC = () => {
                       labelLine={false}
                       label={({ name, percent }: any) => `${name}: ${percent ? (percent * 100).toFixed(0) : 0}%`}
                       outerRadius={80}
-                      fill="#8884d8"
+                      fill="#16a34a"
                       dataKey="count"
                     >
                       {documentStats.by_type.map((entry: any, index: number) => (
@@ -241,7 +241,7 @@ const Analytics: React.FC = () => {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="count" fill="#3b82f6" />
+                    <Bar dataKey="count" fill="#16a34a" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -263,7 +263,7 @@ const Analytics: React.FC = () => {
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} />
+                  <Line type="monotone" dataKey="count" stroke="#16a34a" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -351,7 +351,7 @@ const Analytics: React.FC = () => {
                   <YAxis dataKey="document_type" type="category" width={150} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="count" fill="#8b5cf6" />
+                  <Bar dataKey="count" fill="#65a30d" />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -435,7 +435,7 @@ const Analytics: React.FC = () => {
                     labelLine={false}
                     label={({ name, percent }: any) => `${name}: ${percent ? (percent * 100).toFixed(0) : 0}%`}
                     outerRadius={100}
-                    fill="#8884d8"
+                    fill="#16a34a"
                     dataKey="count"
                   >
                     {behaviorStats.by_type.map((entry: any, index: number) => (

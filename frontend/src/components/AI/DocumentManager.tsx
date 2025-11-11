@@ -282,9 +282,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       ready: 'bg-green-100 text-green-800',
       failed: 'bg-red-100 text-red-800',
       pending: 'bg-yellow-100 text-yellow-800',
-      metadata_extracting: 'bg-indigo-100 text-indigo-800',
-      chunking: 'bg-blue-100 text-blue-800',
-      embedding: 'bg-purple-100 text-purple-800',
+      metadata_extracting: 'bg-teal-100 text-teal-800',
+      chunking: 'bg-emerald-100 text-emerald-800',
+      embedding: 'bg-lime-100 text-lime-800',
     };
     const cls = map[statusValue] || 'bg-gray-100 text-gray-800';
     const label = String(statusValue).replace('_', ' ');
@@ -1145,7 +1145,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           <button
             onClick={handleExtractMetadata}
             disabled={extracting}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-lime-600 hover:bg-lime-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Automatically extract product/content/version from existing documents"
           >
             <Wand2 size={20} />
@@ -1161,7 +1161,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
             <Upload size={20} />
             Upload Document
@@ -1181,7 +1181,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
               value={searchParams.query}
               onChange={(e) => setSearchParams(prev => ({ ...prev, query: e.target.value }))}
               placeholder="Search by title, filename, or description..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
           <div>
@@ -1191,7 +1191,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             <select
               value={searchParams.document_type}
               onChange={(e) => setSearchParams(prev => ({ ...prev, document_type: e.target.value }))}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="all">All Types</option>
               <option value="SSB_KPR">SSB/KPR</option>
@@ -1207,7 +1207,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             <select
               value={searchParams.search_type}
               onChange={(e) => setSearchParams(prev => ({ ...prev, search_type: e.target.value as any }))}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
               <option value="both">Title & Content</option>
               <option value="title">Title Only</option>
@@ -1223,7 +1223,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           </button>
           <button
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
             <Filter size={20} />
             {showAdvancedFilters ? 'Hide Filters' : 'Advanced Filters'}
@@ -1234,7 +1234,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
 
       {/* NEW: Advanced Filters Section */}
       {showAdvancedFilters && (
-        <div className="mb-6 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+        <div className="mb-6 p-4 bg-teal-50 rounded-lg border border-teal-200">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {/* Product Category Filter */}
             <div>
@@ -1379,7 +1379,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           </div>
 
           {/* Filter Actions */}
-          <div className="flex gap-3 mt-4 pt-4 border-t border-indigo-200">
+          <div className="flex gap-3 mt-4 pt-4 border-t border-teal-200">
             <button
               onClick={() => {
                 setAdvancedFilters({
@@ -1396,13 +1396,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 });
                 handleSearch();
               }}
-              className="px-4 py-2 text-indigo-700 border border-indigo-300 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium"
+              className="px-4 py-2 text-teal-700 border border-teal-300 rounded-lg hover:bg-teal-100 transition-colors text-sm font-medium"
             >
               Clear Filters
             </button>
             <button
               onClick={handleSearch}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
             >
               Apply Filters
             </button>
@@ -1447,7 +1447,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       >
         {loading ? (
           <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
             <p className="mt-2 text-gray-600">Loading documents...</p>
           </div>
         ) : documents.length === 0 ? (
@@ -1468,9 +1468,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <IconComponent size={20} className="text-blue-600" />
+                        <IconComponent size={20} className="text-emerald-600" />
                         <h3 className="text-lg font-semibold text-gray-900">{doc.title}</h3>
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        <span className="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs rounded-full">
                           {documentTypes.find(t => t.value === doc.document_type)?.label || doc.document_type}
                         </span>
                         {renderStatusBadge((doc as any).processing_status)}
@@ -1506,7 +1506,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     <div className="flex gap-2 ml-4">
                       <button
                         onClick={() => handleView(doc)}
-                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
                         title="View Document"
                       >
                         <Eye size={18} />
@@ -1545,7 +1545,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       </button>
                       <button
                         onClick={() => handleEditMetadata(doc)}
-                        className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                        className="p-2 text-lime-600 hover:bg-lime-50 rounded-lg transition-colors"
                         title="Edit Metadata"
                       >
                         <Edit size={18} />
@@ -1595,7 +1595,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                   multiple
                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.rtf,.mhtml,.html"
                   onChange={handleFileSelect}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
                 {selectedFiles.length > 0 && (
                   <div className="mt-2">
@@ -1624,7 +1624,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                               setApplyProductKey(prev => prev + 1);
                             }
                           }}
-                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 border border-blue-300 focus:outline-none cursor-pointer"
+                          className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 border border-emerald-300 focus:outline-none cursor-pointer"
                           defaultValue=""
                         >
                           <option value="">Apply Product to All</option>
@@ -1641,7 +1641,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                               setApplyContentTypeKey(prev => prev + 1);
                             }
                           }}
-                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 border border-blue-300 focus:outline-none cursor-pointer"
+                          className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 border border-emerald-300 focus:outline-none cursor-pointer"
                           defaultValue=""
                         >
                           <option value="">Apply Content Type to All</option>
@@ -1684,7 +1684,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].title = e.target.value;
                                     setFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                   placeholder="Enter title"
                                 />
                               </td>
@@ -1697,7 +1697,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].description = e.target.value;
                                     setFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                   placeholder="Optional"
                                 />
                               </td>
@@ -1709,7 +1709,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].product_category = e.target.value;
                                     setFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                 >
                                   {productCategories.map(cat => (
                                     <option key={cat.value} value={cat.value}>{cat.label}</option>
@@ -1724,7 +1724,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].content_type = e.target.value;
                                     setFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                 >
                                   {contentTypes.map(type => (
                                     <option key={type.value} value={type.value}>{type.label}</option>
@@ -1740,7 +1740,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].version = e.target.value;
                                     setFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                   placeholder="e.g., 3.2.1"
                                 />
                               </td>
@@ -1768,7 +1768,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       value={uploadForm.title}
                       onChange={(e) => setUploadForm(prev => ({ ...prev, title: e.target.value }))}
                       placeholder="Enter document title"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
@@ -1781,7 +1781,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       onChange={(e) => setUploadForm(prev => ({ ...prev, description: e.target.value }))}
                       placeholder="Enter document description (optional)"
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
 
@@ -1792,7 +1792,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     <select
                       value={uploadForm.product_category}
                       onChange={(e) => setUploadForm(prev => ({ ...prev, product_category: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     >
                       {productCategories.map(category => (
                         <option key={category.value} value={category.value}>{category.label}</option>
@@ -1807,7 +1807,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     <select
                       value={uploadForm.content_type}
                       onChange={(e) => setUploadForm(prev => ({ ...prev, content_type: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     >
                       {contentTypes.map(type => (
                         <option key={type.value} value={type.value}>{type.label}</option>
@@ -1824,7 +1824,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       value={uploadForm.version}
                       onChange={(e) => setUploadForm(prev => ({ ...prev, version: e.target.value }))}
                       placeholder="e.g., 3.2.1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
                 </>
@@ -1844,7 +1844,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 <button
                   onClick={handleUpload}
                   disabled={isUploading || fileMetadata.length === 0}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isUploading ? 'Uploading...' : `Upload ${fileMetadata.length} file(s)`}
                 </button>
@@ -1906,7 +1906,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 <select
                   value={editMetadata.product_category}
                   onChange={(e) => setEditMetadata(prev => ({ ...prev, product_category: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   {productCategories.map(category => (
                     <option key={category.value} value={category.value}>{category.label}</option>
@@ -1921,7 +1921,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 <select
                   value={editMetadata.content_type}
                   onChange={(e) => setEditMetadata(prev => ({ ...prev, content_type: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 >
                   {contentTypes.map(type => (
                     <option key={type.value} value={type.value}>{type.label}</option>
@@ -1938,7 +1938,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                   value={editMetadata.version}
                   onChange={(e) => setEditMetadata(prev => ({ ...prev, version: e.target.value }))}
                   placeholder="e.g., 3.2.1"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
 
@@ -1951,7 +1951,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 </button>
                 <button
                   onClick={handleSaveMetadata}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                 >
                   Save
                 </button>
@@ -2028,7 +2028,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                           }}
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
                             isEnabled
-                              ? 'bg-blue-50 border-blue-500 text-blue-700'
+                              ? 'bg-emerald-50 border-blue-500 text-emerald-700'
                               : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                           }`}
                         >
@@ -2054,7 +2054,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       }}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
                         enabledFileTypes.has('mhtml')
-                          ? 'bg-blue-50 border-blue-500 text-blue-700'
+                          ? 'bg-emerald-50 border-blue-500 text-emerald-700'
                           : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                       }`}
                     >
@@ -2118,9 +2118,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
 
               {/* NEW: Real-time Status Display */}
               {jobMonitoring && importStatus && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
                   <h4 className="font-semibold mb-2 flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent"></div>
                     Processing Status
                   </h4>
                   <div className="grid grid-cols-4 gap-4 text-sm">
@@ -2129,8 +2129,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       <div className="text-gray-800 font-bold">{importStatus.statistics?.pending || 0}</div>
                     </div>
                     <div>
-                      <div className="text-blue-600">Processing</div>
-                      <div className="text-blue-800 font-bold">
+                      <div className="text-emerald-600">Processing</div>
+                      <div className="text-emerald-800 font-bold">
                         {(importStatus.statistics?.metadata_extracting || 0) + 
                          (importStatus.statistics?.chunking || 0) + 
                          (importStatus.statistics?.embedding || 0)}
@@ -2165,7 +2165,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                               setBulkApplyProductKey(prev => prev + 1);
                             }
                           }}
-                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 border border-blue-300 focus:outline-none cursor-pointer"
+                          className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 border border-emerald-300 focus:outline-none cursor-pointer"
                           defaultValue=""
                         >
                           <option value="">Apply Product to All</option>
@@ -2181,7 +2181,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                               setBulkApplyContentTypeKey(prev => prev + 1);
                             }
                           }}
-                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 border border-blue-300 focus:outline-none cursor-pointer"
+                          className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 border border-emerald-300 focus:outline-none cursor-pointer"
                           defaultValue=""
                         >
                           <option value="">Apply Content Type to All</option>
@@ -2224,7 +2224,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].title = e.target.value;
                                     setBulkFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                   placeholder="Enter title"
                                 />
                               </td>
@@ -2237,7 +2237,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].description = e.target.value;
                                     setBulkFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                   placeholder="Optional"
                                 />
                               </td>
@@ -2249,7 +2249,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].product_category = e.target.value;
                                     setBulkFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                 >
                                   {productCategories.map(cat => (
                                     <option key={cat.value} value={cat.value}>{cat.label}</option>
@@ -2264,7 +2264,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].content_type = e.target.value;
                                     setBulkFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                 >
                                   {contentTypes.map(type => (
                                     <option key={type.value} value={type.value}>{type.label}</option>
@@ -2280,7 +2280,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     newMetadata[index].version = e.target.value;
                                     setBulkFileMetadata(newMetadata);
                                   }}
-                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
                                   placeholder="e.g., 3.2.1"
                                 />
                               </td>
@@ -2333,13 +2333,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                               return <span className="text-red-600 text-xs">✗ Failed</span>;
                             }
                             if (status === 'metadata_extracting') {
-                              return <span className="text-blue-600 text-xs">📄 Metadata</span>;
+                              return <span className="text-emerald-600 text-xs">📄 Metadata</span>;
                             }
                             if (status === 'chunking') {
-                              return <span className="text-blue-600 text-xs">✂️ Chunking</span>;
+                              return <span className="text-emerald-600 text-xs">✂️ Chunking</span>;
                             }
                             if (status === 'embedding') {
-                              return <span className="text-blue-600 text-xs">🔢 Embedding</span>;
+                              return <span className="text-emerald-600 text-xs">🔢 Embedding</span>;
                             }
                             return <span className="text-yellow-600 text-xs">⏳ Waiting</span>;
                           };
@@ -2511,9 +2511,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       {/* NEW: Background Upload Progress Panel */}
       {showUploadProgress && uploadQueue.length > 0 && (
         <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-2xl border border-gray-300 z-50 w-96 max-h-[600px] flex flex-col">
-          <div className="flex justify-between items-center p-4 border-b bg-blue-50">
+          <div className="flex justify-between items-center p-4 border-b bg-emerald-50">
             <div className="flex items-center gap-2">
-              <div className={`animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent ${!isUploading ? 'hidden' : ''}`}></div>
+              <div className={`animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent ${!isUploading ? 'hidden' : ''}`}></div>
               <h3 className="font-semibold text-gray-900">
                 Upload Progress ({uploadQueue.filter(q => q.status === 'completed').length}/{uploadQueue.length})
               </h3>
@@ -2538,7 +2538,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 const getStatusColor = () => {
                   switch (item.status) {
                     case 'queued': return 'text-gray-500';
-                    case 'uploading': return 'text-blue-600';
+                    case 'uploading': return 'text-emerald-600';
                     case 'processing': return 'text-yellow-600';
                     case 'completed': return 'text-green-600';
                     case 'failed': return 'text-red-600';
@@ -2587,7 +2587,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                             item.status === 'completed' ? 'bg-green-500' :
                             item.status === 'failed' ? 'bg-red-500' :
                             item.status === 'processing' ? 'bg-yellow-500' :
-                            'bg-blue-500'
+                            'bg-emerald-500'
                           }`}
                           style={{ width: `${item.progress}%` }}
                         ></div>
@@ -2616,8 +2616,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 </div>
               </div>
               <div>
-                <div className="text-blue-600">In Progress</div>
-                <div className="font-semibold text-blue-700">
+                <div className="text-emerald-600">In Progress</div>
+                <div className="font-semibold text-emerald-700">
                   {uploadQueue.filter(q => q.status === 'uploading' || q.status === 'processing').length}
                 </div>
               </div>

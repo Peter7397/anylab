@@ -155,8 +155,8 @@ const Dashboard: React.FC = () => {
             {/* Entity Embeddings */}
             <div className="bg-white rounded-lg p-4 border border-green-200">
               <div className="flex items-center justify-between mb-2">
-                <Sparkles className="text-purple-600" size={20} />
-                <span className="text-xs font-medium text-purple-600 bg-purple-100 px-2 py-0.5 rounded">
+                <Sparkles className="text-lime-600" size={20} />
+                <span className="text-xs font-medium text-lime-600 bg-lime-100 px-2 py-0.5 rounded">
                   {stats.graphrag.entities.coverage_percentage}%
                 </span>
               </div>
@@ -164,7 +164,7 @@ const Dashboard: React.FC = () => {
               <p className="text-sm text-gray-600">Entity Embeddings</p>
               <div className="mt-2 bg-gray-200 rounded-full h-2">
                 <div 
-                  className="bg-gradient-to-r from-purple-500 to-blue-500 h-2 rounded-full transition-all duration-500"
+                  className="bg-gradient-to-r from-lime-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
                   style={{ width: `${stats.graphrag.entities.coverage_percentage}%` }}
                 />
               </div>
@@ -172,7 +172,7 @@ const Dashboard: React.FC = () => {
 
             {/* Total Entities */}
             <div className="bg-white rounded-lg p-4 border border-green-200">
-              <Tag className="text-blue-600 mb-2" size={20} />
+              <Tag className="text-primary-600 mb-2" size={20} />
               <p className="text-2xl font-bold text-gray-900">{stats.graphrag.entities.total}</p>
               <p className="text-sm text-gray-600">Total Entities</p>
               <p className="text-xs text-gray-500 mt-1">
@@ -192,7 +192,7 @@ const Dashboard: React.FC = () => {
 
             {/* GraphRAG Queries */}
             <div className="bg-white rounded-lg p-4 border border-green-200">
-              <Network className="text-indigo-600 mb-2" size={20} />
+              <Network className="text-teal-600 mb-2" size={20} />
               <p className="text-2xl font-bold text-gray-900">{stats.graphrag.queries.today}</p>
               <p className="text-sm text-gray-600">Queries Today</p>
               <p className="text-xs text-gray-500 mt-1">
@@ -277,7 +277,7 @@ const Dashboard: React.FC = () => {
                   <div className="flex-1">
                     <p className="text-sm text-gray-900">{query.query}</p>
                     <div className="flex items-center space-x-2 mt-1">
-                      <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
+                      <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">
                         {query.query_type}
                       </span>
                       <span className="text-xs text-gray-500">

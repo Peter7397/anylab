@@ -269,8 +269,8 @@ const BasicRagSearch: React.FC = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Search className="h-6 w-6 text-blue-600" />
+            <div className="p-2 bg-primary-100 rounded-lg">
+              <Search className="h-6 w-6 text-primary-600" />
             </div>
             <div>
               <h1 className="text-xl font-semibold text-gray-900">Basic RAG Search</h1>
@@ -397,7 +397,7 @@ const BasicRagSearch: React.FC = () => {
                       onClick={() => copyToClipboard(message.content, message.id)}
                       className={`ml-2 p-1 rounded transition-colors ${
                         message.role === 'user'
-                          ? 'text-blue-200 hover:text-white'
+                          ? 'text-emerald-200 hover:text-white'
                           : 'text-gray-400 hover:text-gray-600'
                       }`}
                       title="Copy formatted text"
@@ -412,7 +412,7 @@ const BasicRagSearch: React.FC = () => {
                 </div>
                 
                 <p className={`text-xs mt-2 ${
-                  message.role === 'user' ? 'text-blue-200' : 'text-gray-500'
+                  message.role === 'user' ? 'text-emerald-200' : 'text-gray-500'
                 }`}>
                   {new Date(message.timestamp).toLocaleString()}
                 </p>
@@ -425,7 +425,7 @@ const BasicRagSearch: React.FC = () => {
           <div className="flex justify-start">
             <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
               <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
                 <span className="text-gray-600">Searching documents...</span>
               </div>
             </div>
@@ -444,7 +444,7 @@ const BasicRagSearch: React.FC = () => {
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="Ask a question about your documents..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
               rows={3}
               disabled={isLoading}
             />
@@ -452,7 +452,7 @@ const BasicRagSearch: React.FC = () => {
           <button
             onClick={handleBasicRagSearch}
             disabled={!inputMessage.trim() || isLoading}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send className="h-5 w-5" />
           </button>
@@ -473,7 +473,7 @@ const BasicRagSearch: React.FC = () => {
                 <h3 className="text-lg font-medium text-gray-900">Search History</h3>
                 <button
                   onClick={() => refreshUnifiedHistory()}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-primary-600 hover:text-primary-700"
                 >
                   Refresh
                 </button>
@@ -496,7 +496,7 @@ const BasicRagSearch: React.FC = () => {
                         <div className="flex-1">
                           <button
                             onClick={() => { setInputMessage(item.content); setShowHistory(false); }}
-                            className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors text-left"
+                            className="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors text-left"
                           >
                             {item.content}
                           </button>

@@ -296,7 +296,7 @@ const RagSearch: React.FC = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
+            <div className="p-2 bg-primary-100 rounded-lg">
               <Brain className="h-6 w-6 text-primary-600" />
             </div>
             <div>
@@ -450,7 +450,7 @@ const RagSearch: React.FC = () => {
               <div className="flex justify-start">
                 <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
                   <div className="flex items-center space-x-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
                     <span className="text-gray-600">Searching documents...</span>
                   </div>
                 </div>
@@ -469,7 +469,7 @@ const RagSearch: React.FC = () => {
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Ask a question about your documents..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   rows={3}
                   disabled={isLoading}
                 />
