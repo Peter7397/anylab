@@ -159,7 +159,11 @@
       "aiAssistant": {
         "title": "AI助手",
         "description": "使用先进的RAG技术与您的文档进行对话。从知识库中获得即时、可追溯的答案。",
+<<<<<<< Updated upstream
         "items": ["免费AI聊天", "4种RAG搜索模式", "图RAG支持", "双语支持（中/英）", "可配置模型"]
+=======
+        "items": ["AI聊天", "4种RAG搜索模式", "图RAG支持", "双语支持（中/英）", "可配置模型"]
+>>>>>>> Stashed changes
       },
       "documentProcessing": {
         "title": "文档处理",
@@ -204,7 +208,11 @@
     },
     "tech": {
       "ollama": "Ollama LLM",
+<<<<<<< Updated upstream
       "ollamaDesc": "Qwen 2.5-7B 模型",
+=======
+      "ollamaDesc": "AI语言模型",
+>>>>>>> Stashed changes
       "pgvector": "pgvector",
       "pgvectorDesc": "向量数据库",
       "hybridSearch": "混合搜索",

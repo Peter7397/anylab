@@ -8,7 +8,11 @@
   "communitySolutions": "社区解决方案",
   "documentViewer": "文档查看器",
   "aiAssistant": "AI助手",
+<<<<<<< Updated upstream
   "freeAiChat": "免费AI聊天",
+=======
+  "freeAiChat": "AI聊天",
+>>>>>>> Stashed changes
   "basicRag": "基础RAG",
   "advancedRag": "高级RAG",
   "comprehensiveRag": "综合RAG",

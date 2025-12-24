@@ -36,10 +36,17 @@
   "troubleshooting": "故障排除",
   "analyzeLogs": "分析日志",
   "uploadLogs": "上传日志",
+<<<<<<< Updated upstream
   "freeAiChat": "免费AI聊天",
   "openConversation": "与Qwen 7B进行开放式对话，用于头脑风暴和一般问题",
   "aiIsThinking": "AI正在思考...",
   "generatingResponse": "正在使用Qwen 7B模型生成回复",
+=======
+  "freeAiChat": "AI聊天",
+  "openConversation": "进行开放式对话，用于头脑风暴和一般问题",
+  "aiIsThinking": "AI正在思考...",
+  "generatingResponse": "正在使用AI模型生成回复",
+>>>>>>> Stashed changes
   "references": "参考文献",
   "downloadFailed": "下载失败。请重试。",
   "view": "查看",
@@ -51,8 +58,13 @@
   "response": "响应",
   "model": "模型",
   "queries": "查询",
+<<<<<<< Updated upstream
   "startFreeAiChat": "开始免费AI聊天",
   "askAnything": "提出任何问题，与Qwen 7B进行开放式对话。",
+=======
+  "startFreeAiChat": "开始AI聊天",
+  "askAnything": "提出任何问题，进行开放式对话。",
+>>>>>>> Stashed changes
   "askIn": "在...中提问",
   "askInPlaceholder": "在...中提问",
   "copyFormattedText": "复制格式化文本",
@@ -60,8 +72,13 @@
   "refresh": "刷新",
   "noChatHistory": "没有聊天历史",
   "conversationsWillAppear": "您的对话将显示在这里。",
+<<<<<<< Updated upstream
   "askAnythingPlaceholder": "提出任何问题（免费AI聊天）...",
   "freeAiChatDescription": "免费AI聊天提供开放式对话，不进行文档搜索。如需基于文档的答案，请尝试基础、高级或综合RAG。",
+=======
+  "askAnythingPlaceholder": "提出任何问题（AI聊天）...",
+  "freeAiChatDescription": "AI聊天提供开放式对话，不进行文档搜索。如需基于文档的答案，请尝试基础、高级或综合RAG。",
+>>>>>>> Stashed changes
   "mostRelevantReference": "最相关参考文献",
   "chunk": "块",
   "document": "文档",

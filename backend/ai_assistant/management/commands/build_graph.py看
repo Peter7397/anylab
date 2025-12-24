@@ -5,7 +5,7 @@ Django management command to build Neo4j graph from existing documents
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 from ai_assistant.models import UploadedFile, DocumentChunk
-from ai_assistant.services.graph_builder import GraphBuilder
+from ai_assistant.service_classes.graph_builder import GraphBuilder
 import logging
 
 logger = logging.getLogger(__name__)

@@ -255,8 +255,13 @@ const SystemSettings: React.FC = () => {
                     </p>
                     <p className="text-xs text-blue-700 mt-1">
                       Switch AI mode from the top bar to automatically change the model. 
+<<<<<<< Updated upstream
                       Performance mode uses {settings.rag.recommended_models?.performance || 'qwen2.5:7b'}, 
                       Lightweight mode uses {settings.rag.recommended_models?.lightweight || 'qwen2:2b'}.
+=======
+                      Performance mode uses a more capable model, 
+                      Lightweight mode uses a faster, smaller model.
+>>>>>>> Stashed changes
                     </p>
                   </div>
                 </div>

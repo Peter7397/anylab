@@ -247,6 +247,7 @@ class AdvancedRAGService(ImprovedRAGService):
         
         params = type_params.get(query_type, type_params['general'])
         
+<<<<<<< Updated upstream
         # Select system prompt based on language
         if 'zh' in language.lower():
             system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
@@ -254,6 +255,19 @@ class AdvancedRAGService(ImprovedRAGService):
         else:
             system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
                                   'You are a helpful assistant. Use only the following context to answer the question. Be concise and accurate.')
+=======
+        # Select system prompt based on language with explicit language instruction
+        if 'zh' in language.lower():
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
+                                  '你是一个专业的助手。你必须用中文（简体中文）回答所有问题。'
+                                  '请仅使用提供的上下文回答问题，保持简洁准确。'
+                                  '不要用英语回答，只能用中文。')
+        else:
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
+                                  'You are a helpful assistant. You MUST answer all questions in English. '
+                                  'Use only the following context to answer the question. Be concise and accurate. '
+                                  'Do not respond in Chinese, only in English.')
+>>>>>>> Stashed changes
         
         try:
             api_url = f"{self.ollama_url}/api/chat"

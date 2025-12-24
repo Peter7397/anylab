@@ -3,7 +3,11 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useTranslation } from 'react-i18next';
+<<<<<<< Updated upstream
 import { Download, FileText, FileSearch, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+=======
+import { Download, FileText, FileSearch, ZoomIn, ZoomOut, RotateCcw, PanelRightClose, PanelRightOpen } from 'lucide-react';
+>>>>>>> Stashed changes
 // Use worker from public/ to avoid dynamic import issues
 GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
@@ -46,6 +50,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState(false);
   const [searchQuery, setSearchQuery] = useState(initialQuery || '');
   const [hits, setHits] = useState<PdfHit[]>([]);
   const [numPages, setNumPages] = useState<number>(0);
@@ -59,17 +64,25 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
   const [totalMatches, setTotalMatches] = useState(0);
   const [loadingProgress, setLoadingProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [isRendering, setIsRendering] = useState(false);
+  const [searchPanelWidth, setSearchPanelWidth] = useState(320); // Default 320px (w-80)
+  const [showSearchPanel, setShowSearchPanel] = useState(true);
+  const [isResizing, setIsResizing] = useState(false);
 
-  // Render PDF pages
+  // Render PDF pages with performance optimizations
   useEffect(() => {
     if (docType !== 'pdf') {
       setLoading(false);
       return;
     }
     let cancelled = false;
+    let abortController: AbortController | null = null;
     
     // Cleanup function for memory management
     const cleanup = () => {
+      // Cancel fetch if in progress
+      if (abortController) {
+        abortController.abort();
+      }
       // Clear canvas references to free memory
       Object.values(pageRefs.current).forEach(canvas => {
         if (canvas) {
@@ -81,6 +94,94 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
       });
       pageRefs.current = {};
       overlayRefs.current = {};
+    };
+    
+    // Render a single page asynchronously
+    const renderPage = async (pdf: any, pageNum: number, optimalScale: number): Promise<void> => {
+      if (cancelled) return;
+      
+      const page = await pdf.getPage(pageNum);
+      if (cancelled) return;
+      
+      const viewport = page.getViewport({ scale: optimalScale });
+
+      // Create wrapper per page
+      let wrapper = containerRef.current?.querySelector<HTMLDivElement>(`[data-page='${pageNum}']`);
+      if (!wrapper) {
+        wrapper = document.createElement('div');
+        wrapper.setAttribute('data-page', String(pageNum));
+        wrapper.style.position = 'relative';
+        wrapper.style.display = 'flex';
+        wrapper.style.justifyContent = 'center';
+        wrapper.style.marginBottom = '20px';
+        wrapper.className = 'relative flex justify-center mb-5';
+        containerRef.current?.appendChild(wrapper);
+      }
+
+      // Canvas
+      let canvas = pageRefs.current[pageNum];
+      if (!canvas) {
+        canvas = document.createElement('canvas');
+        pageRefs.current[pageNum] = canvas;
+      }
+      if (wrapper && canvas.parentElement !== wrapper) wrapper.appendChild(canvas);
+
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.maxWidth = '100%';
+      canvas.style.height = 'auto';
+      context.save();
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.restore();
+      
+      await page.render({ canvasContext: context as any, viewport } as any).promise;
+      if (cancelled) return;
+
+      // Overlay for highlights
+      let overlay = overlayRefs.current[pageNum];
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlayRefs.current[pageNum] = overlay;
+      }
+      overlay.style.position = 'absolute';
+      overlay.style.left = '0px';
+      overlay.style.top = '0px';
+      overlay.style.width = `${viewport.width}px`;
+      overlay.style.height = `${viewport.height}px`;
+      overlay.style.pointerEvents = 'none';
+      overlay.style.maxWidth = '100%';
+      overlay.style.transformOrigin = 'top left';
+      overlay.style.zIndex = '10';
+      overlay.innerHTML = '';
+      if (wrapper && overlay.parentElement !== wrapper) wrapper.appendChild(overlay);
+
+      // Debug mode text extraction (only if enabled)
+      if (debugMode) {
+        const textContent = await page.getTextContent();
+        for (const item of textContent.items) {
+          if ('transform' in item && 'str' in item) {
+            const transform = item.transform;
+            const [a, b, c, d, e, f] = transform;
+            const debugEl = document.createElement('div');
+            debugEl.style.position = 'absolute';
+            debugEl.style.left = `${e}px`;
+            debugEl.style.top = `${viewport.height - f - Math.abs((item as any).height || 12)}px`;
+            debugEl.style.width = `${(item as any).width}px`;
+            debugEl.style.height = `${Math.abs((item as any).height || 12)}px`;
+            debugEl.style.border = '1px solid red';
+            debugEl.style.background = 'rgba(255, 0, 0, 0.1)';
+            debugEl.style.pointerEvents = 'none';
+            debugEl.style.fontSize = '8px';
+            debugEl.style.color = 'red';
+            debugEl.textContent = item.str?.substring(0, 10) || '';
+            overlay.appendChild(debugEl);
+          }
+        }
+      }
     };
     
     const run = async () => {
@@ -105,6 +206,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           if (hostname === 'localhost' || hostname === '127.0.0.1') {
             absoluteUrl = `${protocol}//localhost:${port}${url}`;
           } else if (!isIPAddress(hostname)) {
+<<<<<<< Updated upstream
             // Domain name - use same domain (Nginx will proxy)
             absoluteUrl = `${protocol}//${hostname}${url}`;
           } else {
@@ -129,25 +231,73 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         // Check if response is OK
         if (!res.ok) {
           // Clone response to read error message without consuming body
+=======
+            absoluteUrl = `${protocol}//${hostname}${url}`;
+          } else {
+            absoluteUrl = `${protocol}//${hostname}:${port}${url}`;
+          }
+        }
+        
+        // Prepare headers with authentication
+        const headers: Record<string, string> = {};
+        const token = localStorage.getItem('anylab_token');
+        
+        if (token && token.length > 0) {
+          headers['Authorization'] = `Bearer ${token}`;
+        } else {
+          console.error('PDF Viewer - No authentication token found');
+        }
+        
+        // Create AbortController for request cancellation
+        abortController = new AbortController();
+        
+        const res = await fetch(absoluteUrl, { 
+          headers,
+          signal: abortController.signal
+        });
+        
+        const contentType = res.headers.get('content-type') || '';
+        
+        // Check if response is OK
+        if (!res.ok) {
+          if (res.status === 401) {
+            setAuthError(true);
+            throw new Error('Authentication failed. Please log in again.');
+          }
+          
+>>>>>>> Stashed changes
           const clonedRes = res.clone();
           const errorContentType = clonedRes.headers.get('content-type');
           if (errorContentType && errorContentType.includes('application/json')) {
             const errorData = await clonedRes.json();
+<<<<<<< Updated upstream
             console.error('PDF Viewer - Error response:', errorData);
             throw new Error(errorData.error || errorData.message || `HTTP ${res.status}: ${res.statusText}`);
           } else {
             const text = await clonedRes.text();
             console.error('PDF Viewer - Error response (non-JSON):', text.substring(0, 500));
+=======
+            throw new Error(errorData.error || errorData.message || errorData.detail || `HTTP ${res.status}: ${res.statusText}`);
+          } else {
+            const text = await clonedRes.text();
+>>>>>>> Stashed changes
             throw new Error(`HTTP ${res.status}: ${res.statusText}. ${text.substring(0, 200)}`);
           }
         }
         
+<<<<<<< Updated upstream
         // Check content type to ensure it's a PDF
         if (!contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
           // Might be an error response, clone to read without consuming
           const clonedRes = res.clone();
           const text = await clonedRes.text();
           console.error('PDF Viewer - Non-PDF content received:', text.substring(0, 500));
+=======
+        // Check content type
+        if (!contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
+          const clonedRes = res.clone();
+          const text = await clonedRes.text();
+>>>>>>> Stashed changes
           try {
             const errorData = JSON.parse(text);
             throw new Error(errorData.error || errorData.message || 'Server returned non-PDF content');
@@ -159,6 +309,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         const buf = await res.arrayBuffer();
         if (cancelled) return;
         
+<<<<<<< Updated upstream
         // Validate PDF structure - check for PDF header
         const uint8Array = new Uint8Array(buf);
         const pdfHeader = String.fromCharCode(...uint8Array.slice(0, 4));
@@ -171,121 +322,99 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
             .join('')
             .replace(/[^\x20-\x7E]/g, '.');
           console.error('PDF Viewer - Invalid PDF header. First 100 bytes:', preview);
+=======
+        // Quick PDF header validation
+        const uint8Array = new Uint8Array(buf);
+        const headerBytes = Array.from(uint8Array.slice(0, 4));
+        const pdfHeader = String.fromCharCode(...headerBytes);
+        
+        if (pdfHeader !== '%PDF') {
+>>>>>>> Stashed changes
           throw new Error(`Invalid PDF structure: File does not start with PDF header. Found: "${pdfHeader}"`);
         }
 
         if (containerRef.current) containerRef.current.innerHTML = '';
 
+<<<<<<< Updated upstream
         console.log('PDF Viewer - Loading PDF document...');
+=======
+        // Load PDF document
+>>>>>>> Stashed changes
         const pdf = await getDocument({ data: buf }).promise;
         console.log('PDF Viewer - PDF loaded successfully. Pages:', pdf.numPages);
         if (cancelled) return;
+        
         setNumPages(pdf.numPages);
 
         // Calculate optimal scale based on container width
         const containerWidth = containerRef.current?.clientWidth || 800;
         const firstPage = await pdf.getPage(1);
+        if (cancelled) return;
+        
         const originalViewport = firstPage.getViewport({ scale: 1.0 });
         const optimalScale = calculateScale(containerWidth, originalViewport.width);
         setScale(optimalScale);
 
         setLoadingProgress({ current: 0, total: pdf.numPages });
         
-        for (let p = 1; p <= pdf.numPages; p += 1) {
+        // PROGRESSIVE RENDERING: Render first page immediately, then others asynchronously
+        // This shows content to user much faster
+        await renderPage(pdf, 1, optimalScale);
+        if (cancelled) return;
+        
+        // Update progress after first page (user sees content immediately)
+        setLoadingProgress({ current: 1, total: pdf.numPages });
+        
+        // Render remaining pages asynchronously in batches
+        const batchSize = 3; // Render 3 pages at a time
+        const totalPages = pdf.numPages;
+        
+        for (let startPage = 2; startPage <= totalPages; startPage += batchSize) {
           if (cancelled) return;
           
-          setLoadingProgress({ current: p, total: pdf.numPages });
+          // Render batch of pages in parallel
+          const batchPromises: Promise<void>[] = [];
+          const endPage = Math.min(startPage + batchSize - 1, totalPages);
           
-          const page = await pdf.getPage(p);
+          for (let p = startPage; p <= endPage; p++) {
+            batchPromises.push(renderPage(pdf, p, optimalScale));
+          }
+          
+          // Wait for batch to complete
+          await Promise.all(batchPromises);
           if (cancelled) return;
-          const viewport = page.getViewport({ scale: optimalScale });
-
-          // Create wrapper per page
-          let wrapper = containerRef.current?.querySelector<HTMLDivElement>(`[data-page='${p}']`);
-          if (!wrapper) {
-            wrapper = document.createElement('div');
-            wrapper.setAttribute('data-page', String(p));
-            wrapper.style.position = 'relative';
-            wrapper.style.display = 'flex';
-            wrapper.style.justifyContent = 'center';
-            wrapper.style.marginBottom = '20px';
-            wrapper.className = 'relative flex justify-center mb-5';
-            containerRef.current?.appendChild(wrapper);
-          }
-
-          // Canvas
-          let canvas = pageRefs.current[p];
-          if (!canvas) {
-            canvas = document.createElement('canvas');
-            pageRefs.current[p] = canvas;
-          }
-          if (wrapper && canvas.parentElement !== wrapper) wrapper.appendChild(canvas);
-
-          const context = canvas.getContext('2d');
-          if (!context) continue;
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          canvas.style.maxWidth = '100%';
-          canvas.style.height = 'auto';
-          context.save();
-          context.fillStyle = '#ffffff';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.restore();
-          await page.render({ canvasContext: context as any, viewport } as any).promise;
-
-          // Overlay for highlights - positioned relative to canvas for accurate scaling
-          let overlay = overlayRefs.current[p];
-          if (!overlay) {
-            overlay = document.createElement('div');
-            overlayRefs.current[p] = overlay;
-          }
-          overlay.style.position = 'absolute';
-          overlay.style.left = '0px';
-          overlay.style.top = '0px';
-          overlay.style.width = `${viewport.width}px`;
-          overlay.style.height = `${viewport.height}px`;
-          overlay.style.pointerEvents = 'none';
-          overlay.style.maxWidth = '100%';
-          overlay.style.transformOrigin = 'top left';
-          overlay.style.zIndex = '10';
-          overlay.innerHTML = '';
-          if (wrapper && overlay.parentElement !== wrapper) wrapper.appendChild(overlay);
-
-          // Debug: Show text boundaries if debug mode is enabled
-          if (debugMode) {
-            const textContent = await page.getTextContent();
-            for (const item of textContent.items) {
-              if ('transform' in item && 'str' in item) {
-                const transform = item.transform;
-                const [a, b, c, d, e, f] = transform;
-                const debugEl = document.createElement('div');
-                debugEl.style.position = 'absolute';
-                debugEl.style.left = `${e}px`;
-                debugEl.style.top = `${viewport.height - f - Math.abs((item as any).height || 12)}px`;
-                debugEl.style.width = `${(item as any).width}px`;
-                debugEl.style.height = `${Math.abs((item as any).height || 12)}px`;
-                debugEl.style.border = '1px solid red';
-                debugEl.style.background = 'rgba(255, 0, 0, 0.1)';
-                debugEl.style.pointerEvents = 'none';
-                debugEl.style.fontSize = '8px';
-                debugEl.style.color = 'red';
-                debugEl.textContent = item.str?.substring(0, 10) || '';
-                overlay.appendChild(debugEl);
-              }
-            }
-          }
+          
+          // Update progress (batched - only update every batchSize pages)
+          setLoadingProgress({ current: endPage, total: totalPages });
+          
+          // Yield to browser to prevent blocking
+          await new Promise(resolve => setTimeout(resolve, 0));
         }
 
         setLoading(false);
         setLoadingProgress({ current: 0, total: 0 });
+        
+        // Scroll to initial page if specified
         if (initialPage && pageRefs.current[initialPage]) {
           pageRefs.current[initialPage]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
+        
+        // Perform initial search if query provided
         if (initialQuery) {
           findInPdf(initialQuery).catch(() => {});
         }
       } catch (e: any) {
+<<<<<<< Updated upstream
         console.error('PDF loading error:', e);
+=======
+        // Only log actual errors, not cancellation
+        if (e?.name !== 'AbortError' && !cancelled) {
+          console.error('PDF loading error:', e);
+        }
+        
+        if (cancelled) return;
+        
+>>>>>>> Stashed changes
         let errorMessage = t('failedToLoadPdf');
         
         if (e?.message) {
@@ -305,12 +434,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         setLoadingProgress({ current: 0, total: 0 });
       }
     };
+    
     run();
     return () => { 
       cancelled = true; 
       cleanup();
     };
-  }, [url, docType, initialPage, initialQuery]);
+  }, [url, docType, initialPage, initialQuery, debugMode]);
 
   // Re-render highlights when scale changes
   useEffect(() => {
@@ -345,7 +475,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
     
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+      const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -386,7 +516,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
       const maxSearchPages = Math.min(numPages, 10);
 
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+      const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -623,8 +753,53 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
     }
   };
 
-  const rightPanel = useMemo(() => (
-    <div className="w-80 border-l p-4 overflow-auto">
+  // Handle panel resize
+  const handleMouseDown = React.useCallback((e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = window.innerWidth - e.clientX;
+      setSearchPanelWidth(Math.max(280, Math.min(600, newWidth))); // Min 280px, Max 600px
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  const rightPanel = useMemo(() => {
+    if (!showSearchPanel) return null;
+    
+    return (
+      <>
+        {/* Resize Handle */}
+        <div
+          className={`w-1 bg-gray-200 hover:bg-primary-400 cursor-col-resize transition-colors ${
+            isResizing ? 'bg-primary-500' : ''
+          }`}
+          onMouseDown={handleMouseDown}
+          title="Drag to resize"
+        />
+        {/* Search Panel */}
+        <div 
+          className="border-l p-4 overflow-auto bg-white flex-shrink-0"
+          style={{ width: `${searchPanelWidth}px` }}
+        >
+
       <div className="mb-3">
         <div className="flex items-center space-x-2 mb-2">
           <input
@@ -728,8 +903,11 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           )}
         </div>
       )}
-    </div>
-  ), [hits, searchQuery, docType]);
+        </div>
+      </>
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits, searchQuery, docType, showSearchPanel, searchPanelWidth, isResizing, searching, totalMatches, currentMatchIndex, debugMode, t]);
 
   return (
     <div className="flex h-[calc(100vh-220px)] border rounded overflow-hidden">
@@ -757,42 +935,97 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           </div>
         )}
         {error && (
-          <div className="p-6 text-red-600">{error}</div>
+          <div className="p-6">
+            {authError ? (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-800">{t('authenticationRequired')}</h3>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <p>{error}</p>
+                      <p className="mt-2">{t('pleaseRefreshAndLogin')}</p>
+                    </div>
+                    <div className="mt-4">
+                      <button
+                        onClick={() => {
+                          // Clear token and redirect to login
+                          localStorage.removeItem('anylab_token');
+                          localStorage.removeItem('anylab_refresh_token');
+                          window.location.href = '/login';
+                        }}
+                        className="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-4 rounded"
+                      >
+                        {t('goToLogin')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-red-600">{error}</div>
+            )}
+          </div>
         )}
         {!error && docType === 'pdf' && (
           <>
+<<<<<<< Updated upstream
             <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-50">
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-600">{t('zoom')}:</span>
+=======
+            {/* Fixed Toolbar - Always visible at top */}
+            <div className="px-2 sm:px-4 py-2 border-b bg-white shadow-sm flex items-center justify-between flex-shrink-0 sticky top-0 z-50 overflow-x-auto">
+              <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+                <ZoomOut className="h-4 w-4 text-gray-500 hidden sm:block" />
+>>>>>>> Stashed changes
                 <button
                   onClick={() => setCurrentScale(Math.max(0.5, currentScale - 0.1))}
-                  className="px-2 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50"
+                  className="px-2 sm:px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors flex-shrink-0"
+                  title="Zoom Out"
                 >
-                  -
+                  −
                 </button>
-                <span className="text-sm font-medium min-w-[60px] text-center">
+                <span className="text-sm font-medium min-w-[50px] sm:min-w-[60px] text-center text-gray-700 flex-shrink-0">
                   {Math.round(currentScale * 100)}%
                 </span>
                 <button
                   onClick={() => setCurrentScale(Math.min(2.0, currentScale + 0.1))}
-                  className="px-2 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50"
+                  className="px-2 sm:px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors flex-shrink-0"
+                  title="Zoom In"
                 >
                   +
                 </button>
                 <button
-                  onClick={() => setCurrentScale(scale)}
-                  className="px-2 py-1 text-sm bg-primary-600 text-white border border-primary-600 rounded hover:bg-primary-700"
+                  onClick={() => setCurrentScale(1.0)}
+                  className="px-2 sm:px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors flex-shrink-0"
+                  title="Reset to 100%"
                 >
-                  {t('fit')}
+                  <RotateCcw className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => setDebugMode(!debugMode)}
-                  className={`px-2 py-1 text-sm border rounded ${
-                    debugMode 
-                      ? 'bg-red-500 text-white border-red-500 hover:bg-red-600' 
-                      : 'bg-white border-gray-300 hover:bg-gray-50'
-                  }`}
+                  onClick={() => setCurrentScale(scale)}
+                  className="px-2 sm:px-3 py-1.5 text-sm bg-primary-600 text-white border border-primary-600 rounded hover:bg-primary-700 transition-colors flex-shrink-0 whitespace-nowrap"
+                  title="Fit to Width"
                 >
+<<<<<<< Updated upstream
+                  {t('fit')}
+=======
+                  <span className="hidden sm:inline">{t('fit')}</span>
+                  <span className="sm:hidden">Fit</span>
+>>>>>>> Stashed changes
+                </button>
+                <div className="h-6 w-px bg-gray-300 mx-1 sm:mx-2 flex-shrink-0"></div>
+                <button
+                  onClick={() => setShowSearchPanel(!showSearchPanel)}
+                  className="px-2 sm:px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors flex items-center space-x-1 flex-shrink-0"
+                  title={showSearchPanel ? "Hide Search Panel" : "Show Search Panel"}
+                >
+<<<<<<< Updated upstream
                   {t('debug')}
                 </button>
                 <button
@@ -810,10 +1043,27 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
               </div>
               <div className="text-sm text-gray-600">
                 {t('page')} {numPages > 0 ? `1 ${t('of')} ${numPages}` : ''}
+=======
+                  {showSearchPanel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+                  <span className="hidden lg:inline ml-1">{showSearchPanel ? t('hideSearch') : t('showSearch')}</span>
+                </button>
+              </div>
+              <div className="text-xs sm:text-sm text-gray-600 flex-shrink-0 ml-2">
+                {numPages > 0 && `${t('page')} 1-${numPages}`}
+>>>>>>> Stashed changes
               </div>
             </div>
-            <div className="flex-1 overflow-auto">
-              <div ref={containerRef} className="p-4 w-full" style={{ transform: `scale(${currentScale})`, transformOrigin: 'top center' }} />
+            {/* PDF Content Area - Scrollable */}
+            <div className="flex-1 overflow-auto bg-gray-100 relative">
+              <div 
+                ref={containerRef} 
+                className="p-4 w-full origin-top-center" 
+                style={{ 
+                  transform: `scale(${currentScale})`, 
+                  transformOrigin: 'top center',
+                  minHeight: '100%'
+                }} 
+              />
             </div>
           </>
         )}
@@ -851,7 +1101,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
     (async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+        const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
         if (token) headers.Authorization = `Bearer ${token}`;
         
         const res = await fetch(url, { headers });
@@ -950,7 +1200,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
   const downloadDocx = async () => {
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+      const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -1026,7 +1276,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
     (async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+        const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
         if (token) headers.Authorization = `Bearer ${token}`;
         
         const res = await fetch(url, { headers });
@@ -1085,7 +1335,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
   const downloadTxt = async () => {
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+      const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -1161,7 +1411,7 @@ const HtmlRenderer: React.FC<{ url: string }> = ({ url }) => {
   const downloadHtml = async () => {
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+      const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });
@@ -1239,7 +1489,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
     (async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+        const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
         if (token) headers.Authorization = `Bearer ${token}`;
         
         const res = await fetch(url, { headers });
@@ -1458,7 +1708,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
     (async () => {
       try {
         const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+        const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
         if (token) headers.Authorization = `Bearer ${token}`;
         
         const res = await fetch(url, { headers });
@@ -1485,7 +1735,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
   const downloadPpt = async () => {
     try {
       const headers: Record<string, string> = {};
-      const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+      const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
       if (token) headers.Authorization = `Bearer ${token}`;
       
       const res = await fetch(url, { headers });

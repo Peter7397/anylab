@@ -27,6 +27,11 @@ def analyze_logs(request):
         # Accept either a log file or a prompt-only query (require at least one)
         if not log_content and not query:
             return bad_request_response('Either log_content or query is required')
+        
+        # Get language preference from Accept-Language header
+        accept_language = request.META.get('HTTP_ACCEPT_LANGUAGE', 'en-US')
+        language = accept_language.split(',')[0].strip() if accept_language else 'en-US'
+        is_chinese = 'zh' in language.lower()
 
         # Call Ollama to analyze the log file
         # Use consistent settings keys across the codebase
@@ -60,10 +65,37 @@ def analyze_logs(request):
 
         reduced_log = preprocess_log(log_content) if log_content else ''
         
-        # Create a comprehensive prompt for log analysis
-        prompt = f"""You are an expert system administrator and troubleshooting specialist.
+        # Create system prompt and user prompt separately for better language control
+        if is_chinese:
+            system_prompt = "你是一位专业的系统管理员和故障排查专家。请用中文提供详细的分析和建议，保持专业、准确、可操作。"
+            user_prompt = f"""请分析以下日志文件内容并提供详细的故障排查建议。
 
-Analyze the following log file content and provide detailed troubleshooting suggestions.
+用户问题：{query if query else "请分析此日志文件并提供故障排查建议"}
+
+日志文件内容：
+{reduced_log if reduced_log else "[未提供日志文件]"}
+
+请提供：
+1. 日志内容的简要分析
+2. 问题的严重程度（低/中/高）
+3. 具体可执行的解决建议
+4. 需要立即关注的警告或关键问题
+
+请以JSON格式回复，结构如下：
+{{
+  "analysis": "日志文件的详细分析",
+  "severity": "low|medium|high",
+  "suggestions": [
+    "建议 1",
+    "建议 2",
+    "建议 3"
+  ]
+}}
+
+请具体、可操作，并优先处理最关键的问题。"""
+        else:
+            system_prompt = "You are an expert system administrator and troubleshooting specialist. Provide detailed analysis and suggestions in English, being professional, accurate, and actionable."
+            user_prompt = f"""Analyze the following log file content and provide detailed troubleshooting suggestions.
 
 User Query: {query if query else "Please analyze this log file and provide troubleshooting suggestions"}
 
@@ -89,12 +121,15 @@ Format your response as JSON with the following structure:
 
 Be specific, actionable, and prioritize the most critical issues."""
 
-        # Call Ollama
+        # Call Ollama using /api/chat for better language control
         response = requests.post(
-            f"{ollama_url}/api/generate",
+            f"{ollama_url}/api/chat",
             json={
                 "model": model,
-                "prompt": prompt,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
                 "stream": False,
                 "options": {
                     "temperature": 0.3,  # Low temperature for more deterministic analysis
@@ -107,7 +142,9 @@ Be specific, actionable, and prioritize the most critical issues."""
         )
         
         response.raise_for_status()
-        generated_text = response.json().get('response', '')
+        response_data = response.json()
+        # Extract message content from chat API response
+        generated_text = response_data.get('message', {}).get('content', '') or response_data.get('response', '')
         
         # Try to parse JSON from the response
         import json

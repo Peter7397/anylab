@@ -315,9 +315,11 @@ class ComprehensiveRAGService(AdvancedRAGService):
             logger.error(f"Error in fallback comprehensive search: {e}")
             return self.search_with_hybrid_and_reranking(query, top_k)
     
-    def generate_comprehensive_response(self, query: str, documents: List[Dict]) -> str:
-        """Generate comprehensive, detailed response using all available information"""
+    def generate_comprehensive_response(self, query: str, documents: List[Dict], language='en-US') -> str:
+        """Generate comprehensive, detailed response using all available information with language support"""
         if not documents:
+            if 'zh' in language.lower():
+                return "我的知识库中没有足够的信息来全面回答您的问题。"
             return "I don't have enough information in my knowledge base to provide a comprehensive answer to your question."
         
         try:
@@ -332,8 +334,8 @@ class ComprehensiveRAGService(AdvancedRAGService):
                 query, context_info, query_type
             )
             
-            # Generate comprehensive response with enhanced parameters
-            response = self.ollama_generate_comprehensive(comprehensive_prompt, query_type)
+            # Generate comprehensive response with enhanced parameters and language support
+            response = self.ollama_generate_comprehensive(comprehensive_prompt, query_type, language=language)
             
             # Clean response to remove any unwanted markdown formatting
             cleaned_response = self.clean_response_formatting(response)
@@ -396,8 +398,8 @@ class ComprehensiveRAGService(AdvancedRAGService):
         
         return cleaned
     
-    def ollama_generate_comprehensive(self, prompt: str, query_type: str = 'general', model: str = None) -> str:
-        """Generate comprehensive response with parameters optimized for detailed answers"""
+    def ollama_generate_comprehensive(self, prompt: str, query_type: str = 'general', model: str = None, language='en-US') -> str:
+        """Generate comprehensive response with parameters optimized for detailed answers and language support"""
         if model is None:
             model = self.model_name
         
@@ -406,9 +408,13 @@ class ComprehensiveRAGService(AdvancedRAGService):
             logger.error("Ollama model is not set! Please configure OLLAMA_MODEL in settings or via System Settings.")
             raise ValueError("Ollama model is not configured. Please set a model in System Settings.")
         
+<<<<<<< Updated upstream
         # Create cache key
+=======
+        # Create cache key (include language)
+>>>>>>> Stashed changes
         prompt_hash = hashlib.md5(prompt.encode('utf-8')).hexdigest()
-        cache_key = f"comprehensive_response_{model}_{query_type}_{prompt_hash}"
+        cache_key = f"comprehensive_response_{model}_{query_type}_{prompt_hash}_{language}"
         
         # Try cache first
         cached_response = cache.get(cache_key)
@@ -462,14 +468,31 @@ class ComprehensiveRAGService(AdvancedRAGService):
         
         params = comprehensive_params.get(query_type, comprehensive_params['general'])
         
+        # Select system prompt based on language with explicit language instruction
+        if 'zh' in language.lower():
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
+                                  '你是一个专业的助手。你必须用中文（简体中文）回答所有问题。'
+                                  '请仅使用提供的上下文回答问题，保持详细、全面、准确。'
+                                  '不要用英语回答，只能用中文。')
+        else:
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
+                                  'You are a helpful assistant. You MUST answer all questions in English. '
+                                  'Use only the following context to answer the question. Be detailed, comprehensive, and accurate. '
+                                  'Do not respond in Chinese, only in English.')
+        
         try:
             api_url = f"{self.ollama_url}/api/chat"
+<<<<<<< Updated upstream
             logger.debug(f"Calling Ollama API: {api_url} with model: {model}")
+=======
+            logger.debug(f"Calling Ollama API: {api_url} with model: {model}, language: {language}")
+>>>>>>> Stashed changes
             response = requests.post(
                 api_url,
                 json={
                     "model": model,
                     "messages": [
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
                     ],
                     "stream": False,
@@ -544,8 +567,8 @@ class ComprehensiveRAGService(AdvancedRAGService):
                     }
                 }
             else:
-                # Step 2: Generate comprehensive response
-                response = self.generate_comprehensive_response(query, relevant_docs)
+                # Step 2: Generate comprehensive response with language support
+                response = self.generate_comprehensive_response(query, relevant_docs, language=language)
                 
                 # Calculate comprehensive statistics
                 query_type = relevant_docs[0].get('query_type', 'general')

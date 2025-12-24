@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as d3 from 'd3';
 import { 
   Send, 
   Clock, 
@@ -96,6 +97,7 @@ const GraphRagSearch: React.FC = () => {
   const [loadingGraph, setLoadingGraph] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const graphSvgRef = useRef<SVGSVGElement>(null);
   
   // Storage keys
   const GRAPH_HISTORY_STORAGE_KEY = 'anylab_graph_rag_history';
@@ -154,6 +156,199 @@ const GraphRagSearch: React.FC = () => {
       }
     } catch (_) {}
   }, []);
+
+  // D3 Force-Directed Graph Rendering
+  useEffect(() => {
+    if (!graphData || !graphSvgRef.current) return;
+    
+    // Validate graph data structure
+    if (!graphData.nodes || !Array.isArray(graphData.nodes) || graphData.nodes.length === 0) {
+      console.warn('Invalid or empty graph nodes data:', graphData);
+      return;
+    }
+    
+    if (!graphData.edges || !Array.isArray(graphData.edges)) {
+      console.warn('Invalid graph edges data:', graphData);
+      return;
+    }
+
+    const svg = d3.select(graphSvgRef.current);
+    svg.selectAll('*').remove(); // Clear previous graph
+
+    const width = graphSvgRef.current.clientWidth;
+    const height = 600;
+
+    // Create color scales for different node types
+    const nodeColors: { [key: string]: string } = {
+      'query_entity': '#10b981', // green
+      'related_entity': '#14b8a6', // teal
+      'document': '#3b82f6' // blue
+    };
+
+    // Prepare graph data - ensure all nodes have valid IDs
+    const nodes = graphData.nodes
+      .filter((d: any) => d && d.id !== undefined && d.id !== null)
+      .map((d: any) => ({ ...d }));
+    
+    if (nodes.length === 0) {
+      console.warn('No valid nodes with IDs found in graph data');
+      return;
+    }
+    
+    // Create a Set of valid node IDs for quick lookup
+    const nodeIds = new Set(nodes.map((n: any) => n.id));
+    
+    // Filter links to only include those with valid source and target nodes
+    const links = graphData.edges
+      .filter((d: any) => {
+        if (!d || d.source === undefined || d.target === undefined) {
+          console.warn('Invalid link found:', d);
+          return false;
+        }
+        if (!nodeIds.has(d.source) || !nodeIds.has(d.target)) {
+          console.warn('Link references non-existent node:', d);
+          return false;
+        }
+        return true;
+      })
+      .map((d: any) => ({
+        source: d.source,
+        target: d.target,
+        type: d.type || 'related'
+      }));
+
+    // Create force simulation
+    const simulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id((d: any) => d.id).distance(120))
+      .force('charge', d3.forceManyBody().strength(-400))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(50));
+
+    // Create zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([0.5, 3])
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform);
+      });
+
+    svg.call(zoom as any);
+
+    // Create main group for zooming/panning
+    const g = svg.append('g');
+
+    // Create arrow markers for edges
+    svg.append('defs').selectAll('marker')
+      .data(['end'])
+      .enter().append('marker')
+      .attr('id', 'arrowhead')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 25)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', '#94a3b8');
+
+    // Create links
+    const link = g.append('g')
+      .selectAll('line')
+      .data(links)
+      .enter().append('line')
+      .attr('stroke', '#94a3b8')
+      .attr('stroke-width', 2)
+      .attr('stroke-opacity', 0.6)
+      .attr('marker-end', 'url(#arrowhead)');
+
+    // Create link labels
+    const linkLabel = g.append('g')
+      .selectAll('text')
+      .data(links)
+      .enter().append('text')
+      .attr('font-size', 10)
+      .attr('fill', '#64748b')
+      .attr('text-anchor', 'middle')
+      .text((d: any) => d.type);
+
+    // Create nodes
+    const node = g.append('g')
+      .selectAll('circle')
+      .data(nodes)
+      .enter().append('circle')
+      .attr('r', (d: any) => {
+        if (d.group === 'query_entity') return 20;
+        if (d.type === 'document') return 15;
+        return 12;
+      })
+      .attr('fill', (d: any) => {
+        if (d.group === 'query_entity') return nodeColors['query_entity'];
+        if (d.type === 'document') return nodeColors['document'];
+        return nodeColors['related_entity'];
+      })
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 3)
+      .style('cursor', 'pointer')
+      .call(d3.drag<any, any>()
+        .on('start', (event, d: any) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on('drag', (event, d: any) => {
+          d.fx = event.x;
+          d.fy = event.y;
+        })
+        .on('end', (event, d: any) => {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        })
+      );
+
+    // Add node labels
+    const nodeLabel = g.append('g')
+      .selectAll('text')
+      .data(nodes)
+      .enter().append('text')
+      .attr('font-size', 11)
+      .attr('font-weight', (d: any) => d.group === 'query_entity' ? 'bold' : 'normal')
+      .attr('fill', '#1f2937')
+      .attr('text-anchor', 'middle')
+      .attr('dy', 30)
+      .style('pointer-events', 'none')
+      .text((d: any) => d.label.length > 20 ? d.label.substring(0, 20) + '...' : d.label);
+
+    // Add tooltips
+    node.append('title')
+      .text((d: any) => `${d.label}\nType: ${d.entityType || d.type || 'Unknown'}`);
+
+    // Update positions on each tick
+    simulation.on('tick', () => {
+      link
+        .attr('x1', (d: any) => d.source.x)
+        .attr('y1', (d: any) => d.source.y)
+        .attr('x2', (d: any) => d.target.x)
+        .attr('y2', (d: any) => d.target.y);
+
+      linkLabel
+        .attr('x', (d: any) => (d.source.x + d.target.x) / 2)
+        .attr('y', (d: any) => (d.source.y + d.target.y) / 2);
+
+      node
+        .attr('cx', (d: any) => d.x)
+        .attr('cy', (d: any) => d.y);
+
+      nodeLabel
+        .attr('x', (d: any) => d.x)
+        .attr('y', (d: any) => d.y);
+    });
+
+    // Cleanup on unmount
+    return () => {
+      simulation.stop();
+    };
+  }, [graphData, showGraphModal]);
 
   const handleGraphSearch = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -343,10 +538,34 @@ const GraphRagSearch: React.FC = () => {
     
     try {
       const data = await apiClient.getGraphForQuery(currentQuery, 50, 2);
+      
+      // Validate the returned data structure
+      if (!data || typeof data !== 'object') {
+        console.error('Invalid graph data received:', data);
+        setGraphData({ error: true, message: 'Invalid graph data structure' });
+        return;
+      }
+      
+      // Ensure data has required properties
+      if (!data.nodes || !Array.isArray(data.nodes)) {
+        console.error('Graph data missing nodes array:', data);
+        data.nodes = [];
+      }
+      
+      if (!data.edges || !Array.isArray(data.edges)) {
+        console.error('Graph data missing edges array:', data);
+        data.edges = [];
+      }
+      
       setGraphData(data);
     } catch (error) {
       console.error('Error loading graph:', error);
-      setGraphData(null);
+      setGraphData({ 
+        error: true, 
+        message: error instanceof Error ? error.message : 'Failed to load graph data',
+        nodes: [],
+        edges: []
+      });
     } finally {
       setLoadingGraph(false);
     }
@@ -813,6 +1032,17 @@ const GraphRagSearch: React.FC = () => {
                   <div className="text-center">
                     <Loader2 className="h-12 w-12 text-green-600 animate-spin mx-auto mb-4" />
                     <p className="text-gray-600">{t('loadingGraphData')}</p>
+<<<<<<< Updated upstream
+=======
+                  </div>
+                </div>
+              ) : graphData && graphData.error ? (
+                <div className="flex items-center justify-center h-96">
+                  <div className="text-center">
+                    <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+                    <p className="text-gray-900 font-medium mb-2">Failed to load graph data</p>
+                    <p className="text-gray-600 text-sm">{graphData.message || 'An error occurred while loading the graph'}</p>
+>>>>>>> Stashed changes
                   </div>
                 </div>
               ) : graphData ? (
@@ -835,8 +1065,8 @@ const GraphRagSearch: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Simple Graph Visualization */}
-                  <div className="border-2 border-gray-200 rounded-lg p-6 bg-gradient-to-br from-gray-50 to-gray-100">
+                  {/* Force-Directed Graph Visualization with D3.js */}
+                  <div className="border-2 border-gray-200 rounded-lg bg-gradient-to-br from-gray-50 to-gray-100">
                     {graphData.nodes.length === 0 ? (
                       <div className="flex items-center justify-center h-96">
                         <div className="text-center">
@@ -846,89 +1076,121 @@ const GraphRagSearch: React.FC = () => {
                       </div>
                     ) : (
                       <div>
-                        {/* Query Entities (Center/Hub) */}
-                        {graphData.nodes.filter((n: any) => n.group === 'query_entity').length > 0 && (
-                          <div className="mb-6">
-                            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                              <Sparkles className="mr-2 h-4 w-4 text-green-600" />
-                              Query Entities
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                              {graphData.nodes
-                                .filter((n: any) => n.group === 'query_entity')
-                                .map((node: any) => (
-                                  <div
-                                    key={node.id}
-                                    className="px-4 py-2 bg-green-100 border-2 border-green-400 text-green-800 rounded-lg text-sm font-medium shadow-md"
-                                  >
-                                    {node.label}
-                                    {node.entityType && (
-                                      <span className="ml-2 text-xs opacity-75">({node.entityType})</span>
-                                    )}
-                                  </div>
-                                ))}
+                        {/* Interactive Graph Canvas */}
+                        <div className="relative">
+                          <svg
+                            ref={graphSvgRef}
+                            className="w-full border-b border-gray-200 bg-white"
+                            style={{ height: '600px' }}
+                          />
+                          <div className="absolute top-4 right-4 bg-white bg-opacity-90 rounded-lg p-3 shadow-md text-xs">
+                            <p className="font-semibold text-gray-700 mb-2">Legend:</p>
+                            <div className="space-y-1">
+                              <div className="flex items-center">
+                                <div className="w-4 h-4 rounded-full bg-green-500 mr-2"></div>
+                                <span className="text-gray-600">Query Entities</span>
+                              </div>
+                              <div className="flex items-center">
+                                <div className="w-4 h-4 rounded-full bg-teal-500 mr-2"></div>
+                                <span className="text-gray-600">Related Entities</span>
+                              </div>
+                              <div className="flex items-center">
+                                <div className="w-4 h-4 rounded-full bg-blue-500 mr-2"></div>
+                                <span className="text-gray-600">Documents</span>
+                              </div>
                             </div>
-                          </div>
-                        )}
-
-                        {/* Related Entities */}
-                        {graphData.nodes.filter((n: any) => n.group === 'related_entity').length > 0 && (
-                          <div className="mb-6">
-                            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                              <GitBranch className="mr-2 h-4 w-4 text-teal-600" />
-                              Related Entities
-                            </h4>
-                            <div className="flex flex-wrap gap-2">
-                              {graphData.nodes
-                                .filter((n: any) => n.group === 'related_entity')
-                                .map((node: any) => (
-                                  <div
-                                    key={node.id}
-                                    className={`px-3 py-1.5 border-2 rounded-lg text-xs font-medium shadow-sm ${getEntityTypeColor(node.entityType || 'UNKNOWN')} border-opacity-50`}
-                                  >
-                                    {node.label}
-                                    {node.entityType && (
-                                      <span className="ml-1.5 text-[10px] opacity-75">({node.entityType})</span>
-                                    )}
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Documents */}
-                        {graphData.nodes.filter((n: any) => n.type === 'document').length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                              <FileText className="mr-2 h-4 w-4 text-emerald-600" />
-                              Related Documents
-                            </h4>
-                            <div className="space-y-2">
-                              {graphData.nodes
-                                .filter((n: any) => n.type === 'document')
-                                .map((node: any) => (
-                                  <div
-                                    key={node.id}
-                                    className="px-3 py-2 bg-emerald-50 border border-blue-200 text-blue-800 rounded text-sm"
-                                  >
-                                    {node.label}
-                                  </div>
-                                ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Connections Info */}
-                        {graphData.edges.length > 0 && (
-                          <div className="mt-6 pt-6 border-t border-gray-300">
-                            <p className="text-sm text-gray-600">
-                              <strong>{graphData.edges.length}</strong> relationships found between entities
+                            <p className="text-gray-500 mt-2 pt-2 border-t border-gray-200">
+                              💡 Drag nodes • Scroll to zoom
                             </p>
-                            <div className="mt-3 text-xs text-gray-500">
-                              Relationship types: {Array.from(new Set(graphData.edges.map((e: any) => e.type))).join(', ')}
-                            </div>
                           </div>
-                        )}
+                        </div>
+
+                        {/* Entity Summary Below Graph */}
+                        <div className="p-6 space-y-4">
+                          {/* Query Entities */}
+                          {graphData.nodes.filter((n: any) => n.group === 'query_entity').length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                                <Sparkles className="mr-2 h-4 w-4 text-green-600" />
+                                Query Entities ({graphData.nodes.filter((n: any) => n.group === 'query_entity').length})
+                              </h4>
+                              <div className="flex flex-wrap gap-2">
+                                {graphData.nodes
+                                  .filter((n: any) => n.group === 'query_entity')
+                                  .map((node: any) => (
+                                    <div
+                                      key={node.id}
+                                      className="px-3 py-1.5 bg-green-100 border border-green-300 text-green-800 rounded text-xs font-medium"
+                                    >
+                                      {node.label}
+                                      {node.entityType && (
+                                        <span className="ml-1.5 text-[10px] opacity-75">({node.entityType})</span>
+                                      )}
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Related Entities */}
+                          {graphData.nodes.filter((n: any) => n.group === 'related_entity').length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                                <GitBranch className="mr-2 h-4 w-4 text-teal-600" />
+                                Related Entities ({graphData.nodes.filter((n: any) => n.group === 'related_entity').length})
+                              </h4>
+                              <div className="flex flex-wrap gap-2">
+                                {graphData.nodes
+                                  .filter((n: any) => n.group === 'related_entity')
+                                  .map((node: any) => (
+                                    <div
+                                      key={node.id}
+                                      className={`px-2 py-1 border rounded text-xs font-medium ${getEntityTypeColor(node.entityType || 'UNKNOWN')}`}
+                                    >
+                                      {node.label}
+                                      {node.entityType && (
+                                        <span className="ml-1 text-[10px] opacity-75">({node.entityType})</span>
+                                      )}
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Documents */}
+                          {graphData.nodes.filter((n: any) => n.type === 'document').length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                                <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                                Related Documents ({graphData.nodes.filter((n: any) => n.type === 'document').length})
+                              </h4>
+                              <div className="space-y-1.5">
+                                {graphData.nodes
+                                  .filter((n: any) => n.type === 'document')
+                                  .map((node: any) => (
+                                    <div
+                                      key={node.id}
+                                      className="px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-800 rounded text-xs"
+                                    >
+                                      {node.label}
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Relationship Info */}
+                          {graphData.edges.length > 0 && (
+                            <div className="pt-4 border-t border-gray-200">
+                              <p className="text-sm text-gray-600">
+                                <strong>{graphData.edges.length}</strong> relationships found between entities
+                              </p>
+                              <div className="mt-2 text-xs text-gray-500">
+                                Relationship types: {Array.from(new Set(graphData.edges.map((e: any) => e.type))).join(', ')}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

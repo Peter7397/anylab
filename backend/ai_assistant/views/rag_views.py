@@ -189,9 +189,13 @@ def graph_rag_search(request):
         if not query:
             return bad_request_response('Query is required')
         
+        # Get language preference from Accept-Language header
+        accept_language = request.META.get('HTTP_ACCEPT_LANGUAGE', 'en-US')
+        language = accept_language.split(',')[0].strip() if accept_language else 'en-US'
+        
         top_k = int(request.data.get('top_k', 10))
         
-        result = graph_rag_service.query_with_graph_rag(query, top_k=top_k, user=request.user)
+        result = graph_rag_service.query_with_graph_rag(query, top_k=top_k, user=request.user, language=language)
         
         BaseViewMixin.log_response(result, 'graph_rag_search')
         return success_response("Graph RAG search completed successfully", result)

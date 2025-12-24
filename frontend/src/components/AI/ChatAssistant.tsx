@@ -198,7 +198,7 @@ const ChatAssistant: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
-    const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+    const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
     setIsAuthenticated(!!token);
   }, []);
 
@@ -379,7 +379,7 @@ const ChatAssistant: React.FC = () => {
     }
 
     try {
-      // Optimized parameters for faster response with Qwen 7B
+      // Optimized parameters for faster response
       const res = await apiClient.chatWithOllama(currentInput, { 
         max_tokens: 512, // Limit tokens for faster response
         temperature: 0.3, // Lower temperature for more focused responses

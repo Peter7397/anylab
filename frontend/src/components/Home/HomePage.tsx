@@ -30,7 +30,7 @@ const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation('common');
   // Check if user is authenticated
-  const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
+  const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
   const isAuthenticated = !!token;
 
   // Public landing page for unauthenticated users

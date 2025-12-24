@@ -618,6 +618,7 @@ class EnhancedRAGService:
             logger.info(f"Using cached response for prompt hash: {prompt_hash[:8]}...")
             return cached_response
         
+<<<<<<< Updated upstream
         # Select system prompt based on language
         if 'zh' in language.lower():
             system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
@@ -625,6 +626,19 @@ class EnhancedRAGService:
         else:
             system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
                                   'You are a helpful assistant. Use only the following context to answer the question. Be concise and accurate.')
+=======
+        # Select system prompt based on language with explicit language instruction
+        if 'zh' in language.lower():
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
+                                  '你是一个专业的助手。你必须用中文（简体中文）回答所有问题。'
+                                  '请仅使用提供的上下文回答问题，保持简洁准确。'
+                                  '不要用英语回答，只能用中文。')
+        else:
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
+                                  'You are a helpful assistant. You MUST answer all questions in English. '
+                                  'Use only the following context to answer the question. Be concise and accurate. '
+                                  'Do not respond in Chinese, only in English.')
+>>>>>>> Stashed changes
             
         try:
             api_url = f"{self.ollama_url}/api/chat"
@@ -694,8 +708,14 @@ class EnhancedRAGService:
         
         # Language-aware RAG prompts
         if 'zh' in language.lower():
+<<<<<<< Updated upstream
             # Chinese prompt
             prompt = (
+=======
+            # Chinese prompt - with explicit language enforcement
+            prompt = (
+                "重要：你必须用中文（简体中文）回答。不要用英语。\n\n"
+>>>>>>> Stashed changes
                 "你是一个专业的助手。\n"
                 "请仅使用以下提供的上下文来回答用户的问题。\n"
                 "引用上下文中的信息时使用方括号引用编号（例如：[1]，或多个 [1][3]）。\n"
@@ -706,11 +726,20 @@ class EnhancedRAGService:
                 "尽可能使用更多相关来源来提供详尽的答案。\n\n"
                 f"上下文：\n{context}\n\n"
                 f"问题：{query}\n\n"
+<<<<<<< Updated upstream
                 "回答："
             )
         else:
             # English prompt
             prompt = (
+=======
+                "回答（必须用中文）："
+            )
+        else:
+            # English prompt - with explicit language enforcement
+            prompt = (
+                "IMPORTANT: You MUST answer in English. Do not respond in Chinese.\n\n"
+>>>>>>> Stashed changes
                 "You are a helpful assistant.\n"
                 "Answer the user's question ONLY using the provided context below.\n"
                 "Cite all information derived from the context using bracketed reference numbers (e.g., [1], or multiple [1][3]).\n"
@@ -721,7 +750,11 @@ class EnhancedRAGService:
                 "Use as many relevant sources as possible to provide a thorough answer.\n\n"
                 f"Context:\n{context}\n\n"
                 f"Question: {query}\n\n"
+<<<<<<< Updated upstream
                 "Answer:"
+=======
+                "Answer (in English):"
+>>>>>>> Stashed changes
             )
         
         return self.ollama_generate(prompt, language=language)

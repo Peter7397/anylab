@@ -8,7 +8,11 @@
   "communitySolutions": "Community Solutions",
   "documentViewer": "Document Viewer",
   "aiAssistant": "AI Assistant",
+<<<<<<< Updated upstream
   "freeAiChat": "Free AI Chat",
+=======
+  "freeAiChat": "AI Chat",
+>>>>>>> Stashed changes
   "basicRag": "Basic RAG",
   "advancedRag": "Advanced RAG",
   "comprehensiveRag": "Comprehensive RAG",

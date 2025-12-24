@@ -165,7 +165,12 @@ class ApiClient {
     }
 
     // Add Accept-Language header based on user's language preference
+<<<<<<< Updated upstream
     const language = localStorage.getItem('anylab_language') || 'en-US';
+=======
+    // Default to Chinese (zh-CN) if no language is set
+    const language = localStorage.getItem('anylab_language') || 'zh-CN';
+>>>>>>> Stashed changes
     headers['Accept-Language'] = language;
 
     return headers;
@@ -819,7 +824,7 @@ class ApiClient {
     return response.data;
   }
 
-  // Chat with Ollama (Qwen)
+  // Chat with Ollama
   async chatWithOllama(prompt: string, opts?: { 
     max_tokens?: number; 
     temperature?: number; 
