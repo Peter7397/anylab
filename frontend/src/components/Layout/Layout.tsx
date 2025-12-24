@@ -70,7 +70,15 @@ const Layout: React.FC = () => {
         setAiMode(mode);
         // Store AI mode preference
         localStorage.setItem('ai_mode', mode);
+        // Store the model that was set
+        if (response.ollama_model) {
+          localStorage.setItem('ollama_model', response.ollama_model);
+        }
         console.log(`AI Mode switched to: ${mode}`, response.message);
+        // Optionally show success notification
+        if (response.ollama_model) {
+          console.log(`Ollama model set to: ${response.ollama_model}`);
+        }
       } else {
         console.error('Failed to switch AI mode:', response.error);
         // Optionally show error notification to user

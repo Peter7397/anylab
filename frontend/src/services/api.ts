@@ -10,18 +10,29 @@ const getApiBaseUrl = () => {
   const protocol = window.location.protocol;
   const port = '8001';  // CHANGED: 8000 -> 8001 to avoid conflict with 7English
   
+  // Helper function to check if hostname is an IP address
+  const isIPAddress = (host: string): boolean => {
+    // IPv4 pattern
+    const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+    // IPv6 pattern (simplified - checks for colons)
+    const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+    return ipv4Pattern.test(host) || ipv6Pattern.test(host);
+  };
+  
   // If accessing via localhost/127.0.0.1, use localhost for backend
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return `${protocol}//localhost:${port}/api`;
   }
   
-  // If accessing via domain name (anylab.dpdns.org), use same domain without port
-  // Nginx will handle routing to the backend
-  if (hostname === 'anylab.dpdns.org') {
+  // If accessing via domain name (not IP address), use same domain without port
+  // This works for production with Cloudflare - Nginx will handle routing /api/* to backend
+  // Examples: anylab.dpdns.org, www.anylab.com, anylab.example.com
+  if (!isIPAddress(hostname)) {
+    // Domain name detected - use same domain (Nginx reverse proxy will route to backend)
     return `${protocol}//${hostname}/api`;
   }
   
-  // Otherwise use the same hostname (for LAN access or any IP access)
+  // Otherwise use the same hostname with port (for LAN access via IP address)
   // This ensures if you access via 192.168.1.216:3000, it connects to 192.168.1.216:8001
   return `${protocol}//${hostname}:${port}/api`;
 };
@@ -57,6 +68,7 @@ export interface User {
   employee_id?: string;
   department?: string;
   position?: string;
+  phone?: string;
   is_active: boolean;
   is_staff?: boolean;
   is_superuser?: boolean;
@@ -151,6 +163,10 @@ class ApiClient {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
+
+    // Add Accept-Language header based on user's language preference
+    const language = localStorage.getItem('anylab_language') || 'en-US';
+    headers['Accept-Language'] = language;
 
     return headers;
   }
@@ -1003,6 +1019,12 @@ class ApiClient {
       vector_only: number;
       query_entities: Array<{ name: string; type: string; normalized?: string }>;
     };
+    entity_matches?: {
+      exact_entities: Array<{ name: string; type: string }>;
+      semantic_entities: Array<{ name: string; type: string; similarity: number }>;
+      total_exact: number;
+      total_semantic: number;
+    };
   }> {
     const response = await this.request<{ 
       response: string; 
@@ -1022,6 +1044,12 @@ class ApiClient {
         graph_enhanced: number;
         vector_only: number;
         query_entities: Array<{ name: string; type: string; normalized?: string }>;
+      };
+      entity_matches?: {
+        exact_entities: Array<{ name: string; type: string }>;
+        semantic_entities: Array<{ name: string; type: string; similarity: number }>;
+        total_exact: number;
+        total_semantic: number;
       };
     }>('/ai/rag/search/graph/', {
       method: 'POST',
@@ -1389,6 +1417,22 @@ class ApiClient {
       body: JSON.stringify({ mode })
     });
     return response.data;
+  }
+
+  async updateSystemSettings(settings: { rag?: { model?: string } }): Promise<any> {
+    const response = await this.request('/ai/admin/settings/update/', {
+      method: 'PUT',
+      body: JSON.stringify(settings)
+    });
+    return response.data;
+  }
+
+  async getAvailableModels(): Promise<string[]> {
+    const response = await this.request<{ success: boolean; models?: string[]; error?: string }>('/ai/admin/settings/available-models/');
+    if (response.data.success) {
+      return response.data.models || [];
+    }
+    return [];
   }
 
   // Website Management API Methods

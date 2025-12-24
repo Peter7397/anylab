@@ -18,7 +18,7 @@ from ..user_contribution_dashboard import UserRole
 from ..contribution_analytics_system import ContributionAnalyticsSystem
 from ..user_behavior_tracking import UserBehaviorTracking
 from .base_views import (
-    BaseViewMixin, success_response, error_response
+    BaseViewMixin, success_response, error_response, forbidden_response
 )
 
 logger = logging.getLogger(__name__)
@@ -122,8 +122,9 @@ def get_performance_analytics(request):
     try:
         BaseViewMixin.log_request(request, 'get_performance_analytics')
         
-        # Get query statistics
-        queries = QueryHistory.objects.all()
+        # Get query statistics scoped to authenticated user
+        user = request.user
+        queries = QueryHistory.objects.filter(user=user)
         
         # Performance metrics
         recent_queries = queries.order_by('-created_at')[:100]
@@ -156,6 +157,52 @@ def get_performance_analytics(request):
         
     except Exception as e:
         return BaseViewMixin.handle_error(e, 'get_performance_analytics')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_performance_analytics_global(request):
+    """Admin-only: Get global performance analytics across all users"""
+    try:
+        BaseViewMixin.log_request(request, 'get_performance_analytics_global')
+        
+        if not request.user.is_staff:
+            return forbidden_response("Admin access required")
+        
+        # Global query statistics
+        queries = QueryHistory.objects.all()
+        
+        # Performance metrics
+        recent_queries = queries.order_by('-created_at')[:100]
+        
+        avg_sources_count = recent_queries.aggregate(
+            avg=Avg('length')
+        )['avg'] or 0
+        
+        queries_by_type = queries.values('query_type').annotate(
+            count=Count('id')
+        )
+        
+        # Time-based metrics
+        one_day_ago = timezone.now() - timedelta(days=1)
+        seven_days_ago = timezone.now() - timedelta(days=7)
+        
+        recent_count = queries.filter(created_at__gte=one_day_ago).count()
+        weekly_count = queries.filter(created_at__gte=seven_days_ago).count()
+        
+        result = {
+            'total_queries': queries.count(),
+            'recent_queries': recent_count,
+            'weekly_queries': weekly_count,
+            'by_type': list(queries_by_type),
+            'avg_sources_per_query': round(avg_sources_count, 2)
+        }
+        
+        BaseViewMixin.log_response(result, 'get_performance_analytics_global')
+        return success_response("Global performance analytics retrieved successfully", result)
+        
+    except Exception as e:
+        return BaseViewMixin.handle_error(e, 'get_performance_analytics_global')
 
 
 @api_view(['GET'])

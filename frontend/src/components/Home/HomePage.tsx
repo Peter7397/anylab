@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { 
   LogIn, 
   Brain, 
@@ -19,30 +20,18 @@ import {
   BarChart3,
   Settings,
   ArrowRight,
-  CheckCircle
+  CheckCircle,
+  Globe,
+  Webhook
 } from 'lucide-react';
+import LanguageSwitcher from '../Layout/LanguageSwitcher';
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation('common');
   // Check if user is authenticated
   const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
   const isAuthenticated = !!token;
-
-  useEffect(() => {
-    // If authenticated, redirect to dashboard
-    if (isAuthenticated) {
-      navigate('/dashboard', { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
-
-  // Show loading state while redirecting authenticated users
-  if (isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
 
   // Public landing page for unauthenticated users
   return (
@@ -56,95 +45,94 @@ const HomePage: React.FC = () => {
                 <Brain className="w-6 h-6 text-white" />
               </div>
               <div>
-              <h1 className="text-2xl font-bold text-gray-900">AnyLab</h1>
-              <span className="text-sm text-gray-500">Smart Knowledge, Securely in Your Lab</span>
+                <h1 className="text-2xl font-bold text-gray-900">AnyLab</h1>
+                <span className="text-sm text-gray-500">{t('homepage.tagline')}</span>
               </div>
             </div>
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-            >
-              <LogIn className="w-4 h-4" />
-              Sign In
-            </Link>
+            <div className="flex items-center gap-3">
+              <LanguageSwitcher />
+              {isAuthenticated ? (
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                >
+                  <ArrowRight className="w-4 h-4 rotate-180" />
+                  {t('dashboard')}
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
+                >
+                  <LogIn className="w-4 h-4" />
+                  {t('homepage.signIn')}
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-16">
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-medium mb-6">
             <Sparkles className="w-4 h-4" />
-            AI-Powered Laboratory Knowledge Platform
+            {t('homepage.heroSubtitle')}
           </div>
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            Centralize, Search, and
-            <span className="bg-gradient-to-r from-primary-600 to-teal-600 bg-clip-text text-transparent"> Collaborate</span>
+            {t('homepage.heroTitle')}
+            <span className="bg-gradient-to-r from-primary-600 to-teal-600 bg-clip-text text-transparent"> {t('homepage.heroTitleHighlight')}</span>
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-8">
-            Transform your laboratory documentation into an intelligent knowledge base. 
-            Upload PDFs, search with AI-powered RAG, and get instant answers from your technical manuals, SOPs, and protocols.
+            {t('homepage.heroDescription')}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-lg shadow-lg"
-            >
-              Get Started
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link
-              to="/forum"
-              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg border border-gray-300"
-            >
-              Explore Forum
-            </Link>
-          </div>
-        </div>
-
-        {/* Feature Highlights Grid */}
-        <div className="grid md:grid-cols-3 gap-6 mb-16">
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
-              <Brain className="w-6 h-6 text-primary-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">AI-Powered Search</h3>
-            <p className="text-gray-600">
-              Advanced RAG with 4 search modes: Basic, Advanced, Comprehensive, and Graph RAG. 
-              Get precise answers from your documentation.
-            </p>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <Upload className="w-6 h-6 text-green-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Document Management</h3>
-            <p className="text-gray-600">
-              Intelligent PDF processing with automatic chunking, embedding generation, 
-              and vector storage for instant retrieval.
-            </p>
-          </div>
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 hover:shadow-xl transition-shadow">
-            <div className="w-12 h-12 bg-lime-100 rounded-lg flex items-center justify-center mb-4">
-              <Database className="w-6 h-6 text-lime-600" />
-            </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Knowledge Library</h3>
-            <p className="text-gray-600">
-              Centralized repository for manuals, specs, protocols, and technical documentation 
-              with smart categorization.
-            </p>
+            {isAuthenticated ? (
+              <>
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-lg shadow-lg"
+                >
+                  {t('dashboard')}
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+                <Link
+                  to="/ai/chat"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg border border-gray-300"
+                >
+                  {t('aiAssistant')}
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-lg shadow-lg"
+                >
+                  {t('homepage.getStarted')}
+                  <ArrowRight className="w-5 h-5" />
+                </Link>
+                <Link
+                  to="/forum"
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg border border-gray-300"
+                >
+                  {t('homepage.exploreForum')}
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </section>
 
       {/* Main Features Section */}
-      <section className="bg-white py-20">
+      <section className="bg-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Comprehensive Platform Features</h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">{t('homepage.featuresTitle')}</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Everything you need to manage laboratory knowledge and operations in one place
+              {t('homepage.featuresSubtitle')}
             </p>
           </div>
           
@@ -153,25 +141,18 @@ const HomePage: React.FC = () => {
             <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-6 border border-emerald-200">
               <div className="flex items-center gap-3 mb-4">
                 <Brain className="w-8 h-8 text-emerald-600" />
-                <h3 className="text-xl font-bold text-gray-900">AI Assistant</h3>
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.aiAssistant.title')}</h3>
               </div>
               <p className="text-gray-700 mb-4">
-                Chat with your documentation using advanced RAG technology. Get instant, 
-                traceable answers from your knowledge base.
+                {t('homepage.features.aiAssistant.description')}
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Free AI Chat
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  4 RAG Search Modes
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Graph RAG Support
-                </li>
+                {(t('homepage.features.aiAssistant.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -179,25 +160,18 @@ const HomePage: React.FC = () => {
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
               <div className="flex items-center gap-3 mb-4">
                 <FileText className="w-8 h-8 text-green-600" />
-                <h3 className="text-xl font-bold text-gray-900">Document Processing</h3>
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.documentProcessing.title')}</h3>
               </div>
               <p className="text-gray-700 mb-4">
-                Automated PDF processing with intelligent chunking, embedding generation, 
-                and vector storage for optimal search performance.
+                {t('homepage.features.documentProcessing.description')}
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Auto-Extract Content
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Smart Chunking
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Vector Embeddings
-                </li>
+                {(t('homepage.features.documentProcessing.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -205,25 +179,18 @@ const HomePage: React.FC = () => {
             <div className="bg-gradient-to-br from-lime-50 to-emerald-50 rounded-xl p-6 border border-lime-200">
               <div className="flex items-center gap-3 mb-4">
                 <BookOpen className="w-8 h-8 text-lime-600" />
-                <h3 className="text-xl font-bold text-gray-900">Knowledge Library</h3>
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.knowledgeLibrary.title')}</h3>
               </div>
               <p className="text-gray-700 mb-4">
-                Centralized document management with advanced viewer, categorization, 
-                and sharing capabilities.
+                {t('homepage.features.knowledgeLibrary.description')}
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Document Viewer
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Library Manager
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Sharing & Collaboration
-                </li>
+                {(t('homepage.features.knowledgeLibrary.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -231,25 +198,18 @@ const HomePage: React.FC = () => {
             <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-6 border border-orange-200">
               <div className="flex items-center gap-3 mb-4">
                 <AlertTriangle className="w-8 h-8 text-orange-600" />
-                <h3 className="text-xl font-bold text-gray-900">Troubleshooting AI</h3>
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.troubleshooting.title')}</h3>
               </div>
               <p className="text-gray-700 mb-4">
-                AI-powered troubleshooting assistance using your documentation, 
-                logs, and knowledge base for rapid problem resolution.
+                {t('homepage.features.troubleshooting.description')}
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Log Analysis
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  System Overview
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Diagnostic Tools
-                </li>
+                {(t('homepage.features.troubleshooting.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -257,25 +217,18 @@ const HomePage: React.FC = () => {
             <div className="bg-gradient-to-br from-teal-50 to-emerald-50 rounded-xl p-6 border border-teal-200">
               <div className="flex items-center gap-3 mb-4">
                 <Database className="w-8 h-8 text-teal-600" />
-                <h3 className="text-xl font-bold text-gray-900">Lab Informatics</h3>
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.labInformatics.title')}</h3>
               </div>
               <p className="text-gray-700 mb-4">
-                Specialized support for laboratory software suites with product-specific 
-                documentation and knowledge bases.
+                {t('homepage.features.labInformatics.description')}
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Product Manuals
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  SSB Database
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Help Portal
-                </li>
+                {(t('homepage.features.labInformatics.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -283,25 +236,75 @@ const HomePage: React.FC = () => {
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
               <div className="flex items-center gap-3 mb-4">
                 <MessageSquare className="w-8 h-8 text-green-600" />
-                <h3 className="text-xl font-bold text-gray-900">Community Forum</h3>
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.communityForum.title')}</h3>
               </div>
               <p className="text-gray-700 mb-4">
-                Collaborate with your team, share knowledge, ask questions, and build 
-                a collective knowledge base.
+                {t('homepage.features.communityForum.description')}
               </p>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Discussion Threads
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Knowledge Sharing
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-green-600" />
-                  Team Collaboration
-                </li>
+                {(t('homepage.features.communityForum.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Scraper Management */}
+            <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-6 border border-blue-200">
+              <div className="flex items-center gap-3 mb-4">
+                <Webhook className="w-8 h-8 text-blue-600" />
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.scraperManagement.title')}</h3>
+              </div>
+              <p className="text-gray-700 mb-4">
+                {t('homepage.features.scraperManagement.description')}
+              </p>
+              <ul className="space-y-2 text-sm text-gray-600">
+                {(t('homepage.features.scraperManagement.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Analytics */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
+              <div className="flex items-center gap-3 mb-4">
+                <BarChart3 className="w-8 h-8 text-purple-600" />
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.analytics.title')}</h3>
+              </div>
+              <p className="text-gray-700 mb-4">
+                {t('homepage.features.analytics.description')}
+              </p>
+              <ul className="space-y-2 text-sm text-gray-600">
+                {(t('homepage.features.analytics.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Administration */}
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-200">
+              <div className="flex items-center gap-3 mb-4">
+                <Settings className="w-8 h-8 text-indigo-600" />
+                <h3 className="text-xl font-bold text-gray-900">{t('homepage.features.administration.title')}</h3>
+              </div>
+              <p className="text-gray-700 mb-4">
+                {t('homepage.features.administration.description')}
+              </p>
+              <ul className="space-y-2 text-sm text-gray-600">
+                {(t('homepage.features.administration.items', { returnObjects: true }) as string[]).map((item: string, index: number) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    {item}
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
@@ -309,56 +312,65 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Technology Stack */}
-      <section className="bg-gray-50 py-20">
+      <section className="bg-gray-50 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Powered by Advanced Technology</h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">{t('homepage.techTitle')}</h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              Built with cutting-edge AI and modern web technologies
+              {t('homepage.techSubtitle')}
             </p>
           </div>
           <div className="grid md:grid-cols-4 gap-6">
             <div className="bg-white rounded-lg p-6 text-center border border-gray-200">
               <Zap className="w-10 h-10 text-yellow-500 mx-auto mb-3" />
-              <h4 className="font-semibold text-gray-900 mb-2">Ollama LLM</h4>
-              <p className="text-sm text-gray-600">Qwen 2.5-7B Model</p>
+              <h4 className="font-semibold text-gray-900 mb-2">{t('homepage.tech.ollama')}</h4>
+              <p className="text-sm text-gray-600">{t('homepage.tech.ollamaDesc')}</p>
             </div>
             <div className="bg-white rounded-lg p-6 text-center border border-gray-200">
               <Layers className="w-10 h-10 text-primary-500 mx-auto mb-3" />
-              <h4 className="font-semibold text-gray-900 mb-2">pgvector</h4>
-              <p className="text-sm text-gray-600">Vector Database</p>
+              <h4 className="font-semibold text-gray-900 mb-2">{t('homepage.tech.pgvector')}</h4>
+              <p className="text-sm text-gray-600">{t('homepage.tech.pgvectorDesc')}</p>
             </div>
             <div className="bg-white rounded-lg p-6 text-center border border-gray-200">
               <Network className="w-10 h-10 text-lime-500 mx-auto mb-3" />
-              <h4 className="font-semibold text-gray-900 mb-2">Hybrid Search</h4>
-              <p className="text-sm text-gray-600">BM25 + Vector</p>
+              <h4 className="font-semibold text-gray-900 mb-2">{t('homepage.tech.hybridSearch')}</h4>
+              <p className="text-sm text-gray-600">{t('homepage.tech.hybridSearchDesc')}</p>
             </div>
             <div className="bg-white rounded-lg p-6 text-center border border-gray-200">
               <Shield className="w-10 h-10 text-green-500 mx-auto mb-3" />
-              <h4 className="font-semibold text-gray-900 mb-2">Secure & Private</h4>
-              <p className="text-sm text-gray-600">On-Premise Deployment</p>
+              <h4 className="font-semibold text-gray-900 mb-2">{t('homepage.tech.secure')}</h4>
+              <p className="text-sm text-gray-600">{t('homepage.tech.secureDesc')}</p>
             </div>
           </div>
         </div>
       </section>
 
-        {/* CTA Section */}
-      <section className="bg-gradient-to-r from-primary-600 to-teal-600 py-20">
+      {/* CTA Section */}
+      <section className="bg-gradient-to-r from-primary-600 to-teal-600 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl font-bold text-white mb-4">
-            Ready to Transform Your Lab Knowledge Management?
+            {t('homepage.ctaTitle')}
           </h2>
           <p className="text-xl text-emerald-100 mb-8 max-w-2xl mx-auto">
-            Join teams who are already using AI to streamline documentation search, 
-            improve troubleshooting, and enhance collaboration.
+            {t('homepage.ctaDescription')}
           </p>
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary-600 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg shadow-lg"
-          >
-            Get Started Free
-            <ArrowRight className="w-5 h-5" />
-          </Link>
+          {isAuthenticated ? (
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary-600 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg shadow-lg"
+            >
+              {t('dashboard')}
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary-600 rounded-lg hover:bg-gray-50 transition-colors font-medium text-lg shadow-lg"
+            >
+              {t('homepage.ctaButton')}
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          )}
         </div>
       </section>
 
@@ -372,16 +384,16 @@ const HomePage: React.FC = () => {
                 <span className="text-white font-bold text-lg">AnyLab</span>
               </div>
               <p className="text-sm">
-                AI-powered laboratory knowledge management platform
+                {t('homepage.footerTagline')}
               </p>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Features</h4>
+              <h4 className="text-white font-semibold mb-4">{t('homepage.featuresTitle')}</h4>
               <ul className="space-y-2 text-sm">
-                <li><Link to="/forum" className="hover:text-white transition-colors">AI Assistant</Link></li>
-                <li><Link to="/forum" className="hover:text-white transition-colors">Document Management</Link></li>
-                <li><Link to="/forum" className="hover:text-white transition-colors">Knowledge Library</Link></li>
-                <li><Link to="/forum" className="hover:text-white transition-colors">Troubleshooting</Link></li>
+                <li><Link to="/forum" className="hover:text-white transition-colors">{t('homepage.features.aiAssistant.title')}</Link></li>
+                <li><Link to="/forum" className="hover:text-white transition-colors">{t('homepage.features.documentProcessing.title')}</Link></li>
+                <li><Link to="/forum" className="hover:text-white transition-colors">{t('homepage.features.knowledgeLibrary.title')}</Link></li>
+                <li><Link to="/forum" className="hover:text-white transition-colors">{t('homepage.features.troubleshooting.title')}</Link></li>
               </ul>
             </div>
             <div>
@@ -393,20 +405,30 @@ const HomePage: React.FC = () => {
               </ul>
             </div>
             <div>
-              <h4 className="text-white font-semibold mb-4">Get Started</h4>
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
-              >
-                Sign In
-                <ArrowRight className="w-4 h-4" />
-              </Link>
+              <h4 className="text-white font-semibold mb-4">{isAuthenticated ? t('dashboard') : t('homepage.getStarted')}</h4>
+              {isAuthenticated ? (
+                <Link
+                  to="/dashboard"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                >
+                  {t('dashboard')}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors text-sm font-medium"
+                >
+                  {t('homepage.signIn')}
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
             </div>
           </div>
           <div className="mt-8 pt-8 border-t border-gray-800 text-center text-sm">
-            <p>&copy; 2024 AnyLab. Smart Knowledge, Securely in Your Lab.</p>
+            <p>{t('homepage.footerCopyright')}</p>
+          </div>
         </div>
-      </div>
       </footer>
     </div>
   );

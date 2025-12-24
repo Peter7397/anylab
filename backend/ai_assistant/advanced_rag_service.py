@@ -138,10 +138,10 @@ class AdvancedRAGService(ImprovedRAGService):
             # Fallback to improved search
             return self.search_relevant_documents_with_scoring(query, top_k)
     
-    def generate_advanced_response(self, query: str, documents: List[Dict]) -> str:
-        """Generate response with advanced context optimization"""
+    def generate_advanced_response(self, query: str, documents: List[Dict], language='en-US') -> str:
+        """Generate response with advanced context optimization and language support"""
         if not documents:
-            return "I don't know."
+            return "我不知道。" if 'zh' in language.lower() else "I don't know."
         
         try:
             # Determine query type
@@ -155,8 +155,8 @@ class AdvancedRAGService(ImprovedRAGService):
                 query, optimized_context, query_type
             )
             
-            # Generate response with enhanced parameters
-            response = self.ollama_generate_advanced(enhanced_prompt, query_type)
+            # Generate response with enhanced parameters and language support
+            response = self.ollama_generate_advanced(enhanced_prompt, query_type, language=language)
             
             # Clean response to remove any unwanted markdown formatting
             cleaned_response = self.clean_response_formatting(response)
@@ -165,8 +165,8 @@ class AdvancedRAGService(ImprovedRAGService):
             
         except Exception as e:
             logger.error(f"Error generating advanced response: {e}")
-            # Fallback to standard response generation
-            return self.generate_enhanced_response(query, documents)
+            # Fallback to standard response generation with language support
+            return self.generate_enhanced_response(query, documents, language=language)
     
     def clean_response_formatting(self, response: str) -> str:
         """Remove unwanted markdown formatting and symbols from response"""
@@ -191,14 +191,19 @@ class AdvancedRAGService(ImprovedRAGService):
         
         return cleaned
     
-    def ollama_generate_advanced(self, prompt: str, query_type: str = 'general', model: str = None) -> str:
-        """Generate response with query-type specific parameters"""
+    def ollama_generate_advanced(self, prompt: str, query_type: str = 'general', model: str = None, language='en-US') -> str:
+        """Generate response with query-type specific parameters and language support"""
         if model is None:
             model = self.model_name
         
-        # Create cache key
+        # Validate model is set
+        if not model:
+            logger.error("Ollama model is not set! Please configure OLLAMA_MODEL in settings or via System Settings.")
+            raise ValueError("Ollama model is not configured. Please set a model in System Settings.")
+        
+        # Create cache key (include language)
         prompt_hash = hashlib.md5(prompt.encode('utf-8')).hexdigest()
-        cache_key = f"advanced_response_{model}_{query_type}_{prompt_hash}"
+        cache_key = f"advanced_response_{model}_{query_type}_{prompt_hash}_{language}"
         
         # Try cache first
         cached_response = cache.get(cache_key)
@@ -242,12 +247,23 @@ class AdvancedRAGService(ImprovedRAGService):
         
         params = type_params.get(query_type, type_params['general'])
         
+        # Select system prompt based on language
+        if 'zh' in language.lower():
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
+                                  '你是一个专业的助手。请仅使用提供的上下文回答问题，保持简洁准确。')
+        else:
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
+                                  'You are a helpful assistant. Use only the following context to answer the question. Be concise and accurate.')
+        
         try:
+            api_url = f"{self.ollama_url}/api/chat"
+            logger.debug(f"Calling Ollama API: {api_url} with model: {model}")
             response = requests.post(
-                f"{self.ollama_url}/api/chat",
+                api_url,
                 json={
                     "model": model,
                     "messages": [
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
                     ],
                     "stream": False,
@@ -260,7 +276,12 @@ class AdvancedRAGService(ImprovedRAGService):
                 timeout=getattr(settings, 'OLLAMA_REQUEST_TIMEOUT', 120)
             )
             response.raise_for_status()
-            response_text = response.json()["message"]["content"]
+            response_data = response.json()
+            response_text = response_data.get("message", {}).get("content", "")
+            
+            if not response_text:
+                logger.error(f"Empty response from Ollama. Response: {response_data}")
+                raise ValueError("Empty response from Ollama API")
             
             # Cache the response
             cache.set(cache_key, response_text, self.response_cache_ttl)
@@ -268,16 +289,26 @@ class AdvancedRAGService(ImprovedRAGService):
             
             return response_text
             
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.error(f"Ollama API endpoint not found (404). URL: {api_url}, Model: {model}. Check if Ollama is running and the URL is correct.")
+                raise ValueError(f"Ollama API endpoint not found. Please check if Ollama is running at {self.ollama_url} and the model '{model}' exists.")
+            else:
+                logger.error(f"HTTP error from Ollama: {e.response.status_code} - {e.response.text}")
+                raise
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Cannot connect to Ollama at {self.ollama_url}. Make sure Ollama is running.")
+            raise ValueError(f"Cannot connect to Ollama at {self.ollama_url}. Please ensure Ollama is running.")
         except Exception as e:
             logger.error(f"Error in advanced generation: {e}")
             raise
     
-    def query_with_advanced_rag(self, query: str, top_k: int = 8, user=None) -> Dict:
-        """Complete advanced RAG pipeline"""
+    def query_with_advanced_rag(self, query: str, top_k: int = 8, user=None, language='en-US') -> Dict:
+        """Complete advanced RAG pipeline with language support"""
         try:
-            # Create cache key
+            # Create cache key (include language)
             query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
-            cache_key = f"advanced_rag_{query_hash}_{top_k}"
+            cache_key = f"advanced_rag_{query_hash}_{top_k}_{language}"
             
             # Try cache first
             cached_result = cache.get(cache_key)
@@ -289,7 +320,7 @@ class AdvancedRAGService(ImprovedRAGService):
             relevant_docs = self.search_with_hybrid_and_reranking(query, top_k)
             
             if not relevant_docs:
-                response = "I don't know."
+                response = "我不知道。" if 'zh' in language.lower() else "I don't know."
                 result = {
                     "response": response,
                     "sources": [],
@@ -301,8 +332,8 @@ class AdvancedRAGService(ImprovedRAGService):
                     }
                 }
             else:
-                # Step 2: Generate advanced response
-                response = self.generate_advanced_response(query, relevant_docs)
+                # Step 2: Generate advanced response with language support
+                response = self.generate_advanced_response(query, relevant_docs, language=language)
                 
                 # Calculate search statistics
                 query_type = relevant_docs[0].get('query_type', 'general')

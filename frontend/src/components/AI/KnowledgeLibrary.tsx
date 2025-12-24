@@ -12,6 +12,7 @@ import {
   Copy,
   Link as LinkIcon,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import DocumentManager from './DocumentManager';
 import DocumentViewer from './DocumentViewer';
 import { apiClient } from '../../services/api';
@@ -27,6 +28,7 @@ interface WebLinkItem {
 }
 
 const KnowledgeLibrary: React.FC = () => {
+  const { t } = useTranslation('ai');
   const [activeTab, setActiveTab] = useState<KnowledgeTabs>('manual');
 
   // Useful Weblinks state
@@ -78,11 +80,11 @@ const KnowledgeLibrary: React.FC = () => {
   const handleAddLink = async () => {
     setLinkError(null);
     if (!linkForm.title.trim()) {
-      setLinkError('Title is required.');
+      setLinkError(t('titleRequired'));
       return;
     }
     if (!validateUrl(linkForm.url)) {
-      setLinkError('Please enter a valid URL.');
+      setLinkError(t('pleaseEnterValidUrl'));
       return;
     }
     const tags = linkForm.tags
@@ -101,7 +103,7 @@ const KnowledgeLibrary: React.FC = () => {
       setLinks(prev => [newItem, ...prev]);
       setLinkForm({ title: '', url: '', tags: '' });
     } catch (e: any) {
-      setLinkError(e?.message || 'Failed to add link');
+      setLinkError(e?.message || t('failedToAddLink'));
     }
   };
 
@@ -110,7 +112,7 @@ const KnowledgeLibrary: React.FC = () => {
       await apiClient.deleteWeblink(Number(id));
       setLinks(prev => prev.filter(l => l.id !== id));
     } catch (e: any) {
-      setInviteMsg(e?.message || 'Delete failed');
+      setInviteMsg(e?.message || t('deleteFailed'));
       setTimeout(() => setInviteMsg(null), 1500);
     }
   };
@@ -118,10 +120,10 @@ const KnowledgeLibrary: React.FC = () => {
   const handleCopy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setInviteMsg('Link copied to clipboard');
+      setInviteMsg(t('linkCopiedToClipboard'));
       setTimeout(() => setInviteMsg(null), 1500);
     } catch {
-      setInviteMsg('Copy failed');
+      setInviteMsg(t('copyFailed'));
       setTimeout(() => setInviteMsg(null), 1500);
     }
   };
@@ -176,7 +178,7 @@ const KnowledgeLibrary: React.FC = () => {
     <div className="p-6 bg-white rounded-lg shadow-sm">
       {/* Sticky header + tabs */}
       <div className="sticky top-0 z-30 bg-white pb-4">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Knowledge Library</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">{t('knowledgeLibrary')}</h2>
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex flex-wrap gap-6">
             <button
@@ -188,7 +190,7 @@ const KnowledgeLibrary: React.FC = () => {
               }`}
             >
               <span className="inline-flex items-center gap-2">
-                <FileText size={16} /> Viewer
+                <FileText size={16} /> {t('viewer')}
               </span>
             </button>
             <button
@@ -200,7 +202,7 @@ const KnowledgeLibrary: React.FC = () => {
               }`}
             >
               <span className="inline-flex items-center gap-2">
-                <FileText size={16} /> Documents
+                <FileText size={16} /> {t('documents')}
               </span>
             </button>
             <button
@@ -212,7 +214,7 @@ const KnowledgeLibrary: React.FC = () => {
               }`}
             >
               <span className="inline-flex items-center gap-2">
-                <Globe size={16} /> Useful Weblinks
+                <Globe size={16} /> {t('usefulWeblinks')}
               </span>
             </button>
             <button
@@ -224,7 +226,7 @@ const KnowledgeLibrary: React.FC = () => {
               }`}
             >
               <span className="inline-flex items-center gap-2">
-                <Share2 size={16} /> Sharing Knowledge Base
+                <Share2 size={16} /> {t('sharingKnowledgeBase')}
               </span>
             </button>
             <button
@@ -236,7 +238,7 @@ const KnowledgeLibrary: React.FC = () => {
               }`}
             >
               <span className="inline-flex items-center gap-2">
-                <FolderOpen size={16} /> Others
+                <FolderOpen size={16} /> {t('others')}
               </span>
             </button>
           </nav>
@@ -246,7 +248,7 @@ const KnowledgeLibrary: React.FC = () => {
       {activeTab === 'viewer' && (
         <div className="space-y-4">
           {viewerTabs.length === 0 ? (
-            <div className="p-6 text-gray-600 border rounded">No document open. Open from Manuals or Weblinks.</div>
+            <div className="p-6 text-gray-600 border rounded">{t('noDocumentOpen')}</div>
           ) : (
             <div className="border rounded">
               <div className="flex items-center gap-2 px-3 py-2 border-b bg-gray-50 overflow-auto">
@@ -260,7 +262,7 @@ const KnowledgeLibrary: React.FC = () => {
                     <button
                       className="text-gray-500 hover:text-gray-700"
                       onClick={(e) => { e.stopPropagation(); closeViewerTab(tab.id); }}
-                      aria-label="Close tab"
+                      aria-label={t('closeTab')}
                     >✕</button>
                   </div>
                 ))}
@@ -297,7 +299,7 @@ const KnowledgeLibrary: React.FC = () => {
         <div>
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 mb-3 inline-flex items-center gap-2">
-              <Globe size={18} /> Add a Useful Weblink
+              <Globe size={18} /> {t('addUsefulWeblink')}
             </h3>
             {linkError && (
               <div className="mb-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded p-2">
@@ -306,12 +308,12 @@ const KnowledgeLibrary: React.FC = () => {
             )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('title')}</label>
                 <input
                   type="text"
                   value={linkForm.title}
                   onChange={(e) => setLinkForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="e.g. Troubleshooting Guide"
+                  placeholder={t('troubleshootingGuideExample')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -327,13 +329,13 @@ const KnowledgeLibrary: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 inline-flex items-center gap-2">
-                  <Tag size={14} /> Tags (comma-separated)
+                  <Tag size={14} /> {t('tagsCommaSeparated')}
                 </label>
                 <input
                   type="text"
                   value={linkForm.tags}
                   onChange={(e) => setLinkForm(prev => ({ ...prev, tags: e.target.value }))}
-                  placeholder="manual, vendor, sql"
+                  placeholder={t('tagsExample')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -343,7 +345,7 @@ const KnowledgeLibrary: React.FC = () => {
                 onClick={handleAddLink}
                 className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
               >
-                <Plus size={18} /> Add Link
+                <Plus size={18} /> {t('addLink')}
               </button>
             </div>
           </div>
@@ -352,7 +354,7 @@ const KnowledgeLibrary: React.FC = () => {
             {links.length === 0 ? (
               <div className="text-center py-12 text-gray-600">
                 <Globe size={40} className="mx-auto mb-3 text-gray-400" />
-                No weblinks yet. Add your first link above.
+                {t('noWeblinksYet')}
               </div>
             ) : (
               links.map(link => (
@@ -363,7 +365,7 @@ const KnowledgeLibrary: React.FC = () => {
                       <a href={link.url} target="_blank" rel="noreferrer" className="font-medium text-gray-900 truncate hover:underline">
                         {link.title}
                       </a>
-                      <a href={link.url} target="_blank" rel="noreferrer" className="text-gray-500 hover:text-gray-700" title="Open">
+                      <a href={link.url} target="_blank" rel="noreferrer" className="text-gray-500 hover:text-gray-700" title={t('open')}>
                         <ExternalLink size={16} />
                       </a>
                     </div>
@@ -372,20 +374,20 @@ const KnowledgeLibrary: React.FC = () => {
                       {link.tags.map(t => (
                         <span key={t} className="px-2 py-0.5 text-xs rounded-full bg-blue-50 text-blue-700 border border-blue-200">{t}</span>
                       ))}
-                      <span className="text-xs text-gray-400">Added: {link.addedAt}</span>
+                      <span className="text-xs text-gray-400">{t('added')}: {link.addedAt}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 ml-4">
                     <button
                       className="p-2 text-gray-600 hover:bg-gray-50 rounded"
-                      title="Edit (coming soon)"
+                      title={t('editComingSoon')}
                     >
                       <Edit size={16} />
                     </button>
                     <button
                       onClick={() => handleDeleteLink(link.id)}
                       className="p-2 text-red-600 hover:bg-red-50 rounded"
-                      title="Delete"
+                      title={t('delete')}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -408,9 +410,9 @@ const KnowledgeLibrary: React.FC = () => {
                           openInViewer({ id: `link-${link.id}`, title: link.title, url: link.url, type });
                         }}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                        title="Open in Viewer"
+                        title={t('openInViewer')}
                       >
-                        Open
+                        {t('open')}
                       </button>
                     )}
                   </div>
@@ -425,7 +427,7 @@ const KnowledgeLibrary: React.FC = () => {
         <div className="space-y-6">
           <div className="p-4 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-900 mb-3 inline-flex items-center gap-2">
-              <Share2 size={18} /> Share Settings
+              <Share2 size={18} /> {t('shareSettings')}
             </h3>
             <div className="flex items-center gap-3">
               <label className="inline-flex items-center gap-2">
@@ -434,12 +436,12 @@ const KnowledgeLibrary: React.FC = () => {
                   checked={publicLinkEnabled}
                   onChange={(e) => setPublicLinkEnabled(e.target.checked)}
                 />
-                Enable public share link
+                {t('enablePublicShareLink')}
               </label>
               {publicLinkEnabled && (
                 <div className="flex items-center gap-2">
                   <code className="px-2 py-1 bg-white rounded border text-sm break-all">{shareLink}</code>
-                  <button onClick={() => handleCopy(shareLink)} className="p-2 text-gray-600 hover:bg-gray-100 rounded" title="Copy link">
+                  <button onClick={() => handleCopy(shareLink)} className="p-2 text-gray-600 hover:bg-gray-100 rounded" title={t('copyLink')}>
                     <Copy size={16} />
                   </button>
                 </div>
@@ -449,7 +451,7 @@ const KnowledgeLibrary: React.FC = () => {
           </div>
 
           <div className="p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Invite collaborators</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('inviteCollaborators')}</h3>
             <div className="flex gap-3 max-w-xl">
               <input
                 type="email"
@@ -461,29 +463,29 @@ const KnowledgeLibrary: React.FC = () => {
               <button
                 onClick={() => {
                   if (!inviteEmail.includes('@')) {
-                    setInviteMsg('Please enter a valid email');
+                    setInviteMsg(t('pleaseEnterValidEmail'));
                     setTimeout(() => setInviteMsg(null), 1500);
                     return;
                   }
-                  setInviteMsg('Invitation sent (demo)');
+                  setInviteMsg(t('invitationSentDemo'));
                   setInviteEmail('');
                   setTimeout(() => setInviteMsg(null), 1500);
                 }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                Send Invite
+                {t('sendInvite')}
               </button>
             </div>
           </div>
 
           <div className="p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">Export knowledge bundle</h3>
-            <p className="text-sm text-gray-600 mb-3">Export weblinks as JSON. Documents are managed in the Manual tab.</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">{t('exportKnowledgeBundle')}</h3>
+            <p className="text-sm text-gray-600 mb-3">{t('exportWeblinksAsJson')}</p>
             <button
               onClick={exportSharingBundle}
               className="inline-flex items-center gap-2 bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg"
             >
-              <Share2 size={16} /> Export JSON
+              <Share2 size={16} /> {t('exportJson')}
             </button>
           </div>
         </div>

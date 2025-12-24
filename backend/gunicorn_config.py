@@ -24,8 +24,8 @@ max_requests = 500  # Restart worker after 500 requests (prevent memory leaks)
 max_requests_jitter = 50  # Add randomness: 450-550 requests
 
 # Logging
-accesslog = "/Volumes/Orico/Anylab103/logs/gunicorn-access.log"
-errorlog = "/Volumes/Orico/Anylab103/logs/gunicorn-error.log"
+accesslog = "/Users/pinggenchen/Projects/Anylab103/logs/gunicorn-access.log"
+errorlog = "/Users/pinggenchen/Projects/Anylab103/logs/gunicorn-error.log"
 loglevel = "warning"  # Only log warnings/errors (reduce I/O)
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
@@ -41,7 +41,7 @@ group = None
 tmp_upload_dir = None
 
 # Performance
-preload_app = True  # Load application before forking (saves memory)
+preload_app = False  # Load in worker (with 1 worker, no memory benefit to preload)
 reuse_port = False  # Not needed for single worker
 
 # SSL (if needed in future)

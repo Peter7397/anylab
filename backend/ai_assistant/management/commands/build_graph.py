@@ -5,7 +5,7 @@ Django management command to build Neo4j graph from existing documents
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 from ai_assistant.models import UploadedFile, DocumentChunk
-from ai_assistant.services.graph_builder import GraphBuilder
+from ai_assistant.service_classes.graph_builder import GraphBuilder
 import logging
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ class Command(BaseCommand):
         if clear_existing:
             self.stdout.write(self.style.WARNING('Clearing existing graph data...'))
             try:
-                from ai_assistant.services.neo4j_service import get_neo4j_service
+                from ai_assistant.service_classes.neo4j_service import get_neo4j_service
                 neo4j = get_neo4j_service()
                 # Clear all graph data
                 clear_query = "MATCH (n) DETACH DELETE n"
@@ -115,7 +115,7 @@ class Command(BaseCommand):
                     # Clear existing graph data for this document if force is enabled
                     if force:
                         try:
-                            from ai_assistant.services.neo4j_service import get_neo4j_service
+                            from ai_assistant.service_classes.neo4j_service import get_neo4j_service
                             neo4j = get_neo4j_service()
                             clear_doc_query = "MATCH (d:Document {id: $doc_id})-[r]-() DELETE r, d"
                             neo4j.execute_query(clear_doc_query, {'doc_id': str(uploaded_file.id)})

@@ -10,10 +10,12 @@ import {
   History,
   X,
   Zap,
-  Target
+  Target,
+  ExternalLink
 } from 'lucide-react';
 import { apiClient } from '../../services/api';
 import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
+import DocumentViewer from './DocumentViewer';
 
 interface ChatMessage {
   id: string;
@@ -25,6 +27,7 @@ interface ChatMessage {
     content: string;
     page?: number;
     score?: number;
+    view_url?: string;
   }>;
 }
 
@@ -33,6 +36,16 @@ const RagSearch: React.FC = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
+  
+  // Document viewer state for split-screen
+  const [viewerDocument, setViewerDocument] = useState<{
+    fileId: string;
+    title: string;
+    url: string;
+    type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html';
+    page?: number;
+  } | null>(null);
+  const [isLoadingDocument, setIsLoadingDocument] = useState(false);
   const { history: unifiedHistory, recordUserPrompt, refresh: refreshUnifiedHistory, crossPostToChannel } = useUnifiedChatHistory(200);
   const [chatHistory, setChatHistory] = useState<Array<{ 
     id: string; 
@@ -290,6 +303,44 @@ const RagSearch: React.FC = () => {
     localStorage.removeItem(RAG_MESSAGES_STORAGE_KEY);
   };
 
+  // Open document in right panel viewer
+  const openDocumentInViewer = async (fileId: string, title: string, page: number) => {
+    setIsLoadingDocument(true);
+    try {
+      const fileInfo = await apiClient.getFileProcessingStatus(parseInt(fileId));
+      const filename = fileInfo.filename || title;
+      const fileExt = filename.split('.').pop()?.toLowerCase() || 'pdf';
+      
+      let docType: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html' = 'pdf';
+      if (fileExt === 'doc' || fileExt === 'docx') docType = 'docx';
+      else if (fileExt === 'xls') docType = 'xls';
+      else if (fileExt === 'xlsx') docType = 'xlsx';
+      else if (fileExt === 'ppt') docType = 'ppt';
+      else if (fileExt === 'pptx') docType = 'pptx';
+      else if (fileExt === 'txt') docType = 'txt';
+      else if (fileExt === 'html' || fileExt === 'htm') docType = 'html';
+      else docType = 'pdf';
+      
+      const viewUrl = `/api/ai/documents/pdf/${fileId}/view/`;
+      
+      setViewerDocument({
+        fileId,
+        title: filename,
+        url: viewUrl,
+        type: docType,
+        page: page
+      });
+      setIsLoadingDocument(false);
+    } catch (error) {
+      console.error('Failed to load document:', error);
+      setIsLoadingDocument(false);
+    }
+  };
+
+  const closeDocumentViewer = () => {
+    setViewerDocument(null);
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
@@ -353,10 +404,10 @@ const RagSearch: React.FC = () => {
         </div>
       )}
 
-      {/* Content */}
+      {/* Content - Split Screen Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col">
+        {/* Left Panel - Chat Area */}
+        <div className={`flex flex-col transition-all ${viewerDocument ? 'w-1/2 border-r border-gray-200' : 'flex-1'}`}>
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6">
             {messages.length === 0 ? (
@@ -428,12 +479,35 @@ const RagSearch: React.FC = () => {
                             <p className="text-xs font-medium text-gray-600 mb-2">References:</p>
                             <div className="space-y-2">
                               {message.references.map((ref, index) => (
-                                <div key={index} className="text-xs bg-gray-50 p-2 rounded">
-                                  <p className="font-medium text-gray-700">{ref.title}</p>
-                                  <p className="text-gray-600 mt-1">{ref.content.substring(0, 150)}...</p>
-                                  {ref.page && (
-                                    <p className="text-gray-500 mt-1">Page: {ref.page}</p>
-                                  )}
+                                <div 
+                                  key={index} 
+                                  className={`text-xs p-3 rounded border transition-all ${
+                                    ref.view_url 
+                                      ? 'bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer' 
+                                      : 'bg-gray-50 border-gray-200'
+                                  }`}
+                                  onClick={() => {
+                                    if (ref.view_url) {
+                                      const match = ref.view_url.match(/\/pdf\/(\d+)\/view/);
+                                      if (match) {
+                                        const fileId = match[1];
+                                        openDocumentInViewer(fileId, ref.title || 'Document', ref.page || 1);
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-gray-700">{ref.title}</p>
+                                      <p className="text-gray-600 mt-1">{ref.content.substring(0, 150)}...</p>
+                                      {ref.page && (
+                                        <p className="text-gray-500 mt-1">Page: {ref.page}</p>
+                                      )}
+                                    </div>
+                                    {ref.view_url && (
+                                      <ExternalLink className="h-4 w-4 text-blue-600 ml-2 flex-shrink-0" />
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -489,8 +563,8 @@ const RagSearch: React.FC = () => {
           </div>
         </div>
 
-        {/* History Sidebar */}
-        {showHistory && (
+        {/* History Sidebar - Only show if document viewer is not open */}
+        {showHistory && !viewerDocument && (
           <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
@@ -534,6 +608,49 @@ const RagSearch: React.FC = () => {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Right Panel - Document Viewer */}
+        {viewerDocument && (
+          <div className="w-1/2 flex flex-col bg-white border-l border-gray-200">
+            {/* Document Viewer Header */}
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <FileText className="h-5 w-5 text-gray-600" />
+                <h3 className="text-sm font-medium text-gray-900 truncate">{viewerDocument.title}</h3>
+                {viewerDocument.page && (
+                  <span className="text-xs text-gray-500">(Page {viewerDocument.page})</span>
+                )}
+              </div>
+              <button
+                onClick={closeDocumentViewer}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+                title="Close document viewer"
+              >
+                <X className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+            
+            {/* Document Viewer Content */}
+            <div className="flex-1 overflow-hidden">
+              {isLoadingDocument ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary-600" />
+                    <p className="mt-2 text-sm text-gray-600">Loading document...</p>
+                  </div>
+                </div>
+              ) : (
+                <DocumentViewer
+                  key={viewerDocument.fileId}
+                  title={viewerDocument.title}
+                  url={viewerDocument.url}
+                  docType={viewerDocument.type}
+                  initialPage={viewerDocument.page}
+                />
               )}
             </div>
           </div>

@@ -48,6 +48,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { apiClient } from '../../services/api';
 import TrimmedImage from '../ui/TrimmedImage';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
         collapsed: boolean;
@@ -56,184 +57,195 @@ interface SidebarProps {
 
 type OrganizationMode = 'general' | 'lab-informatics';
 
-const generalAgilentNavigation = [
+// Navigation structure with translation keys
+const getGeneralAgilentNavigation = (t: (key: string) => string) => [
         {
-                name: 'Dashboard',
+                name: t('about'),
+                href: '/',
+                icon: Globe,
+        },
+        {
+                name: t('dashboard'),
                 href: '/dashboard',
                 icon: Home,
         },
         {
-                name: 'Knowledge Library',
+                name: t('knowledgeLibrary'),
                 href: '/ai/knowledge',
                 icon: Library,
                 children: [
-                        { name: 'Library Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
-                        { name: 'Product Manuals', href: '/ai/knowledge/manuals', icon: BookText },
-                        { name: 'Technical Specs', href: '/ai/knowledge/specs', icon: FileType2 },
-                        { name: 'Community Solutions', href: '/ai/knowledge/community', icon: Users },
-                        { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
+                        { name: t('libraryManager'), href: '/ai/knowledge/manager', icon: FolderOpen },
+                        { name: t('productManuals'), href: '/ai/knowledge/manuals', icon: BookText },
+                        { name: t('technicalSpecs'), href: '/ai/knowledge/specs', icon: FileType2 },
+                        { name: t('communitySolutions'), href: '/ai/knowledge/community', icon: Users },
+                        { name: t('documentViewer'), href: '/ai/knowledge/viewer', icon: FileText },
                 ],
         },
         {
-                name: 'AI Assistant',
+                name: t('aiAssistant'),
                 href: '/ai/chat',
                 icon: Sparkles,
                 children: [
-                        { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
-                        { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
-                        { name: 'Advanced RAG', href: '/ai/rag', icon: Brain },
-                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Layers },
-                        { name: 'Graph RAG', href: '/ai/graph-rag', icon: Network },
-                        { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
+                        { name: t('freeAiChat'), href: '/ai/chat', icon: MessageSquare },
+                        { name: t('basicRag'), href: '/ai/basic-rag', icon: Search },
+                        { name: t('advancedRag'), href: '/ai/rag', icon: Brain },
+                        { name: t('comprehensiveRag'), href: '/ai/comprehensive-rag', icon: Layers },
+                        { name: t('graphRag'), href: '/ai/graph-rag', icon: Network },
+                        { name: t('troubleshootingAi'), href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
         },
         {
-                name: 'Forum',
+                name: t('forum'),
                 href: '/forum',
                 icon: MessageCircle,
         },
         {
-                name: 'Gas Chromatography',
+                name: t('gasChromatography'),
                 href: '/products/gc',
                 icon: FlaskConical,
                 children: [
-                        { name: 'GC Systems', href: '/products/gc/systems', icon: FlaskConical },
-                        { name: 'GC Columns', href: '/products/gc/columns', icon: FlaskConical },
-                        { name: 'GC Accessories', href: '/products/gc/accessories', icon: FlaskConical },
-                        { name: 'GC Software', href: '/products/gc/software', icon: Code },
+                        { name: t('gcSystems'), href: '/products/gc/systems', icon: FlaskConical },
+                        { name: t('gcColumns'), href: '/products/gc/columns', icon: FlaskConical },
+                        { name: t('gcAccessories'), href: '/products/gc/accessories', icon: FlaskConical },
+                        { name: t('gcSoftware'), href: '/products/gc/software', icon: Code },
                 ],
         },
         {
-                name: 'Liquid Chromatography',
+                name: t('liquidChromatography'),
                 href: '/products/lc',
                 icon: Beaker,
                 children: [
-                        { name: 'LC Systems', href: '/products/lc/systems', icon: Beaker },
-                        { name: 'LC Columns', href: '/products/lc/columns', icon: Beaker },
-                        { name: 'LC Accessories', href: '/products/lc/accessories', icon: Beaker },
-                        { name: 'LC Software', href: '/products/lc/software', icon: Code },
+                        { name: t('lcSystems'), href: '/products/lc/systems', icon: Beaker },
+                        { name: t('lcColumns'), href: '/products/lc/columns', icon: Beaker },
+                        { name: t('lcAccessories'), href: '/products/lc/accessories', icon: Beaker },
+                        { name: t('lcSoftware'), href: '/products/lc/software', icon: Code },
                 ],
         },
         {
-                name: 'Mass Spectrometry',
+                name: t('massSpectrometry'),
                 href: '/products/ms',
                 icon: Activity,
                 children: [
-                        { name: 'MS Systems', href: '/products/ms/systems', icon: Activity },
-                        { name: 'MS Software', href: '/products/ms/software', icon: Code },
-                        { name: 'MS Accessories', href: '/products/ms/accessories', icon: Activity },
+                        { name: t('msSystems'), href: '/products/ms/systems', icon: Activity },
+                        { name: t('msSoftware'), href: '/products/ms/software', icon: Code },
+                        { name: t('msAccessories'), href: '/products/ms/accessories', icon: Activity },
                 ],
         },
         {
-                name: 'NMR Systems',
+                name: t('nmrSystems'),
                 href: '/products/nmr',
                 icon: Atom,
                 children: [
-                        { name: 'NMR Systems', href: '/products/nmr/systems', icon: Atom },
-                        { name: 'NMR Software', href: '/products/nmr/software', icon: Code },
-                        { name: 'NMR Accessories', href: '/products/nmr/accessories', icon: Atom },
+                        { name: t('nmrSystems'), href: '/products/nmr/systems', icon: Atom },
+                        { name: t('nmrSoftware'), href: '/products/nmr/software', icon: Code },
+                        { name: t('nmrAccessories'), href: '/products/nmr/accessories', icon: Atom },
                 ],
         },
         {
-                name: 'Spectroscopy',
+                name: t('spectroscopy'),
                 href: '/products/spectroscopy',
                 icon: Scan,
                 children: [
-                        { name: 'UV-Vis', href: '/products/spectroscopy/uv-vis', icon: Scan },
-                        { name: 'IR', href: '/products/spectroscopy/ir', icon: Scan },
-                        { name: 'Fluorescence', href: '/products/spectroscopy/fluorescence', icon: Scan },
+                        { name: t('uvVis'), href: '/products/spectroscopy/uv-vis', icon: Scan },
+                        { name: t('ir'), href: '/products/spectroscopy/ir', icon: Scan },
+                        { name: t('fluorescence'), href: '/products/spectroscopy/fluorescence', icon: Scan },
                 ],
         },
         {
-                name: 'Administration',
+                name: t('administration'),
                 href: '/admin/users',
                 icon: Settings,
                 children: [
-                        { name: 'Users & Roles', href: '/admin/users', icon: Users },
-                        { name: 'Licenses', href: '/admin/licenses', icon: Key },
-                        { name: 'Django Admin', href: '/admin/', icon: Shield, external: true },
+                        { name: t('usersRoles'), href: '/admin/users', icon: Users },
+                        { name: t('licenses'), href: '/admin/licenses', icon: Key },
+                        { name: t('djangoAdmin'), href: '/admin/', icon: Shield, external: true },
                 ],
         },
 ];
 
-const labInformaticsNavigation = [
+const getLabInformaticsNavigation = (t: (key: string) => string) => [
         {
-                name: 'Dashboard',
+                name: t('about'),
+                href: '/',
+                icon: Globe,
+        },
+        {
+                name: t('dashboard'),
                 href: '/dashboard',
                 icon: Home,
         },
         {
-                name: 'Knowledge Library',
+                name: t('knowledgeLibrary'),
                 href: '/ai/knowledge',
                 icon: Library,
                 children: [
-                        { name: 'Library Manager', href: '/ai/knowledge/manager', icon: FolderOpen },
-                        { name: 'SSB Database', href: '/ai/knowledge/ssb', icon: Database },
-                        { name: 'Help Portal', href: '/ai/knowledge/help-portal', icon: Globe },
-                        { name: 'Community Solutions', href: '/ai/knowledge/community', icon: Users },
-                        { name: 'Document Viewer', href: '/ai/knowledge/viewer', icon: FileText },
+                        { name: t('libraryManager'), href: '/ai/knowledge/manager', icon: FolderOpen },
+                        { name: t('ssbDatabase'), href: '/ai/knowledge/ssb', icon: Database },
+                        { name: t('helpPortal'), href: '/ai/knowledge/help-portal', icon: Globe },
+                        { name: t('communitySolutions'), href: '/ai/knowledge/community', icon: Users },
+                        { name: t('documentViewer'), href: '/ai/knowledge/viewer', icon: FileText },
                 ],
         },
         {
-                name: 'AI Assistant',
+                name: t('aiAssistant'),
                 href: '/ai/chat',
                 icon: Sparkles,
                 children: [
-                        { name: 'Free AI Chat', href: '/ai/chat', icon: MessageSquare },
-                        { name: 'Basic RAG', href: '/ai/basic-rag', icon: Search },
-                        { name: 'Advanced RAG', href: '/ai/rag', icon: Brain },
-                        { name: 'Comprehensive RAG', href: '/ai/comprehensive-rag', icon: Layers },
-                        { name: 'Graph RAG', href: '/ai/graph-rag', icon: Network },
-                        { name: 'Troubleshooting AI', href: '/ai/troubleshooting', icon: AlertTriangle },
+                        { name: t('freeAiChat'), href: '/ai/chat', icon: MessageSquare },
+                        { name: t('basicRag'), href: '/ai/basic-rag', icon: Search },
+                        { name: t('advancedRag'), href: '/ai/rag', icon: Brain },
+                        { name: t('comprehensiveRag'), href: '/ai/comprehensive-rag', icon: Layers },
+                        { name: t('graphRag'), href: '/ai/graph-rag', icon: Network },
+                        { name: t('troubleshootingAi'), href: '/ai/troubleshooting', icon: AlertTriangle },
                 ],
         },
         {
-                name: 'Forum',
+                name: t('forum'),
                 href: '/forum',
                 icon: MessageCircle,
         },
         {
-                name: 'OpenLab Software Suite',
+                name: t('openlabSoftwareSuite'),
                 href: '/lab-informatics/openlab',
                 icon: Code,
                 children: [
-                        { name: 'OpenLab CDS', href: '/lab-informatics/openlab/cds', icon: Code },
-                        { name: 'OpenLab ECM', href: '/lab-informatics/openlab/ecm', icon: Database },
-                        { name: 'OpenLab ELN', href: '/lab-informatics/openlab/eln', icon: FileText },
-                        { name: 'OpenLab Server', href: '/lab-informatics/openlab/server', icon: Server },
+                        { name: t('openlabCds'), href: '/lab-informatics/openlab/cds', icon: Code },
+                        { name: t('openlabEcm'), href: '/lab-informatics/openlab/ecm', icon: Database },
+                        { name: t('openlabEln'), href: '/lab-informatics/openlab/eln', icon: FileText },
+                        { name: t('openlabServer'), href: '/lab-informatics/openlab/server', icon: Server },
                 ],
         },
         {
-                name: 'MassHunter Suite',
+                name: t('masshunterSuite'),
                 href: '/lab-informatics/masshunter',
                 icon: Cpu,
                 children: [
-                        { name: 'MassHunter Workstation', href: '/lab-informatics/masshunter/workstation', icon: Cpu },
-                        { name: 'MassHunter Quantitative', href: '/lab-informatics/masshunter/quantitative', icon: BarChart3 },
-                        { name: 'MassHunter Qualitative', href: '/lab-informatics/masshunter/qualitative', icon: Search },
-                        { name: 'MassHunter BioConfirm', href: '/lab-informatics/masshunter/bioconfirm', icon: Brain },
-                        { name: 'MassHunter Metabolomics', href: '/lab-informatics/masshunter/metabolomics', icon: Activity },
+                        { name: t('masshunterWorkstation'), href: '/lab-informatics/masshunter/workstation', icon: Cpu },
+                        { name: t('masshunterQuantitative'), href: '/lab-informatics/masshunter/quantitative', icon: BarChart3 },
+                        { name: t('masshunterQualitative'), href: '/lab-informatics/masshunter/qualitative', icon: Search },
+                        { name: t('masshunterBioconfirm'), href: '/lab-informatics/masshunter/bioconfirm', icon: Brain },
+                        { name: t('masshunterMetabolomics'), href: '/lab-informatics/masshunter/metabolomics', icon: Activity },
                 ],
         },
         {
-                name: 'VNMRJ Software',
+                name: t('vnmrjSoftware'),
                 href: '/lab-informatics/vnmrj',
                 icon: Cpu,
                 children: [
-                        { name: 'VNMRJ Current', href: '/lab-informatics/vnmrj/current', icon: Cpu },
-                        { name: 'VNMRJ Legacy', href: '/lab-informatics/vnmrj/legacy', icon: Cpu },
-                        { name: 'VNMR Legacy', href: '/lab-informatics/vnmrj/vnmr-legacy', icon: Cpu },
+                        { name: t('vnmrjCurrent'), href: '/lab-informatics/vnmrj/current', icon: Cpu },
+                        { name: t('vnmrjLegacy'), href: '/lab-informatics/vnmrj/legacy', icon: Cpu },
+                        { name: t('vnmrLegacy'), href: '/lab-informatics/vnmrj/vnmr-legacy', icon: Cpu },
                 ],
         },
         {
-                name: 'Administration',
+                name: t('administration'),
                 href: '/admin/users',
                 icon: Settings,
                 children: [
-                        { name: 'Users & Roles', href: '/admin/users', icon: Users },
-                        { name: 'Licenses', href: '/admin/licenses', icon: Key },
-                        { name: 'System Settings', href: '/admin/system', icon: Settings },
-                        { name: 'Django Admin', href: '/admin/', icon: Shield, external: true },
+                        { name: t('usersRoles'), href: '/admin/users', icon: Users },
+                        { name: t('licenses'), href: '/admin/licenses', icon: Key },
+                        { name: t('systemSettings'), href: '/admin/system', icon: Settings },
+                        { name: t('djangoAdmin'), href: '/admin/', icon: Shield, external: true },
                 ],
         },
 ];
@@ -241,6 +253,7 @@ const labInformaticsNavigation = [
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         const location = useLocation();
         const { permissions, user, loading } = useAuth();
+        const { t } = useTranslation('sidebar');
         const [expandedItems, setExpandedItems] = useState<string[]>([]);
         const [organizationMode, setOrganizationMode] = useState<OrganizationMode>(() => {
                 const saved = localStorage.getItem('anylab_organization_mode');
@@ -314,7 +327,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 return { domain: null, category: null };
         };
 
-        const baseNavigation = organizationMode === 'general' ? generalAgilentNavigation : labInformaticsNavigation;
+        const baseNavigation = organizationMode === 'general' ? getGeneralAgilentNavigation(t) : getLabInformaticsNavigation(t);
 
         // Map backend product_category to route /lab-informatics/:suite/:product
         const categoryToRoute = (category: string): string => {
@@ -473,7 +486,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                 />
                                                 <div>
                                                         <h1 className="text-xl font-bold text-gray-900">AnyLab</h1>
-                                                        <p className="text-xs text-gray-500">Smart Knowledge, Securely in Your Lab</p>
+                                                        <p className="text-xs text-gray-500">{t('slogan')}</p>
                                                 </div>
                                         </div>
                                 )}
@@ -491,10 +504,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                         <div className="flex items-center justify-between">
                                                 <div className="flex flex-col">
                                                         <span className="text-sm font-medium text-gray-700">
-                                                                Organization Mode
+                                                                {t('organizationMode')}
                                                         </span>
                                                         <span className="text-xs text-gray-500">
-                                                                {organizationMode === 'general' ? 'General Agilent Products' : 'Lab Informatics Focus'}
+                                                                {organizationMode === 'general' ? t('generalAgilentProducts') : t('labInformaticsFocus')}
                                                         </span>
                                                 </div>
                                                 <button
@@ -523,7 +536,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                         <button
                                                 onClick={toggleOrganizationMode}
                                                 className="w-full p-2 rounded-md hover:bg-primary-50 text-primary-700 transition-colors flex items-center justify-center"
-                                                title={organizationMode === 'general' ? 'Switch to Lab Informatics' : 'Switch to General Agilent'}
+                                                title={organizationMode === 'general' ? t('labInformaticsFocus') : t('generalAgilentProducts')}
                                         >
                                                 {organizationMode === 'general' ? (
                                                         <FlaskConical size={20} className="text-primary-600" />
@@ -577,14 +590,26 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                                         {item.children ? (
                                                                 <button
                                                                         onClick={() => toggleExpanded(item.name)}
-                                                                        className={`sidebar-item w-full text-left cursor-pointer ${isParentActive ? 'sidebar-item-active border border-primary-200 bg-primary-50 text-primary-800' : 'sidebar-item-inactive'}`}
+                                                                        className={`sidebar-item w-full text-left cursor-pointer ${isParentActive ? 'sidebar-item-active border border-primary-200 bg-primary-50 text-primary-800' : 'sidebar-item-inactive'} ${item.name === t('knowledgeLibrary') ? 'flex-col items-start py-3' : ''}`}
                                                                         type="button"
                                                                 >
-                                                                        <Icon size={20} className={`mr-3 ${isParentActive ? 'text-primary-700' : ''}`} />
-                                                                        {!collapsed && (
+                                                                        {item.name === t('knowledgeLibrary') ? (
                                                                                 <>
-                                                                                        <span className="flex-1">{item.name}</span>
-                                                                                        {expanded ? <ChevronDown size={16} /> : <ChevronRightIcon size={16} />}
+                                                                                        <div className="flex items-center w-full mb-1">
+                                                                                                <Icon size={20} className={`mr-3 ${isParentActive ? 'text-primary-700' : ''}`} />
+                                                                                                {!collapsed && (expanded ? <ChevronDown size={16} /> : <ChevronRightIcon size={16} />)}
+                                                                                        </div>
+                                                                                        {!collapsed && <span className="block w-full">{item.name}</span>}
+                                                                                </>
+                                                                        ) : (
+                                                                                <>
+                                                                                        <Icon size={20} className={`mr-3 ${isParentActive ? 'text-primary-700' : ''}`} />
+                                                                                        {!collapsed && (
+                                                                                                <>
+                                                                                                        <span className="flex-1">{item.name}</span>
+                                                                                                        {expanded ? <ChevronDown size={16} /> : <ChevronRightIcon size={16} />}
+                                                                                                </>
+                                                                                        )}
                                                                                 </>
                                                                         )}
                                                                 </button>
@@ -640,7 +665,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                                 {/* Discovered products (not in static lists) */}
                                 {!collapsed && discoveredCategories.length > 0 && organizationMode === 'lab-informatics' && (
                                         <div className="mt-4">
-                                                <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Discovered Products</div>
+                                                <div className="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('discoveredProducts')}</div>
                                                 <div className="mt-2 space-y-1 ml-0">
                                                         {discoveredCategories.map((cat) => (
                                                                 <Link key={cat} to={categoryToRoute(cat)}

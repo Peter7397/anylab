@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 
 class User(AbstractUser):
@@ -19,8 +20,8 @@ class User(AbstractUser):
     
     class Meta:
         db_table = 'users'
-        verbose_name = 'User'
-        verbose_name_plural = 'Users'
+        verbose_name = _('User')
+        verbose_name_plural = _('Users')
     
     def __str__(self):
         return f"{self.username} ({self.get_full_name()})"
@@ -38,8 +39,8 @@ class Role(models.Model):
     
     class Meta:
         db_table = 'roles'
-        verbose_name = 'Role'
-        verbose_name_plural = 'Roles'
+        verbose_name = _('Role')
+        verbose_name_plural = _('Roles')
     
     def __str__(self):
         return self.name
@@ -57,8 +58,8 @@ class UserRole(models.Model):
     class Meta:
         db_table = 'user_roles'
         unique_together = ('user', 'role')
-        verbose_name = 'User Role'
-        verbose_name_plural = 'User Roles'
+        verbose_name = _('User Role')
+        verbose_name_plural = _('User Roles')
     
     def __str__(self):
         return f"{self.user.username} - {self.role.name}"

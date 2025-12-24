@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Heart, Reply, MoreVertical } from 'lucide-react';
 import { apiClient } from '../../services/api';
 import ReplyEditor from './ReplyEditor';
@@ -33,6 +34,7 @@ interface ReplyListProps {
 }
 
 const ReplyList: React.FC<ReplyListProps> = ({ postId }) => {
+  const { t } = useTranslation('forum');
   const [replies, setReplies] = useState<ReplyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +58,7 @@ const ReplyList: React.FC<ReplyListProps> = ({ postId }) => {
         setReplies(data.replies || []);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load replies');
+      setError(err.message || t('failedToLoadReplies'));
       console.error('Failed to load replies:', err);
     } finally {
       setLoading(false);
@@ -104,11 +106,11 @@ const ReplyList: React.FC<ReplyListProps> = ({ postId }) => {
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return '刚刚';
-    if (minutes < 60) return `${minutes}分钟前`;
-    if (hours < 24) return `${hours}小时前`;
-    if (days < 7) return `${days}天前`;
-    return date.toLocaleDateString('zh-CN');
+    if (minutes < 1) return t('justNow');
+    if (minutes < 60) return t('minutesAgo', { count: minutes });
+    if (hours < 24) return t('hoursAgo', { count: hours });
+    if (days < 7) return t('daysAgo', { count: days });
+    return date.toLocaleDateString();
   };
 
   const renderReply = (reply: ReplyData, level: number = 0): React.ReactNode => {
@@ -149,7 +151,7 @@ const ReplyList: React.FC<ReplyListProps> = ({ postId }) => {
           {reply.quoted_reply && (
             <div className="mb-3 p-3 bg-gray-50 border-l-4 border-blue-500 rounded">
               <div className="text-xs text-gray-500 mb-1">
-                {reply.quoted_reply.author.username} 说:
+                {reply.quoted_reply.author.username} {t('said')}:
               </div>
               <div className="text-sm text-gray-700 line-clamp-3">
                 {reply.quoted_reply.content}
@@ -183,7 +185,7 @@ const ReplyList: React.FC<ReplyListProps> = ({ postId }) => {
               onClick={() => setReplyingTo(reply.id)}
               className="text-sm text-blue-600 hover:text-blue-700"
             >
-              回复
+              {t('reply')}
             </button>
           )}
         </div>
@@ -218,7 +220,7 @@ const ReplyList: React.FC<ReplyListProps> = ({ postId }) => {
     return (
       <div className="text-center py-8">
         <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-        <p className="mt-2 text-gray-600 text-sm">加载回复中...</p>
+        <p className="mt-2 text-gray-600 text-sm">{t('loadingReplies')}</p>
       </div>
     );
   }
@@ -234,7 +236,7 @@ const ReplyList: React.FC<ReplyListProps> = ({ postId }) => {
   if (replies.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
-        <p>暂无回复</p>
+        <p>{t('noReplies')}</p>
       </div>
     );
   }
@@ -242,7 +244,7 @@ const ReplyList: React.FC<ReplyListProps> = ({ postId }) => {
   return (
     <div>
       <h2 className="text-xl font-semibold text-gray-900 mb-4">
-        回复 ({replies.length})
+        {t('replies')} ({replies.length})
       </h2>
       <div className="space-y-4">
         {replies.map(reply => renderReply(reply))}

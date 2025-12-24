@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { FileText, X } from 'lucide-react';
 import DocumentViewer from './DocumentViewer';
+import { apiClient } from '../../services/api';
 
 interface ViewerTab {
   id: string;
@@ -12,8 +15,11 @@ interface ViewerTab {
 }
 
 const DocumentViewerPage: React.FC = () => {
+  const { t } = useTranslation('documents');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [viewerTabs, setViewerTabs] = useState<ViewerTab[]>([]);
   const [activeViewerId, setActiveViewerId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const openInViewer = (args: ViewerTab) => {
     setActiveViewerId(args.id);
@@ -22,6 +28,58 @@ const DocumentViewerPage: React.FC = () => {
       return [...prev, args];
     });
   };
+
+  // Read URL parameters and open document
+  useEffect(() => {
+    const fileId = searchParams.get('file');
+    const pageParam = searchParams.get('page');
+    
+    if (fileId && !isLoading && !viewerTabs.find(t => t.id === fileId)) {
+      setIsLoading(true);
+      
+      // Fetch file processing status to get document info
+      apiClient.getFileProcessingStatus(parseInt(fileId))
+        .then((fileInfo) => {
+          // Determine document type
+          const filename = fileInfo.filename || 'Document';
+          const fileExt = filename.split('.').pop()?.toLowerCase() || 'pdf';
+          let docType: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html' = 'pdf';
+          
+          if (fileExt === 'doc' || fileExt === 'docx') docType = 'docx';
+          else if (fileExt === 'xls') docType = 'xls';
+          else if (fileExt === 'xlsx') docType = 'xlsx';
+          else if (fileExt === 'ppt') docType = 'ppt';
+          else if (fileExt === 'pptx') docType = 'pptx';
+          else if (fileExt === 'txt') docType = 'txt';
+          else if (fileExt === 'html' || fileExt === 'htm') docType = 'html';
+          else docType = 'pdf';
+          
+          // Construct view URL - correct path is /api/ai/documents/pdf/ not /api/ai/pdf/
+          const page = pageParam ? parseInt(pageParam) : 1;
+          const viewUrl = `/api/ai/documents/pdf/${fileId}/view/`;
+          
+          // Open document in viewer
+          openInViewer({
+            id: fileId,
+            title: filename,
+            url: viewUrl,
+            type: docType,
+            page: page
+          });
+          
+          // Clear URL parameters after opening
+          setSearchParams({});
+          setIsLoading(false);
+        })
+        .catch((error) => {
+          console.error('Failed to load document:', error);
+          setIsLoading(false);
+          // Clear URL parameters on error
+          setSearchParams({});
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const closeViewerTab = (id: string) => {
     setViewerTabs(prev => prev.filter(t => t.id !== id));
@@ -41,8 +99,8 @@ const DocumentViewerPage: React.FC = () => {
               <FileText className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Document Viewer</h1>
-              <p className="text-sm text-gray-500">View and analyze your uploaded documents</p>
+              <h1 className="text-xl font-semibold text-gray-900">{t('documentViewer')}</h1>
+              <p className="text-sm text-gray-500">{t('viewAndAnalyzeUploadedDocuments')}</p>
             </div>
           </div>
         </div>
@@ -56,9 +114,9 @@ const DocumentViewerPage: React.FC = () => {
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No documents open</h3>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">{t('noDocumentsOpen')}</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  Open a document from the Document Manager to view it here.
+                  {t('openDocumentFromDocumentManagerToView')}
                 </p>
               </div>
             </div>

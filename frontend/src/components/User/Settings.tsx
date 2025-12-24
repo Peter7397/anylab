@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Settings as SettingsIcon, Save, Bell, Moon, Globe, Shield, Loader, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -20,6 +21,7 @@ interface UserSettings {
 }
 
 const Settings: React.FC = () => {
+  const { t } = useTranslation('common');
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -121,7 +123,7 @@ const Settings: React.FC = () => {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      setError(err?.message || 'Failed to save settings');
+      setError(err?.message || t('failedToSaveSettings'));
       console.error('Error saving settings:', err);
     } finally {
       setSaving(false);
@@ -141,8 +143,8 @@ const Settings: React.FC = () => {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-          <p className="text-gray-600">Manage your account settings and preferences</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('settings')}</h1>
+          <p className="text-gray-600">{t('manageAccountSettingsAndPreferences')}</p>
         </div>
       </div>
 
@@ -150,7 +152,7 @@ const Settings: React.FC = () => {
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md flex items-center space-x-2">
           <CheckCircle size={20} />
-          <span>Settings saved successfully!</span>
+          <span>{t('settingsSavedSuccessfully')}</span>
         </div>
       )}
 
@@ -166,15 +168,15 @@ const Settings: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Bell className="text-primary-600" size={20} />
-            <h2 className="text-lg font-semibold text-gray-900">Notifications</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('notifications')}</h2>
           </div>
-          <p className="text-sm text-gray-600 mb-4">Choose how you want to be notified</p>
+          <p className="text-sm text-gray-600 mb-4">{t('chooseHowYouWantToBeNotified')}</p>
 
           <div className="space-y-4">
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <span className="text-sm font-medium text-gray-700">Email Notifications</span>
-                <p className="text-xs text-gray-500">Receive notifications via email</p>
+                <span className="text-sm font-medium text-gray-700">{t('emailNotifications')}</span>
+                <p className="text-xs text-gray-500">{t('receiveNotificationsViaEmail')}</p>
               </div>
               <input
                 type="checkbox"
@@ -186,8 +188,8 @@ const Settings: React.FC = () => {
 
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <span className="text-sm font-medium text-gray-700">Push Notifications</span>
-                <p className="text-xs text-gray-500">Receive browser push notifications</p>
+                <span className="text-sm font-medium text-gray-700">{t('pushNotifications')}</span>
+                <p className="text-xs text-gray-500">{t('receiveBrowserPushNotifications')}</p>
               </div>
               <input
                 type="checkbox"
@@ -199,8 +201,8 @@ const Settings: React.FC = () => {
 
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <span className="text-sm font-medium text-gray-700">Product Updates</span>
-                <p className="text-xs text-gray-500">Get notified about new features and updates</p>
+                <span className="text-sm font-medium text-gray-700">{t('productUpdates')}</span>
+                <p className="text-xs text-gray-500">{t('getNotifiedAboutNewFeaturesAndUpdates')}</p>
               </div>
               <input
                 type="checkbox"
@@ -216,49 +218,49 @@ const Settings: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <SettingsIcon className="text-primary-600" size={20} />
-            <h2 className="text-lg font-semibold text-gray-900">Preferences</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('preferences')}</h2>
           </div>
-          <p className="text-sm text-gray-600 mb-4">Customize your experience</p>
+          <p className="text-sm text-gray-600 mb-4">{t('customizeYourExperience')}</p>
 
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Moon className="inline mr-2" size={16} />
-                Theme
+                {t('theme')}
               </label>
               <select
                 value={settings.preferences.theme}
                 onChange={(e) => handlePreferenceChange('theme', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="auto">Auto (System)</option>
+                <option value="light">{t('light')}</option>
+                <option value="dark">{t('dark')}</option>
+                <option value="auto">{t('autoSystem')}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Globe className="inline mr-2" size={16} />
-                Language
+                {t('language')}
               </label>
               <select
                 value={settings.preferences.language}
                 onChange={(e) => handlePreferenceChange('language', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-                <option value="ja">Japanese</option>
-                <option value="zh">Chinese</option>
+                <option value="en">{t('english')}</option>
+                <option value="es">{t('spanish')}</option>
+                <option value="fr">{t('french')}</option>
+                <option value="de">{t('german')}</option>
+                <option value="ja">{t('japanese')}</option>
+                <option value="zh">{t('chinese')}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Timezone
+                {t('timezone')}
               </label>
               <select
                 value={settings.preferences.timezone}
@@ -283,30 +285,30 @@ const Settings: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center space-x-3 mb-4">
             <Shield className="text-primary-600" size={20} />
-            <h2 className="text-lg font-semibold text-gray-900">Privacy</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('privacy')}</h2>
           </div>
-          <p className="text-sm text-gray-600 mb-4">Control your privacy settings</p>
+          <p className="text-sm text-gray-600 mb-4">{t('controlYourPrivacySettings')}</p>
 
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Profile Visibility
+                {t('profileVisibility')}
               </label>
               <select
                 value={settings.privacy.profileVisibility}
                 onChange={(e) => handlePrivacyChange('profileVisibility', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
-                <option value="public">Public - Everyone can see your profile</option>
-                <option value="team">Team - Only team members can see your profile</option>
-                <option value="private">Private - Only you can see your profile</option>
+                <option value="public">{t('publicEveryoneCanSeeYourProfile')}</option>
+                <option value="team">{t('teamOnlyTeamMembersCanSeeYourProfile')}</option>
+                <option value="private">{t('privateOnlyYouCanSeeYourProfile')}</option>
               </select>
             </div>
 
             <label className="flex items-center justify-between cursor-pointer">
               <div>
-                <span className="text-sm font-medium text-gray-700">Show Email Address</span>
-                <p className="text-xs text-gray-500">Allow others to see your email address</p>
+                <span className="text-sm font-medium text-gray-700">{t('showEmailAddress')}</span>
+                <p className="text-xs text-gray-500">{t('allowOthersToSeeYourEmailAddress')}</p>
               </div>
               <input
                 type="checkbox"
@@ -328,12 +330,12 @@ const Settings: React.FC = () => {
             {saving ? (
               <>
                 <Loader className="animate-spin" size={16} />
-                <span>Saving...</span>
+                <span>{t('saving')}</span>
               </>
             ) : (
               <>
                 <Save size={16} />
-                <span>Save Settings</span>
+                <span>{t('saveSettings')}</span>
               </>
             )}
           </button>

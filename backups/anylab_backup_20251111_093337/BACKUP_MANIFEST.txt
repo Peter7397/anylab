@@ -1,0 +1,19 @@
+AnyLab Full Backup
+==================
+Date: Tue Nov 11 09:34:06 CST 2025
+Timestamp: 20251111_093337
+Backup Name: anylab_backup_20251111_093337
+
+Contents:
+- Source code (excluding node_modules, venv, build artifacts)
+- Database dump: database_20251111_093337.sql (if available)
+- Media files: media_20251111_093337.tar.gz (if available)
+- Configuration files
+
+Backup Location: /Volumes/Orico/Anylab103/backups/anylab_backup_20251111_093337
+
+To restore:
+1. Extract source code to project directory
+2. Restore database: docker exec -i CONTAINER_NAME psql -U postgres anylab < database_20251111_093337.sql
+3. Extract media: tar -xzf media_20251111_093337.tar.gz -C backend/
+4. Restore configuration files

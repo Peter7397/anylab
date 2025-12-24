@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { X, Paperclip, Send, Tag, Image as ImageIcon } from 'lucide-react';
 import { apiClient } from '../../services/api';
@@ -8,6 +9,7 @@ interface PostEditorProps {
 }
 
 const PostEditor: React.FC<PostEditorProps> = () => {
+  const { t } = useTranslation('forum');
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const postId = id ? parseInt(id) : undefined;
@@ -64,7 +66,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
       setIsPublicVisible(data.is_public_visible || false);
       setAllowPublicReply(data.allow_public_reply || false);
     } catch (err: any) {
-      setError(err.message || 'Failed to load post');
+      setError(err.message || t('failedToLoadPost'));
     }
   };
 
@@ -80,11 +82,11 @@ const PostEditor: React.FC<PostEditorProps> = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setError('请输入标题');
+      setError(t('pleaseEnterTitle'));
       return;
     }
     if (!content.trim()) {
-      setError('请输入内容');
+      setError(t('pleaseEnterContent'));
       return;
     }
 
@@ -120,7 +122,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
 
       navigate('/forum');
     } catch (err: any) {
-      setError(err.message || '发布失败');
+      setError(err.message || t('publishFailed'));
       console.error('Failed to save post:', err);
     } finally {
       setUploading(false);
@@ -150,7 +152,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">
-          {isEditMode ? '编辑帖子' : '发布新帖'}
+          {isEditMode ? t('editPost') : t('createNewPost')}
         </h1>
 
         <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -164,13 +166,13 @@ const PostEditor: React.FC<PostEditorProps> = () => {
           {/* Title */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              标题 *
+              {t('title')} *
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="输入帖子标题..."
+              placeholder={t('enterPostTitle')}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={uploading}
               required
@@ -180,7 +182,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
           {/* Category */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              分类
+              {t('category')}
             </label>
             <select
               value={category || ''}
@@ -188,7 +190,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={uploading}
             >
-              <option value="">选择分类</option>
+              <option value="">{t('selectCategory')}</option>
               {categories.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
@@ -198,7 +200,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
           {/* Tags */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              标签
+              {t('tags')}
             </label>
             <div className="flex flex-wrap gap-2 mb-2">
               {tags.filter(tag => selectedTags.includes(tag.id)).map(tag => (
@@ -217,7 +219,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
               type="text"
               value={tagSearchQuery}
               onChange={(e) => setTagSearchQuery(e.target.value)}
-              placeholder="搜索标签..."
+              placeholder={t('searchTags')}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               disabled={uploading}
             />
@@ -241,25 +243,25 @@ const PostEditor: React.FC<PostEditorProps> = () => {
           {/* Content */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              内容 *
+              {t('content')} *
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="输入帖子内容... (支持@提及用户)"
+              placeholder={t('enterPostContent')}
               className="w-full min-h-[300px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
               disabled={uploading}
               required
             />
             <p className="mt-1 text-xs text-gray-500">
-              提示: 使用 @username 可以提及用户
+              {t('mentionUserHint')}
             </p>
           </div>
 
           {/* Attachments */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              附件
+              {t('attachments')}
             </label>
             {attachments.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
@@ -283,7 +285,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
             )}
             <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:text-gray-800 transition-colors">
               <Paperclip className="w-4 h-4" />
-              <span>添加附件</span>
+              <span>{t('addAttachment')}</span>
               <input
                 type="file"
                 multiple
@@ -304,7 +306,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
                 disabled={uploading}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">公开可见（未登录用户也可查看）</span>
+              <span className="text-sm text-gray-700">{t('publicVisible')}</span>
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -314,7 +316,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
                 disabled={uploading}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-gray-700">允许公开回复（未登录用户也可回复）</span>
+              <span className="text-sm text-gray-700">{t('allowPublicReply')}</span>
             </label>
           </div>
 
@@ -326,7 +328,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
               className="px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
               disabled={uploading}
             >
-              取消
+              {t('cancel')}
             </button>
             <button
               type="submit"
@@ -334,7 +336,7 @@ const PostEditor: React.FC<PostEditorProps> = () => {
               className="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Send className="w-4 h-4" />
-              {uploading ? '发布中...' : isEditMode ? '保存' : '发布'}
+              {uploading ? t('publishing') : isEditMode ? t('save') : t('publish')}
             </button>
           </div>
         </form>

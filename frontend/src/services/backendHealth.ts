@@ -45,15 +45,23 @@ class BackendHealthService {
       // Use the same API base URL logic as api.ts
       const hostname = window.location.hostname;
       const protocol = window.location.protocol;
+      
+      // Helper function to check if hostname is an IP address
+      const isIPAddress = (host: string): boolean => {
+        const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+        const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+        return ipv4Pattern.test(host) || ipv6Pattern.test(host);
+      };
+      
       let healthUrl: string;
       
       if (hostname === 'localhost' || hostname === '127.0.0.1') {
         healthUrl = `${protocol}//localhost:8001/api/health/`;
-      } else if (hostname === 'anylab.dpdns.org') {
-        // When accessing via domain, use same domain (nginx will proxy)
+      } else if (!isIPAddress(hostname)) {
+        // Domain name detected - use same domain (nginx will proxy)
         healthUrl = `${protocol}//${hostname}/api/health/`;
       } else {
-        // For LAN access, use same hostname with port 8001
+        // For LAN access via IP, use same hostname with port 8001
         healthUrl = `${protocol}//${hostname}:8001/api/health/`;
       }
       

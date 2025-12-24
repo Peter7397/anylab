@@ -66,6 +66,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',  # Add after SessionMiddleware for i18n
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -142,13 +143,22 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'zh-hans'  # Simplified Chinese
 
-TIME_ZONE = 'UTC'
+LANGUAGES = [
+    ('zh-hans', '简体中文'),
+    ('en', 'English'),
+]
+
+LOCALE_PATHS = [
+    os.path.join(BASE_DIR, 'locale'),
+]
 
 USE_I18N = True
-
+USE_L10N = True  # Enable localization of numbers, dates, etc.
 USE_TZ = True
+
+TIME_ZONE = 'Asia/Shanghai'  # Chinese timezone
 
 
 # Static files (CSS, JavaScript, Images)
@@ -267,9 +277,13 @@ REDIS_URL = 'redis://localhost:6379/0'  # HARDCODED: localhost for hybrid
 # Cache Configuration
 CACHES = {
     'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'BACKEND': 'django_redis.cache.RedisCache',  # Using django-redis for better control
         'LOCATION': REDIS_URL,
-        'TIMEOUT': 3600,  # Default cache timeout: 1 hour
+        'TIMEOUT': 3600,
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'IGNORE_EXCEPTIONS': True,  # Don't crash if Redis is down
+        }
     }
 }
 
@@ -286,7 +300,13 @@ OLLAMA_REQUEST_TIMEOUT = 120  # HARDCODED: Request timeout in seconds
 OLLAMA_NUM_CTX = 1024  # HARDCODED: Context size for faster processing
 OLLAMA_DEFAULT_MAX_TOKENS = 256  # HARDCODED: Max tokens for faster response
 OLLAMA_TEMPERATURE = 0.3  # HARDCODED: Temperature for focused responses
-OLLAMA_SYSTEM_PROMPT = 'You are a helpful, expert assistant. Provide concise and accurate answers. Keep responses focused and to the point.'  # HARDCODED: System prompt
+
+# System prompts for different languages - HARDCODED
+OLLAMA_SYSTEM_PROMPT = 'You are a helpful, expert assistant. Provide concise and accurate answers. Keep responses focused and to the point.'  # HARDCODED: Default English system prompt
+
+OLLAMA_SYSTEM_PROMPT_ZH = '你是一个专业的实验室知识助手。请用简体中文回答所有问题。提供准确、详细、专业的回答，保持回答简洁明了。'  # HARDCODED: Chinese system prompt
+
+OLLAMA_SYSTEM_PROMPT_EN = 'You are a helpful, expert assistant. Provide concise and accurate answers. Keep responses focused and to the point.'  # HARDCODED: English system prompt
 
 # Cache TTL settings for AI responses - HARDCODED
 EMBEDDING_CACHE_TTL = 3600  # HARDCODED: 1 hour

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Users, UserPlus, Shield, Edit, Trash2, Search, Filter, MoreVertical, AlertCircle } from 'lucide-react';
 import { apiClient } from '../../services/api';
 
@@ -28,6 +29,7 @@ interface Role {
 }
 
 const UsersRoles: React.FC = () => {
+  const { t } = useTranslation('admin');
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,9 @@ const UsersRoles: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [showRoleMenu, setShowRoleMenu] = useState<number | null>(null);
   
   // New user form state
   const [newUser, setNewUser] = useState({
@@ -51,6 +56,28 @@ const UsersRoles: React.FC = () => {
     last_name: '',
     department: '',
     position: '',
+  });
+
+  // New role form state
+  const [newRole, setNewRole] = useState({
+    name: '',
+    description: '',
+    permissions: {
+      features: {
+        'ai.rag': false,
+        'knowledge.view': false,
+        'admin': false,
+        'documents.upload': false,
+        'documents.bulk_import': false,
+        'help_portal.edit': false,
+        'forum.view': false,
+        'forum.post': false,
+        'forum.reply': false,
+        'forum.edit': false,
+        'forum.moderate': false,
+        'forum.manage': false,
+      }
+    }
   });
 
   // Load data from API
@@ -89,7 +116,7 @@ const UsersRoles: React.FC = () => {
         setRoles(rolesWithCounts);
       }
     } catch (err: any) {
-      setError(err?.message || 'Failed to load users and roles');
+      setError(err?.message || t('failedToLoadUsersAndRoles'));
       console.error('Error loading data:', err);
     } finally {
       setLoading(false);
@@ -99,7 +126,7 @@ const UsersRoles: React.FC = () => {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUser.username || !newUser.password) {
-      setError('Please fill in username and password');
+      setError(t('pleaseFillInUsernameAndPassword'));
       return;
     }
 
@@ -118,17 +145,17 @@ const UsersRoles: React.FC = () => {
       });
       await loadData();
     } catch (err: any) {
-      setError(err?.message || 'Failed to create user');
+      setError(err?.message || t('failedToCreateUser'));
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
+    if (window.confirm(t('confirmDeleteUser'))) {
       try {
         await apiClient.deleteUser(parseInt(userId));
         await loadData();
       } catch (err: any) {
-        setError(err?.message || 'Failed to delete user');
+        setError(err?.message || t('failedToDeleteUser'));
       }
     }
   };
@@ -138,7 +165,7 @@ const UsersRoles: React.FC = () => {
       await apiClient.assignRole(parseInt(userId), roleId);
       await loadData();
     } catch (err: any) {
-      setError(err?.message || 'Failed to assign role');
+      setError(err?.message || t('failedToAssignRole'));
     }
   };
 
@@ -147,7 +174,7 @@ const UsersRoles: React.FC = () => {
       await apiClient.removeRole(parseInt(userId), roleId);
       await loadData();
     } catch (err: any) {
-      setError(err?.message || 'Failed to remove role');
+      setError(err?.message || t('failedToRemoveRole'));
     }
   };
 
@@ -192,7 +219,7 @@ const UsersRoles: React.FC = () => {
       setEditingUser(null);
       await loadData();
     } catch (err: any) {
-      setError(err?.message || 'Failed to save roles');
+      setError(err?.message || t('failedToSaveRoles'));
     }
   };
 
@@ -206,11 +233,11 @@ const UsersRoles: React.FC = () => {
   const submitResetPassword = async () => {
     if (!editingUser) return;
     if (!newPassword || newPassword.length < 4) {
-      setError('Password must be at least 4 characters');
+      setError(t('passwordMustBeAtLeast4Characters'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwordsDoNotMatch'));
       return;
     }
     try {
@@ -219,8 +246,127 @@ const UsersRoles: React.FC = () => {
       setShowResetModal(false);
       setEditingUser(null);
     } catch (err: any) {
-      setError(err?.message || 'Failed to reset password');
+      setError(err?.message || t('failedToResetPassword'));
     }
+  };
+
+  // Role management functions
+  const openCreateRole = () => {
+    setEditingRole(null);
+    setNewRole({
+      name: '',
+      description: '',
+      permissions: {
+        features: {
+          'ai.rag': false,
+          'knowledge.view': false,
+          'admin': false,
+          'documents.upload': false,
+          'documents.bulk_import': false,
+          'help_portal.edit': false,
+          'forum.view': false,
+          'forum.post': false,
+          'forum.reply': false,
+          'forum.edit': false,
+          'forum.moderate': false,
+          'forum.manage': false,
+        }
+      }
+    });
+    setShowRoleModal(true);
+  };
+
+  const openEditRole = (role: Role) => {
+    setEditingRole(role);
+    setNewRole({
+      name: role.name,
+      description: role.description || '',
+      permissions: role.permissions || {
+        features: {}
+      }
+    });
+    setShowRoleModal(true);
+    setShowRoleMenu(null);
+  };
+
+  const handleCreateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRole.name.trim()) {
+      setError(t('pleaseFillInRoleName'));
+      return;
+    }
+    try {
+      setError(null);
+      await apiClient.createRole(newRole);
+      setShowRoleModal(false);
+      setNewRole({
+        name: '',
+        description: '',
+        permissions: {
+          features: {
+            'ai.rag': false,
+            'knowledge.view': false,
+            'admin': false,
+            'documents.upload': false,
+            'documents.bulk_import': false,
+            'help_portal.edit': false,
+            'forum.view': false,
+            'forum.post': false,
+            'forum.reply': false,
+            'forum.edit': false,
+            'forum.moderate': false,
+            'forum.manage': false,
+          }
+        }
+      });
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || t('failedToCreateRole'));
+    }
+  };
+
+  const handleUpdateRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRole || !newRole.name.trim()) {
+      setError(t('pleaseFillInRoleName'));
+      return;
+    }
+    try {
+      setError(null);
+      await apiClient.updateRole(editingRole.id, newRole);
+      setShowRoleModal(false);
+      setEditingRole(null);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || t('failedToUpdateRole'));
+    }
+  };
+
+  const handleDeleteRole = async (roleId: number) => {
+    if (!window.confirm(t('confirmDeleteRole'))) {
+      return;
+    }
+    try {
+      setError(null);
+      await apiClient.deleteRole(roleId);
+      setShowRoleMenu(null);
+      await loadData();
+    } catch (err: any) {
+      setError(err?.message || t('failedToDeleteRole'));
+    }
+  };
+
+  const togglePermission = (feature: string) => {
+    setNewRole(prev => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        features: {
+          ...prev.permissions.features,
+          [feature]: !prev.permissions.features[feature as keyof typeof prev.permissions.features]
+        }
+      }
+    }));
   };
 
   // Filter users based on search and role
@@ -279,8 +425,8 @@ const UsersRoles: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Users & Roles</h1>
-          <p className="text-gray-600">Manage user accounts and role permissions</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('usersRoles')}</h1>
+          <p className="text-gray-600">{t('manageUserAccountsAndRolePermissions')}</p>
         </div>
         <div className="flex space-x-3">
           <button 
@@ -288,11 +434,14 @@ const UsersRoles: React.FC = () => {
             onClick={() => { setNewUser({ username: '', email: '', password: '', first_name: '', last_name: '', department: '', position: '' }); setShowAddModal(true); }}
           >
             <UserPlus size={16} className="mr-2" />
-            Add User
+            {t('addUser')}
           </button>
-          <button className="btn-secondary">
+          <button 
+            className="btn-secondary"
+            onClick={openCreateRole}
+          >
             <Shield size={16} className="mr-2" />
-            Manage Roles
+            {t('manageRoles')}
           </button>
         </div>
       </div>
@@ -302,7 +451,7 @@ const UsersRoles: React.FC = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
           <AlertCircle className="text-red-600 mt-0.5 mr-3" size={20} />
           <div>
-            <p className="text-sm font-medium text-red-800">Error</p>
+            <p className="text-sm font-medium text-red-800">{t('error')}</p>
             <p className="text-sm text-red-600">{error}</p>
           </div>
         </div>
@@ -316,7 +465,7 @@ const UsersRoles: React.FC = () => {
               <Users className="text-blue-600" size={24} />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Users</p>
+              <p className="text-sm font-medium text-gray-600">{t('totalUsers')}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             </div>
           </div>
@@ -327,7 +476,7 @@ const UsersRoles: React.FC = () => {
               <Users className="text-green-600" size={24} />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Users</p>
+              <p className="text-sm font-medium text-gray-600">{t('activeUsers')}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
             </div>
           </div>
@@ -338,7 +487,7 @@ const UsersRoles: React.FC = () => {
               <Shield className="text-amber-600" size={24} />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Roles</p>
+              <p className="text-sm font-medium text-gray-600">{t('roles')}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.rolesCount}</p>
             </div>
           </div>
@@ -349,7 +498,7 @@ const UsersRoles: React.FC = () => {
               <Users className="text-red-600" size={24} />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Inactive</p>
+              <p className="text-sm font-medium text-gray-600">{t('inactive')}</p>
               <p className="text-2xl font-bold text-gray-900">{stats.inactive}</p>
             </div>
           </div>
@@ -359,13 +508,13 @@ const UsersRoles: React.FC = () => {
       {/* Users Table */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Users</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('users')}</h2>
           <div className="flex space-x-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
               <input
                 type="text"
-                placeholder="Search users..."
+                placeholder={t('searchUsers')}
                 className="input-field pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -376,7 +525,7 @@ const UsersRoles: React.FC = () => {
               value={selectedRole}
               onChange={(e) => setSelectedRole(e.target.value)}
             >
-              <option value="all">All Roles</option>
+              <option value="all">{t('allRoles')}</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.name}>
                   {role.name}
@@ -391,19 +540,19 @@ const UsersRoles: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
+                  {t('user')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role
+                  {t('role')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                  {t('status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Department
+                  {t('department')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  {t('actions')}
                 </th>
               </tr>
             </thead>
@@ -431,16 +580,16 @@ const UsersRoles: React.FC = () => {
                         ))}
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-400">No roles assigned</span>
+                      <span className="text-xs text-gray-400">{t('noRolesAssigned')}</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(user.is_active)}`}>
-                      {user.is_active ? 'Active' : 'Inactive'}
+                      {user.is_active ? t('active') : t('inactive')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {user.department || 'N/A'}
+                    {user.department || t('notAvailable')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button className="text-blue-600 hover:text-blue-900 mr-3" onClick={() => openEditUser(user)}>
@@ -450,7 +599,7 @@ const UsersRoles: React.FC = () => {
                       className="text-amber-600 hover:text-amber-800 mr-3"
                       onClick={() => openResetPassword(user)}
                     >
-                      Reset PW
+                      {t('resetPassword')}
                     </button>
                     <button 
                       className="text-red-600 hover:text-red-900"
@@ -469,10 +618,13 @@ const UsersRoles: React.FC = () => {
       {/* Roles Section */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Roles & Permissions</h2>
-          <button className="btn-secondary">
+          <h2 className="text-lg font-semibold text-gray-900">{t('rolesAndPermissions')}</h2>
+          <button 
+            className="btn-secondary"
+            onClick={openCreateRole}
+          >
             <Shield size={16} className="mr-2" />
-            Create Role
+            {t('createRole')}
           </button>
         </div>
 
@@ -486,34 +638,61 @@ const UsersRoles: React.FC = () => {
                     <span className="ml-1">{role.name}</span>
                   </span>
                   <span className="ml-2 text-sm text-gray-500">
-                    ({users.filter(u => u.roles?.some(r => r.id === role.id)).length} users)
+                    ({t('usersCount', { count: users.filter(u => u.roles?.some(r => r.id === role.id)).length })})
                   </span>
                 </div>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <MoreVertical size={16} />
-                </button>
+                <div className="relative">
+                  <button 
+                    className="text-gray-400 hover:text-gray-600"
+                    onClick={() => setShowRoleMenu(showRoleMenu === role.id ? null : role.id)}
+                  >
+                    <MoreVertical size={16} />
+                  </button>
+                  {showRoleMenu === role.id && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                      <div className="py-1">
+                        <button
+                          onClick={() => openEditRole(role)}
+                          className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        >
+                          <Edit size={16} className="mr-3" />
+                          {t('editRole')}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRole(role.id)}
+                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={16} className="mr-3" />
+                          {t('deleteRole')}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               
-              <p className="text-sm text-gray-600 mb-3">{role.description || 'No description'}</p>
+              <p className="text-sm text-gray-600 mb-3">{role.description || t('noDescription')}</p>
               
               <div className="space-y-2">
-                <h4 className="text-sm font-medium text-gray-700">Permissions:</h4>
+                <h4 className="text-sm font-medium text-gray-700">{t('permissions')}:</h4>
                 <div className="flex flex-wrap gap-1">
-                  {role.permissions && typeof role.permissions === 'object' ? (
-                    Object.keys(role.permissions).length > 0 ? (
-                      Object.keys(role.permissions).map((key) => (
-                        <span
-                          key={key}
-                          className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800"
-                        >
-                          {key}
-                        </span>
-                      ))
+                  {role.permissions && role.permissions.features ? (
+                    Object.keys(role.permissions.features).length > 0 ? (
+                      Object.entries(role.permissions.features)
+                        .filter(([_, enabled]) => enabled)
+                        .map(([feature, _]) => (
+                          <span
+                            key={feature}
+                            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                          >
+                            {feature}
+                          </span>
+                        ))
                     ) : (
-                      <span className="text-xs text-gray-400">No specific permissions</span>
+                      <span className="text-xs text-gray-400">{t('noSpecificPermissions')}</span>
                     )
                   ) : (
-                    <span className="text-xs text-gray-400">No permissions defined</span>
+                    <span className="text-xs text-gray-400">{t('noPermissionsDefined')}</span>
                   )}
                 </div>
               </div>
@@ -527,10 +706,10 @@ const UsersRoles: React.FC = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Add New User</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">{t('addNewUser')}</h3>
               <form className="space-y-4" onSubmit={handleAddUser}>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Username *</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('username')} *</label>
                   <input 
                     type="text" 
                     className="input-field"
@@ -542,7 +721,7 @@ const UsersRoles: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Email</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('email')}</label>
                   <input 
                     type="email" 
                     className="input-field"
@@ -553,7 +732,7 @@ const UsersRoles: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Password *</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('password')} *</label>
                   <input 
                     type="password" 
                     className="input-field"
@@ -565,7 +744,7 @@ const UsersRoles: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">First Name</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('firstName')}</label>
                   <input 
                     type="text" 
                     className="input-field"
@@ -574,7 +753,7 @@ const UsersRoles: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('lastName')}</label>
                   <input 
                     type="text" 
                     className="input-field"
@@ -583,7 +762,7 @@ const UsersRoles: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Department</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('department')}</label>
                   <input 
                     type="text" 
                     className="input-field"
@@ -592,7 +771,7 @@ const UsersRoles: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Position</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('position')}</label>
                   <input 
                     type="text" 
                     className="input-field"
@@ -606,10 +785,10 @@ const UsersRoles: React.FC = () => {
                     onClick={() => setShowAddModal(false)}
                     className="btn-secondary"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                   <button type="submit" className="btn-primary">
-                    Add User
+                    {t('addUser')}
                   </button>
                 </div>
               </form>
@@ -623,11 +802,11 @@ const UsersRoles: React.FC = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-[28rem] shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Edit Roles</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('editRoles')}</h3>
               <p className="text-sm text-gray-600 mb-4">{editingUser.first_name} {editingUser.last_name} ({editingUser.username})</p>
               <div className="max-h-80 overflow-y-auto border rounded-md p-3">
                 {roles.length === 0 && (
-                  <div className="text-sm text-gray-500">No roles available</div>
+                  <div className="text-sm text-gray-500">{t('noRolesAvailable')}</div>
                 )}
                 <ul className="space-y-2">
                   {roles.map(role => (
@@ -652,14 +831,14 @@ const UsersRoles: React.FC = () => {
                   onClick={() => { setShowEditModal(false); setEditingUser(null); }}
                   className="btn-secondary"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   type="button"
                   onClick={saveUserRoles}
                   className="btn-primary"
                 >
-                  Save
+                  {t('save')}
                 </button>
               </div>
             </div>
@@ -672,11 +851,11 @@ const UsersRoles: React.FC = () => {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Reset Password</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">{t('resetPassword')}</h3>
               <p className="text-sm text-gray-600 mb-4">{editingUser.first_name} {editingUser.last_name} ({editingUser.username})</p>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">New Password</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('newPassword')}</label>
                   <input
                     type="password"
                     className="input-field"
@@ -685,7 +864,7 @@ const UsersRoles: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('confirmPassword')}</label>
                   <input
                     type="password"
                     className="input-field"
@@ -695,12 +874,85 @@ const UsersRoles: React.FC = () => {
                 </div>
               </div>
               <div className="flex justify-end space-x-3 mt-4">
-                <button className="btn-secondary" onClick={() => { setShowResetModal(false); setEditingUser(null); }}>Cancel</button>
-                <button className="btn-primary" onClick={submitResetPassword}>Save</button>
+                <button className="btn-secondary" onClick={() => { setShowResetModal(false); setEditingUser(null); }}>{t('cancel')}</button>
+                <button className="btn-primary" onClick={submitResetPassword}>{t('save')}</button>
               </div>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Role Management Modal */}
+      {showRoleModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">
+                {editingRole ? t('editRole') : t('createRole')}
+              </h3>
+              <form className="space-y-4" onSubmit={editingRole ? handleUpdateRole : handleCreateRole}>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">{t('role')} {t('name')} *</label>
+                  <input 
+                    type="text" 
+                    className="input-field"
+                    value={newRole.name}
+                    onChange={(e) => setNewRole({...newRole, name: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">{t('description')}</label>
+                  <textarea 
+                    className="input-field"
+                    rows={3}
+                    value={newRole.description}
+                    onChange={(e) => setNewRole({...newRole, description: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">{t('permissions')}</label>
+                  <div className="border border-gray-200 rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
+                    {Object.keys(newRole.permissions.features).map((feature) => (
+                      <label key={feature} className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newRole.permissions.features[feature as keyof typeof newRole.permissions.features] || false}
+                          onChange={() => togglePermission(feature)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        <span className="text-sm text-gray-700">{feature}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => { setShowRoleModal(false); setEditingRole(null); }}
+                    className="btn-secondary"
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                  >
+                    {editingRole ? t('update') : t('create')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Click outside to close role menu */}
+      {showRoleMenu !== null && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowRoleMenu(null)}
+        />
       )}
     </div>
   );

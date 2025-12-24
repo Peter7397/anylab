@@ -6,8 +6,8 @@ to help verify GraphRAG improvements.
 """
 
 from django.core.management.base import BaseCommand
-from ai_assistant.services.neo4j_service import get_neo4j_service
-from ai_assistant.services.graph_builder import GraphBuilder
+from ai_assistant.service_classes.neo4j_service import get_neo4j_service
+from ai_assistant.service_classes.graph_builder import GraphBuilder
 import logging
 
 logger = logging.getLogger(__name__)

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { User, Save, Edit2, Mail, Phone, Briefcase, Building, Hash, Loader, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { apiClient, User as UserType } from '../../services/api';
 
 const Profile: React.FC = () => {
+  const { t } = useTranslation('common');
   const { user: authUser, refreshPermissions } = useAuth();
   const [user, setUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +44,7 @@ const Profile: React.FC = () => {
         phone: profile.phone || '',
       });
     } catch (err: any) {
-      setError(err?.message || 'Failed to load profile');
+      setError(err?.message || t('failedToLoadProfile'));
       console.error('Error loading profile:', err);
     } finally {
       setLoading(false);
@@ -80,7 +82,7 @@ const Profile: React.FC = () => {
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      setError(err?.message || 'Failed to update profile');
+      setError(err?.message || t('failedToUpdateProfile'));
       console.error('Error updating profile:', err);
     } finally {
       setSaving(false);
@@ -117,7 +119,7 @@ const Profile: React.FC = () => {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <XCircle className="mx-auto text-red-500" size={48} />
-          <p className="mt-4 text-gray-600">Failed to load profile</p>
+          <p className="mt-4 text-gray-600">{t('failedToLoadProfile')}</p>
         </div>
       </div>
     );
@@ -132,8 +134,8 @@ const Profile: React.FC = () => {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-          <p className="text-gray-600">View and manage your profile information</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('profile')}</h1>
+          <p className="text-gray-600">{t('viewAndManageYourProfileInformation')}</p>
         </div>
         {!isEditing && (
           <button
@@ -141,7 +143,7 @@ const Profile: React.FC = () => {
             className="flex items-center space-x-2 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
           >
             <Edit2 size={16} />
-            <span>Edit Profile</span>
+            <span>{t('editProfile')}</span>
           </button>
         )}
       </div>
@@ -150,7 +152,7 @@ const Profile: React.FC = () => {
       {success && (
         <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md flex items-center space-x-2">
           <CheckCircle size={20} />
-          <span>Profile updated successfully!</span>
+          <span>{t('profileUpdatedSuccessfully')}</span>
         </div>
       )}
 
@@ -177,12 +179,12 @@ const Profile: React.FC = () => {
             <p className="text-gray-600">@{user.username}</p>
             {user.is_staff && (
               <span className="inline-block mt-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded">
-                Staff
+                {t('staff')}
               </span>
             )}
             {user.is_superuser && (
               <span className="inline-block mt-2 ml-2 px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded">
-                Administrator
+                {t('administrator')}
               </span>
             )}
           </div>
@@ -195,7 +197,7 @@ const Profile: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Mail size={16} className="inline mr-2" />
-                Email Address
+                {t('emailAddress')}
               </label>
               <input
                 type="email"
@@ -212,7 +214,7 @@ const Profile: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Phone size={16} className="inline mr-2" />
-                Phone Number
+                {t('phoneNumber')}
               </label>
               <input
                 type="tel"
@@ -221,14 +223,14 @@ const Profile: React.FC = () => {
                 onChange={handleInputChange}
                 disabled={!isEditing}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                placeholder="+1 (555) 123-4567"
+                placeholder={t('phoneNumberPlaceholder')}
               />
             </div>
 
             {/* First Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                First Name
+                {t('firstName')}
               </label>
               <input
                 type="text"
@@ -243,7 +245,7 @@ const Profile: React.FC = () => {
             {/* Last Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Last Name
+                {t('lastName')}
               </label>
               <input
                 type="text"
@@ -259,7 +261,7 @@ const Profile: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Hash size={16} className="inline mr-2" />
-                Employee ID
+                {t('employeeId')}
               </label>
               <input
                 type="text"
@@ -275,7 +277,7 @@ const Profile: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Building size={16} className="inline mr-2" />
-                Department
+                {t('department')}
               </label>
               <input
                 type="text"
@@ -291,7 +293,7 @@ const Profile: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Briefcase size={16} className="inline mr-2" />
-                Position
+                {t('position')}
               </label>
               <input
                 type="text"
@@ -313,7 +315,7 @@ const Profile: React.FC = () => {
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
                 disabled={saving}
               >
-                Cancel
+                {t('cancel')}
               </button>
               <button
                 type="submit"
@@ -323,12 +325,12 @@ const Profile: React.FC = () => {
                 {saving ? (
                   <>
                     <Loader className="animate-spin" size={16} />
-                    <span>Saving...</span>
+                    <span>{t('saving')}</span>
                   </>
                 ) : (
                   <>
                     <Save size={16} />
-                    <span>Save Changes</span>
+                    <span>{t('saveChanges')}</span>
                   </>
                 )}
               </button>

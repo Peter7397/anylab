@@ -18,10 +18,13 @@ import {
   ChevronUp,
   GitBranch,
   Maximize2,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../../services/api';
 import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
+import DocumentViewer from './DocumentViewer';
 
 interface ChatMessage {
   id: string;
@@ -36,6 +39,7 @@ interface ChatMessage {
     source?: 'vector+graph' | 'vector' | 'graph';
     graph_boost?: boolean;
     matched_entities?: Array<{ name: string; type: string }>;
+    view_url?: string;
   }>;
 }
 
@@ -56,11 +60,22 @@ interface EntityMatches {
 }
 
 const GraphRagSearch: React.FC = () => {
+  const { t } = useTranslation('ai');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(true);
   const [showGraphStats, setShowGraphStats] = useState(false);
+  
+  // Document viewer state for split-screen
+  const [viewerDocument, setViewerDocument] = useState<{
+    fileId: string;
+    title: string;
+    url: string;
+    type: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html';
+    page?: number;
+  } | null>(null);
+  const [isLoadingDocument, setIsLoadingDocument] = useState(false);
   const [showEntities, setShowEntities] = useState(false);
   const { history: unifiedHistory, recordUserPrompt, refresh: refreshUnifiedHistory } = useUnifiedChatHistory(200);
   const [chatHistory, setChatHistory] = useState<Array<{ 
@@ -199,7 +214,7 @@ const GraphRagSearch: React.FC = () => {
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: res.response || 'No response received',
+        content: res.response || t('noResponseReceived'),
         timestamp: new Date().toISOString(),
         references: res.sources?.map((source: any) => ({
           title: source.title || source.filename || 'Unknown Document',
@@ -231,7 +246,7 @@ const GraphRagSearch: React.FC = () => {
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Graph RAG search failed. Please try again.',
+        content: t('graphRagSearchFailed'),
         timestamp: new Date().toISOString()
       };
 
@@ -337,6 +352,44 @@ const GraphRagSearch: React.FC = () => {
     }
   };
 
+  // Open document in right panel viewer
+  const openDocumentInViewer = async (fileId: string, title: string, page: number) => {
+    setIsLoadingDocument(true);
+    try {
+      const fileInfo = await apiClient.getFileProcessingStatus(parseInt(fileId));
+      const filename = fileInfo.filename || title;
+      const fileExt = filename.split('.').pop()?.toLowerCase() || 'pdf';
+      
+      let docType: 'pdf'|'docx'|'txt'|'xls'|'xlsx'|'ppt'|'pptx'|'html' = 'pdf';
+      if (fileExt === 'doc' || fileExt === 'docx') docType = 'docx';
+      else if (fileExt === 'xls') docType = 'xls';
+      else if (fileExt === 'xlsx') docType = 'xlsx';
+      else if (fileExt === 'ppt') docType = 'ppt';
+      else if (fileExt === 'pptx') docType = 'pptx';
+      else if (fileExt === 'txt') docType = 'txt';
+      else if (fileExt === 'html' || fileExt === 'htm') docType = 'html';
+      else docType = 'pdf';
+      
+      const viewUrl = `/api/ai/documents/pdf/${fileId}/view/`;
+      
+      setViewerDocument({
+        fileId,
+        title: filename,
+        url: viewUrl,
+        type: docType,
+        page: page
+      });
+      setIsLoadingDocument(false);
+    } catch (error) {
+      console.error('Failed to load document:', error);
+      setIsLoadingDocument(false);
+    }
+  };
+
+  const closeDocumentViewer = () => {
+    setViewerDocument(null);
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
@@ -347,8 +400,8 @@ const GraphRagSearch: React.FC = () => {
               <Network className="h-6 w-6 text-green-600" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Graph RAG</h1>
-              <p className="text-sm text-gray-500">Entity-aware search with knowledge graph relationships</p>
+              <h1 className="text-xl font-semibold text-gray-900">{t('graphRag')}</h1>
+              <p className="text-sm text-gray-500">{t('entityAwareSearch')}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -358,7 +411,7 @@ const GraphRagSearch: React.FC = () => {
                 className="flex items-center px-3 py-1 text-sm text-green-600 hover:text-green-700"
               >
                 <BarChart3 className="mr-1 h-4 w-4" />
-                Stats
+                {t('stats')}
               </button>
             )}
             {graphStats && graphStats.query_entities.length > 0 && (
@@ -367,7 +420,7 @@ const GraphRagSearch: React.FC = () => {
                 className="flex items-center px-3 py-1 text-sm text-teal-600 hover:text-teal-700"
               >
                 <Tag className="mr-1 h-4 w-4" />
-                Entities
+                {t('entities')}
               </button>
             )}
             <button
@@ -375,7 +428,7 @@ const GraphRagSearch: React.FC = () => {
               className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-gray-700"
             >
               <History className="mr-1 h-4 w-4" />
-              History
+              {t('history')}
             </button>
           </div>
         </div>
@@ -388,20 +441,20 @@ const GraphRagSearch: React.FC = () => {
             <div className="flex items-center space-x-6 text-sm">
               <span className="flex items-center">
                 <Target className="mr-1 h-4 w-4 text-green-600" />
-                <span className="font-medium">Total: {graphStats.total_results}</span>
+                <span className="font-medium">{t('total')}: {graphStats.total_results}</span>
               </span>
               <span className="flex items-center">
                 <Sparkles className="mr-1 h-4 w-4 text-green-600" />
-                <span className="font-medium text-green-700">Graph-Enhanced: {graphStats.graph_enhanced}</span>
+                <span className="font-medium text-green-700">{t('graphEnhanced')}: {graphStats.graph_enhanced}</span>
               </span>
               <span className="flex items-center">
                 <FileText className="mr-1 h-4 w-4 text-emerald-600" />
-                Vector Only: {graphStats.vector_only}
+                {t('vectorOnly')}: {graphStats.vector_only}
               </span>
               {graphStats.query_entities.length > 0 && (
                 <span className="flex items-center">
                   <Tag className="mr-1 h-4 w-4 text-teal-600" />
-                  Entities: {graphStats.query_entities.length}
+                  {t('entities')}: {graphStats.query_entities.length}
                 </span>
               )}
             </div>
@@ -419,7 +472,7 @@ const GraphRagSearch: React.FC = () => {
       {showEntities && graphStats && graphStats.query_entities.length > 0 && (
         <div className="bg-teal-50 border-b border-teal-200 px-6 py-3">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-teal-900">Extracted Entities</h3>
+            <h3 className="text-sm font-medium text-teal-900">{t('extractedEntities')}</h3>
             <button
               onClick={() => setShowEntities(false)}
               className="text-teal-600 hover:text-teal-700"
@@ -442,19 +495,19 @@ const GraphRagSearch: React.FC = () => {
         </div>
       )}
 
-      {/* Content */}
+      {/* Content - Split Screen Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col">
+        {/* Left Panel - Chat Area */}
+        <div className={`flex flex-col transition-all ${viewerDocument ? 'w-1/2 border-r border-gray-200' : 'flex-1'}`}>
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-6">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <Network className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Start Graph RAG Search</h3>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">{t('startGraphRagSearch')}</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Ask questions with specific entities like products, versions, or error codes for enhanced search with knowledge graph relationships.
+                    {t('graphRagDescription')}
                   </p>
                 </div>
               </div>
@@ -490,20 +543,20 @@ const GraphRagSearch: React.FC = () => {
                                 }}
                                 className="text-xs border border-gray-300 rounded px-1 py-0.5 text-gray-600 bg-white"
                                 defaultValue=""
-                                title="Ask in..."
+                                title={t('askIn')}
                               >
-                                <option value="">Ask in…</option>
-                                <option value="chat">Free Chat</option>
-                                <option value="rag_basic">Basic RAG</option>
-                                <option value="rag">Advanced RAG</option>
-                                <option value="rag_comprehensive">Comprehensive RAG</option>
-                                <option value="troubleshooting">Troubleshooting</option>
+                                <option value="">{t('askInPlaceholder')}</option>
+                                <option value="chat">{t('freeChat')}</option>
+                                <option value="rag_basic">{t('basicRag')}</option>
+                                <option value="rag">{t('advancedRag')}</option>
+                                <option value="rag_comprehensive">{t('comprehensiveRag')}</option>
+                                <option value="troubleshooting">{t('troubleshooting')}</option>
                               </select>
                             )}
                             <button
                               onClick={() => copyToClipboard(message.content, message.id)}
                               className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
-                              title="Copy formatted text with references"
+                              title={t('copyFormattedTextWithReferences')}
                             >
                               {copiedMessageId === message.id ? (
                                 <Check className="h-4 w-4 text-green-600" />
@@ -522,7 +575,7 @@ const GraphRagSearch: React.FC = () => {
                               className="flex items-center px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 rounded text-xs font-medium transition-colors"
                             >
                               <GitBranch className="mr-1.5 h-4 w-4" />
-                              View Graph
+                              {t('viewGraph')}
                             </button>
                           </div>
                         )}
@@ -530,36 +583,61 @@ const GraphRagSearch: React.FC = () => {
                         {/* References */}
                         {message.references && message.references.length > 0 && (
                           <div className="mt-3 pt-3 border-t border-gray-200">
-                            <p className="text-xs font-medium text-gray-600 mb-2">References:</p>
+                            <p className="text-xs font-medium text-gray-600 mb-2">{t('references')}:</p>
                             <div className="space-y-2">
                               {message.references.map((ref, index) => (
-                                <div key={index} className="text-xs bg-gray-50 p-2 rounded border">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <p className="font-medium text-gray-700">{ref.title}</p>
-                                    {ref.source && (
-                                      <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeColor(ref.source)}`}>
-                                        {ref.source === 'vector+graph' && <><Sparkles className="inline mr-1 h-3 w-3" /> Graph-Enhanced</>}
-                                        {ref.source === 'graph' && 'Graph Only'}
-                                        {ref.source === 'vector' && 'Vector Only'}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-gray-600 mt-1">{ref.content.substring(0, 150)}...</p>
-                                  {ref.page && (
-                                    <p className="text-gray-500 mt-1">Page: {ref.page}</p>
-                                  )}
-                                  {ref.matched_entities && ref.matched_entities.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                      {ref.matched_entities.slice(0, 3).map((entity, idx) => (
-                                        <span key={idx} className={`px-1.5 py-0.5 rounded text-xs ${getEntityTypeColor(entity.type)}`}>
-                                          {entity.name}
-                                        </span>
-                                      ))}
-                                      {ref.matched_entities.length > 3 && (
-                                        <span className="text-xs text-gray-500">+{ref.matched_entities.length - 3}</span>
+                                <div 
+                                  key={index} 
+                                  className={`text-xs p-3 rounded border transition-all ${
+                                    ref.view_url 
+                                      ? 'bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer' 
+                                      : 'bg-gray-50 border-gray-200'
+                                  }`}
+                                  onClick={() => {
+                                    if (ref.view_url) {
+                                      const match = ref.view_url.match(/\/pdf\/(\d+)\/view/);
+                                      if (match) {
+                                        const fileId = match[1];
+                                        openDocumentInViewer(fileId, ref.title || 'Document', ref.page || 1);
+                                      }
+                                    }
+                                  }}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <p className="font-medium text-gray-700">{ref.title}</p>
+                                        <div className="flex items-center gap-2">
+                                          {ref.source && (
+                                            <span className={`px-2 py-0.5 rounded text-xs font-medium border ${getSourceBadgeColor(ref.source)}`}>
+                                              {ref.source === 'vector+graph' && <><Sparkles className="inline mr-1 h-3 w-3" /> {t('graphEnhanced')}</>}
+                                              {ref.source === 'graph' && t('graphOnly')}
+                                              {ref.source === 'vector' && t('vectorOnly')}
+                                            </span>
+                                          )}
+                                          {ref.view_url && (
+                                            <ExternalLink className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                          )}
+                                        </div>
+                                      </div>
+                                      <p className="text-gray-600 mt-1">{ref.content.substring(0, 150)}...</p>
+                                      {ref.page && (
+                                        <p className="text-gray-500 mt-1">{t('page')}: {ref.page}</p>
+                                      )}
+                                      {ref.matched_entities && ref.matched_entities.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                          {ref.matched_entities.slice(0, 3).map((entity, idx) => (
+                                            <span key={idx} className={`px-1.5 py-0.5 rounded text-xs ${getEntityTypeColor(entity.type)}`}>
+                                              {entity.name}
+                                            </span>
+                                          ))}
+                                          {ref.matched_entities.length > 3 && (
+                                            <span className="text-xs text-gray-500">+{ref.matched_entities.length - 3}</span>
+                                          )}
+                                        </div>
                                       )}
                                     </div>
-                                  )}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -577,7 +655,7 @@ const GraphRagSearch: React.FC = () => {
                 <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                    <span className="text-gray-600">Searching with graph relationships...</span>
+                    <span className="text-gray-600">{t('searchingWithGraphRelationships')}</span>
                   </div>
                 </div>
               </div>
@@ -594,7 +672,7 @@ const GraphRagSearch: React.FC = () => {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ask about products, versions, errors, or solutions (e.g., 'OpenLab CDS version 2.8 installation')..."
+                  placeholder={t('askAboutProductsVersionsErrors')}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent resize-none"
                   rows={3}
                   disabled={isLoading}
@@ -610,22 +688,22 @@ const GraphRagSearch: React.FC = () => {
             </div>
             
             <div className="mt-3 text-xs text-gray-500">
-              Graph RAG uses entity extraction and knowledge graph relationships for enhanced search. Try queries with specific products, versions, or error codes.
+              {t('graphRagNote')}
             </div>
           </div>
         </div>
 
-        {/* History Sidebar */}
-        {showHistory && (
+        {/* History Sidebar - Only show if document viewer is not open */}
+        {showHistory && !viewerDocument && (
           <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">Search History</h3>
+                <h3 className="text-lg font-medium text-gray-900">{t('searchHistory')}</h3>
                 <button
                   onClick={() => refreshUnifiedHistory()}
                   className="text-sm text-green-600 hover:text-green-700"
                 >
-                  Refresh
+                  {t('refresh')}
                 </button>
               </div>
             </div>
@@ -633,9 +711,9 @@ const GraphRagSearch: React.FC = () => {
               {unifiedHistory.length === 0 ? (
                 <div className="text-center py-8">
                   <History className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No search history</h3>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">{t('noSearchHistory')}</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Your graph RAG conversations will appear here.
+                    {t('graphRagConversationsWillAppear')}
                   </p>
                 </div>
               ) : (
@@ -662,6 +740,49 @@ const GraphRagSearch: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Right Panel - Document Viewer */}
+        {viewerDocument && (
+          <div className="w-1/2 flex flex-col bg-white border-l border-gray-200">
+            {/* Document Viewer Header */}
+            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <FileText className="h-5 w-5 text-gray-600" />
+                <h3 className="text-sm font-medium text-gray-900 truncate">{viewerDocument.title}</h3>
+                {viewerDocument.page && (
+                  <span className="text-xs text-gray-500">(Page {viewerDocument.page})</span>
+                )}
+              </div>
+              <button
+                onClick={closeDocumentViewer}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+                title="Close document viewer"
+              >
+                <X className="h-5 w-5 text-gray-600" />
+              </button>
+            </div>
+            
+            {/* Document Viewer Content */}
+            <div className="flex-1 overflow-hidden">
+              {isLoadingDocument ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary-600" />
+                    <p className="mt-2 text-sm text-gray-600">Loading document...</p>
+                  </div>
+                </div>
+              ) : (
+                <DocumentViewer
+                  key={viewerDocument.fileId}
+                  title={viewerDocument.title}
+                  url={viewerDocument.url}
+                  docType={viewerDocument.type}
+                  initialPage={viewerDocument.page}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Graph Visualization Modal */}
@@ -673,8 +794,8 @@ const GraphRagSearch: React.FC = () => {
               <div className="flex items-center space-x-3">
                 <Network className="h-6 w-6 text-green-600" />
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Knowledge Graph Visualization</h2>
-                  <p className="text-sm text-gray-500 mt-1">Query: {currentQuery}</p>
+                  <h2 className="text-xl font-semibold text-gray-900">{t('knowledgeGraphVisualization')}</h2>
+                  <p className="text-sm text-gray-500 mt-1">{t('query')}: {currentQuery}</p>
                 </div>
               </div>
               <button
@@ -691,7 +812,7 @@ const GraphRagSearch: React.FC = () => {
                 <div className="flex items-center justify-center h-96">
                   <div className="text-center">
                     <Loader2 className="h-12 w-12 text-green-600 animate-spin mx-auto mb-4" />
-                    <p className="text-gray-600">Loading graph data...</p>
+                    <p className="text-gray-600">{t('loadingGraphData')}</p>
                   </div>
                 </div>
               ) : graphData ? (

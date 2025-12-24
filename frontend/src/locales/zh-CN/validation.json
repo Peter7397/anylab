@@ -1,0 +1,26 @@
+{
+  "required": "此字段为必填项",
+  "invalidEmail": "无效的电子邮件地址",
+  "passwordTooShort": "密码太短",
+  "passwordTooLong": "密码太长",
+  "passwordMismatch": "密码不匹配",
+  "invalidUsername": "无效的用户名",
+  "usernameTooShort": "用户名太短",
+  "usernameTooLong": "用户名太长",
+  "invalidUrl": "无效的URL",
+  "invalidNumber": "无效的数字",
+  "numberTooSmall": "数字太小",
+  "numberTooLarge": "数字太大",
+  "invalidDate": "无效的日期",
+  "dateTooEarly": "日期太早",
+  "dateTooLate": "日期太晚",
+  "invalidTime": "无效的时间",
+  "invalidFileType": "无效的文件类型",
+  "fileTooLarge": "文件太大",
+  "fileTooSmall": "文件太小",
+  "maxLength": "最大长度为{{max}}个字符",
+  "minLength": "最小长度为{{min}}个字符",
+  "maxValue": "最大值为{{max}}",
+  "minValue": "最小值为{{min}}"
+}
+

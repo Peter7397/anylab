@@ -11,8 +11,8 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from .base_views import success_response, error_response, bad_request_response
-from ..services.graph_query_service import GraphQueryService
-from ..services.graph_entity_extractor import GraphEntityExtractor
+from ..service_classes.graph_query_service import GraphQueryService
+from ..service_classes.graph_entity_extractor import GraphEntityExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def get_graph_for_query(request):
         node_ids = set()
         
         # Get Neo4j service
-        from ..services.neo4j_service import get_neo4j_service
+        from ..service_classes.neo4j_service import get_neo4j_service
         neo4j = get_neo4j_service()
         
         # Query: Find entities and their relationships

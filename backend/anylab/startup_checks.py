@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def check_neo4j_connection(max_retries=12, delay=5):
     """Check if Neo4j is accessible"""
     try:
-        from ai_assistant.services.neo4j_service import get_neo4j_service
+        from ai_assistant.service_classes.neo4j_service import get_neo4j_service
         neo4j = get_neo4j_service()
         
         for i in range(max_retries):

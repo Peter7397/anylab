@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../../services/api';
 
 const License: React.FC = () => {
+  const { t } = useTranslation('admin');
   const [status, setStatus] = useState<any>(null);
   const [list, setList] = useState<any>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -25,7 +27,7 @@ const License: React.FC = () => {
       if (st.status === 'fulfilled') setStatus(st.value);
       if (l.status === 'fulfilled') setList(l.value);
     } catch (e: any) {
-      setError(e?.message || 'Failed to load license data');
+      setError(e?.message || t('failedToLoadLicenseData'));
     }
   };
 
@@ -40,11 +42,11 @@ const License: React.FC = () => {
     setLoading(true); setError(null); setMessage(null);
     try {
       await apiClient.importLicense(file);
-      setMessage('License imported successfully');
+      setMessage(t('licenseImportedSuccessfully'));
       setFile(null);
       await loadData();
     } catch (e: any) {
-      setError(e?.message || 'Import failed');
+      setError(e?.message || t('importFailed'));
     } finally {
       setLoading(false);
     }
@@ -54,10 +56,10 @@ const License: React.FC = () => {
     setLoading(true); setError(null); setMessage(null);
     try {
       await apiClient.activateLicense(key);
-      setMessage('License activated');
+      setMessage(t('licenseActivated'));
       await loadData();
     } catch (e: any) {
-      setError(e?.message || 'Activation failed');
+      setError(e?.message || t('activationFailed'));
     } finally {
       setLoading(false);
     }
@@ -66,20 +68,20 @@ const License: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">License Management</h1>
-        <p className="text-gray-600">View current license status and manage licenses.</p>
+        <h1 className="text-2xl font-bold">{t('licenseManagement')}</h1>
+        <p className="text-gray-600">{t('viewCurrentLicenseStatusAndManageLicenses')}</p>
       </div>
 
       {status && (
         <div className="bg-white rounded-lg border p-4">
-          <h2 className="text-lg font-semibold">Current Status</h2>
+          <h2 className="text-lg font-semibold">{t('currentStatus')}</h2>
           <div className="mt-2 text-sm text-gray-700">
-            <div><span className="font-medium">Valid:</span> {String(status.valid)}</div>
-            <div><span className="font-medium">Type:</span> {status.license_type || '-'}</div>
-            <div><span className="font-medium">Expiry:</span> {status.expiry_date || '-'}</div>
+            <div><span className="font-medium">{t('valid')}:</span> {String(status.valid)}</div>
+            <div><span className="font-medium">{t('type')}:</span> {status.license_type || '-'}</div>
+            <div><span className="font-medium">{t('expiry')}:</span> {status.expiry_date || '-'}</div>
             {status.license_info && (
               <div className="mt-2">
-                <span className="font-medium">Modules:</span>
+                <span className="font-medium">{t('modules')}:</span>
                 <div className="mt-1 flex flex-wrap gap-2">
                   {status.license_info.module_permissions?.map((m: string) => (
                     <span key={m} className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-xs border border-indigo-200">{m}</span>
@@ -99,28 +101,28 @@ const License: React.FC = () => {
       )}
 
       <div className="bg-white rounded-lg border p-4">
-        <h2 className="text-lg font-semibold">Import License</h2>
+        <h2 className="text-lg font-semibold">{t('importLicense')}</h2>
         <form onSubmit={onImport} className="mt-3 flex items-center gap-3">
           <input type="file" accept=".lic,.json,.txt" onChange={(e) => setFile(e.target.files?.[0] || null)} className="block w-full text-sm" />
-          <button type="submit" disabled={loading || !file} className={`px-4 py-2 rounded bg-primary-600 text-white text-sm ${(!file||loading)?'opacity-60 cursor-not-allowed':''}`}>Import</button>
+          <button type="submit" disabled={loading || !file} className={`px-4 py-2 rounded bg-primary-600 text-white text-sm ${(!file||loading)?'opacity-60 cursor-not-allowed':''}`}>{t('import')}</button>
         </form>
-        <p className="text-xs text-gray-500 mt-2">Any authenticated user can import a license. Only admins can view the full list and perform admin actions.</p>
+        <p className="text-xs text-gray-500 mt-2">{t('licenseImportNote')}</p>
       </div>
 
       {isAdmin && (
         <div className="bg-white rounded-lg border p-4">
-          <h2 className="text-lg font-semibold">All Licenses</h2>
+          <h2 className="text-lg font-semibold">{t('allLicenses')}</h2>
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-600">
-                  <th className="py-2 pr-4">Key</th>
-                  <th className="py-2 pr-4">Type</th>
-                  <th className="py-2 pr-4">Company</th>
-                  <th className="py-2 pr-4">Valid</th>
-                  <th className="py-2 pr-4">Activated</th>
-                  <th className="py-2 pr-4">Expiry</th>
-                  <th className="py-2 pr-4">Action</th>
+                  <th className="py-2 pr-4">{t('key')}</th>
+                  <th className="py-2 pr-4">{t('type')}</th>
+                  <th className="py-2 pr-4">{t('company')}</th>
+                  <th className="py-2 pr-4">{t('valid')}</th>
+                  <th className="py-2 pr-4">{t('activated')}</th>
+                  <th className="py-2 pr-4">{t('expiry')}</th>
+                  <th className="py-2 pr-4">{t('action')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -130,11 +132,11 @@ const License: React.FC = () => {
                     <td className="py-2 pr-4">{lic.license_type}</td>
                     <td className="py-2 pr-4">{lic.company_name}</td>
                     <td className="py-2 pr-4">{String(lic.is_valid)}</td>
-                    <td className="py-2 pr-4">{lic.activated ? 'Yes' : 'No'}</td>
+                    <td className="py-2 pr-4">{lic.activated ? t('yes') : t('no')}</td>
                     <td className="py-2 pr-4">{lic.expiry_date || '-'}</td>
                     <td className="py-2 pr-4">
                       {!lic.activated && (
-                        <button onClick={() => onActivate(lic.license_key)} disabled={loading} className={`px-3 py-1 rounded bg-green-600 text-white text-xs ${loading?'opacity-60 cursor-not-allowed':''}`}>Activate</button>
+                        <button onClick={() => onActivate(lic.license_key)} disabled={loading} className={`px-3 py-1 rounded bg-green-600 text-white text-xs ${loading?'opacity-60 cursor-not-allowed':''}`}>{t('activate')}</button>
                       )}
                     </td>
                   </tr>

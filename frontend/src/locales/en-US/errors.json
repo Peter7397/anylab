@@ -1,0 +1,22 @@
+{
+  "networkError": "Network error",
+  "serverError": "Server error",
+  "notFound": "Not found",
+  "unauthorized": "Unauthorized",
+  "forbidden": "Forbidden",
+  "badRequest": "Bad request",
+  "timeout": "Request timeout",
+  "unknownError": "Unknown error",
+  "loginFailed": "Login failed",
+  "logoutFailed": "Logout failed",
+  "saveFailed": "Save failed",
+  "deleteFailed": "Delete failed",
+  "uploadFailed": "Upload failed",
+  "downloadFailed": "Download failed",
+  "loadFailed": "Load failed",
+  "operationFailed": "Operation failed",
+  "invalidCredentials": "Invalid credentials",
+  "sessionExpired": "Session expired",
+  "permissionDenied": "Permission denied"
+}
+

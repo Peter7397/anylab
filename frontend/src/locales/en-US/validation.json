@@ -1,0 +1,26 @@
+{
+  "required": "This field is required",
+  "invalidEmail": "Invalid email address",
+  "passwordTooShort": "Password is too short",
+  "passwordTooLong": "Password is too long",
+  "passwordMismatch": "Passwords do not match",
+  "invalidUsername": "Invalid username",
+  "usernameTooShort": "Username is too short",
+  "usernameTooLong": "Username is too long",
+  "invalidUrl": "Invalid URL",
+  "invalidNumber": "Invalid number",
+  "numberTooSmall": "Number is too small",
+  "numberTooLarge": "Number is too large",
+  "invalidDate": "Invalid date",
+  "dateTooEarly": "Date is too early",
+  "dateTooLate": "Date is too late",
+  "invalidTime": "Invalid time",
+  "invalidFileType": "Invalid file type",
+  "fileTooLarge": "File is too large",
+  "fileTooSmall": "File is too small",
+  "maxLength": "Maximum length is {{max}} characters",
+  "minLength": "Minimum length is {{min}} characters",
+  "maxValue": "Maximum value is {{max}}",
+  "minValue": "Minimum value is {{min}}"
+}
+

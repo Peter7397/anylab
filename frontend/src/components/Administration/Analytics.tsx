@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, FileText, Search, Users, Activity, AlertCircle, Calendar, RefreshCw } from 'lucide-react';
 import { apiClient } from '../../services/api';
@@ -14,6 +15,7 @@ interface AnalyticsData {
 const COLORS = ['#16a34a', '#0d9488', '#65a30d', '#059669', '#f59e0b', '#ef4444'];
 
 const Analytics: React.FC = () => {
+  const { t } = useTranslation('admin');
   const [data, setData] = useState<AnalyticsData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +46,7 @@ const Analytics: React.FC = () => {
         behaviorStats: behaviorStats.status === 'fulfilled' ? behaviorStats.value : null,
       });
     } catch (err: any) {
-      setError(err?.message || 'Failed to load analytics data');
+      setError(err?.message || t('failedToLoadAnalyticsData'));
       console.error('Error loading analytics:', err);
     } finally {
       setLoading(false);
@@ -52,9 +54,9 @@ const Analytics: React.FC = () => {
   };
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return `0 ${t('bytes')}`;
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = [t('bytes'), t('kb'), t('mb'), t('gb')];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
@@ -73,13 +75,13 @@ const Analytics: React.FC = () => {
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
           <AlertCircle className="text-red-600 mt-0.5 mr-3" size={20} />
           <div>
-            <p className="text-sm font-medium text-red-800">Error</p>
+            <p className="text-sm font-medium text-red-800">{t('error')}</p>
             <p className="text-sm text-red-600">{error}</p>
             <button 
               onClick={loadAnalytics}
               className="mt-2 text-sm text-red-700 hover:text-red-900 underline"
             >
-              Try again
+              {t('tryAgain')}
             </button>
           </div>
         </div>
@@ -94,8 +96,8 @@ const Analytics: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h1>
-          <p className="text-gray-600">Comprehensive insights into your system usage</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('analyticsDashboard')}</h1>
+          <p className="text-gray-600">{t('comprehensiveInsightsIntoSystemUsage')}</p>
         </div>
         <div className="flex items-center space-x-3">
           <select
@@ -103,17 +105,17 @@ const Analytics: React.FC = () => {
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value as any)}
           >
-            <option value="7d">Last 7 days</option>
-            <option value="30d">Last 30 days</option>
-            <option value="90d">Last 90 days</option>
-            <option value="all">All time</option>
+            <option value="7d">{t('last7Days')}</option>
+            <option value="30d">{t('last30Days')}</option>
+            <option value="90d">{t('last90Days')}</option>
+            <option value="all">{t('allTime')}</option>
           </select>
           <button
             onClick={loadAnalytics}
             className="btn-secondary"
           >
             <RefreshCw size={16} className="mr-2" />
-            Refresh
+            {t('refresh')}
           </button>
         </div>
       </div>
@@ -122,11 +124,11 @@ const Analytics: React.FC = () => {
       <div className="border-b border-gray-200">
         <nav className="flex space-x-8">
           {[
-            { id: 'overview', label: 'Overview' },
-            { id: 'contributions', label: 'Contributions' },
-            { id: 'performance', label: 'Performance' },
-            { id: 'documents', label: 'Documents' },
-            { id: 'behavior', label: 'User Behavior' },
+            { id: 'overview', label: t('overview') },
+            { id: 'contributions', label: t('contributions') },
+            { id: 'performance', label: t('performance') },
+            { id: 'documents', label: t('documents') },
+            { id: 'behavior', label: t('userBehavior') },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -154,7 +156,7 @@ const Analytics: React.FC = () => {
                   <FileText className="text-blue-600" size={24} />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Documents</p>
+                  <p className="text-sm font-medium text-gray-600">{t('documents')}</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {userStats?.statistics?.total_documents || 0}
                   </p>
@@ -167,7 +169,7 @@ const Analytics: React.FC = () => {
                   <Search className="text-green-600" size={24} />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Queries</p>
+                  <p className="text-sm font-medium text-gray-600">{t('totalQueries')}</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {userStats?.statistics?.total_queries || 0}
                   </p>
@@ -180,7 +182,7 @@ const Analytics: React.FC = () => {
                   <Activity className="text-yellow-600" size={24} />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">File Size</p>
+                  <p className="text-sm font-medium text-gray-600">{t('fileSize')}</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {formatFileSize(userStats?.statistics?.total_file_size || 0)}
                   </p>
@@ -193,7 +195,7 @@ const Analytics: React.FC = () => {
                   <Users className="text-lime-600" size={24} />
                 </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Recent Activity</p>
+                  <p className="text-sm font-medium text-gray-600">{t('recentActivity')}</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {userStats?.statistics?.recent_documents || 0}
                   </p>
@@ -207,7 +209,7 @@ const Analytics: React.FC = () => {
             {/* Document Types Chart */}
             {documentStats?.by_type && documentStats.by_type.length > 0 && (
               <div className="card">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Documents by Type</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('documentsByType')}</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
@@ -233,7 +235,7 @@ const Analytics: React.FC = () => {
             {/* Query Types Chart */}
             {performanceStats?.by_type && performanceStats.by_type.length > 0 && (
               <div className="card">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Queries by Type</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('queriesByType')}</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={performanceStats.by_type}>
                     <CartesianGrid strokeDasharray="3 3" />
@@ -254,7 +256,7 @@ const Analytics: React.FC = () => {
       {activeTab === 'contributions' && (
         <div className="space-y-6">
           <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Contribution Activity</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('contributionActivity')}</h3>
             {contributionStats?.by_date && contributionStats.by_date.length > 0 ? (
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart data={contributionStats.by_date}>
@@ -267,13 +269,13 @@ const Analytics: React.FC = () => {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-gray-500 text-center py-12">No contribution data available</p>
+              <p className="text-gray-500 text-center py-12">{t('noContributionDataAvailable')}</p>
             )}
           </div>
 
           {contributionStats?.by_type && contributionStats.by_type.length > 0 && (
             <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Contributions by Type</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('contributionsByType')}</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={contributionStats.by_type}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -294,22 +296,22 @@ const Analytics: React.FC = () => {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="card">
-              <p className="text-sm font-medium text-gray-600">Total Queries</p>
+              <p className="text-sm font-medium text-gray-600">{t('totalQueries')}</p>
               <p className="text-3xl font-bold text-gray-900">{performanceStats?.total_queries || 0}</p>
             </div>
             <div className="card">
-              <p className="text-sm font-medium text-gray-600">Recent Queries</p>
+              <p className="text-sm font-medium text-gray-600">{t('recentQueries')}</p>
               <p className="text-3xl font-bold text-green-600">{performanceStats?.recent_queries || 0}</p>
             </div>
             <div className="card">
-              <p className="text-sm font-medium text-gray-600">Avg Sources/Query</p>
+              <p className="text-sm font-medium text-gray-600">{t('avgSourcesPerQuery')}</p>
               <p className="text-3xl font-bold text-blue-600">{performanceStats?.avg_sources_per_query || 0}</p>
             </div>
           </div>
 
           {performanceStats?.by_type && performanceStats.by_type.length > 0 && (
             <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Query Distribution</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('queryDistribution')}</h3>
               <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={performanceStats.by_type}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -329,14 +331,14 @@ const Analytics: React.FC = () => {
       {activeTab === 'documents' && (
         <div className="space-y-6">
           <div className="card">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Document Statistics</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('documentStatistics')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Documents</p>
+                <p className="text-sm font-medium text-gray-600">{t('totalDocuments')}</p>
                 <p className="text-3xl font-bold text-gray-900">{documentStats?.total_documents || 0}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Total Size</p>
+                <p className="text-sm font-medium text-gray-600">{t('totalSize')}</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {formatFileSize(documentStats?.total_size || 0)}
                 </p>
@@ -359,22 +361,22 @@ const Analytics: React.FC = () => {
 
           {documentStats?.recent_uploads && documentStats.recent_uploads.length > 0 && (
             <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Uploads</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('recentUploads')}</h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Document
+                        {t('document')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Type
+                        {t('type')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Size
+                        {t('size')}
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
+                        {t('date')}
                       </th>
                     </tr>
                   </thead>
@@ -382,7 +384,7 @@ const Analytics: React.FC = () => {
                     {documentStats.recent_uploads.map((doc: any) => (
                       <tr key={doc.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {doc.title || 'Untitled'}
+                          {doc.title || t('untitled')}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
@@ -410,22 +412,22 @@ const Analytics: React.FC = () => {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="card">
-              <p className="text-sm font-medium text-gray-600">Total Queries</p>
+              <p className="text-sm font-medium text-gray-600">{t('totalQueries')}</p>
               <p className="text-3xl font-bold text-gray-900">{behaviorStats?.total_queries || 0}</p>
             </div>
             <div className="card">
-              <p className="text-sm font-medium text-gray-600">Recent Queries (24h)</p>
+              <p className="text-sm font-medium text-gray-600">{t('recentQueries24h')}</p>
               <p className="text-3xl font-bold text-green-600">{behaviorStats?.recent_queries || 0}</p>
             </div>
             <div className="card">
-              <p className="text-sm font-medium text-gray-600">Avg Query Length</p>
-              <p className="text-3xl font-bold text-blue-600">{behaviorStats?.avg_query_length || 0} chars</p>
+              <p className="text-sm font-medium text-gray-600">{t('avgQueryLength')}</p>
+              <p className="text-3xl font-bold text-blue-600">{behaviorStats?.avg_query_length || 0} {t('chars')}</p>
             </div>
           </div>
 
           {behaviorStats?.by_type && behaviorStats.by_type.length > 0 && (
             <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Query Types Distribution</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('queryTypesDistribution')}</h3>
               <ResponsiveContainer width="100%" height={400}>
                 <PieChart>
                   <Pie

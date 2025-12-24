@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { X, Paperclip, Send } from 'lucide-react';
 import { apiClient } from '../../services/api';
 
@@ -17,6 +18,7 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({
   onSuccess,
   onCancel,
 }) => {
+  const { t } = useTranslation('forum');
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -25,7 +27,7 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) {
-      setError('请输入回复内容');
+      setError(t('pleaseEnterReplyContent'));
       return;
     }
 
@@ -60,7 +62,7 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({
         onSuccess();
       }
     } catch (err: any) {
-      setError(err.message || '发布回复失败');
+      setError(err.message || t('publishReplyFailed'));
       console.error('Failed to create reply:', err);
     } finally {
       setUploading(false);
@@ -84,7 +86,7 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="输入你的回复..."
+          placeholder={t('enterYourReply')}
           className="w-full min-h-[120px] p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           disabled={uploading}
         />
@@ -120,7 +122,7 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({
           <div className="flex items-center gap-2">
             <label className="cursor-pointer inline-flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors">
               <Paperclip className="w-4 h-4" />
-              <span>附件</span>
+              <span>{t('attachment')}</span>
               <input
                 type="file"
                 multiple
@@ -138,7 +140,7 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({
                 className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
                 disabled={uploading}
               >
-                取消
+                {t('cancel')}
               </button>
             )}
             <button
@@ -147,7 +149,7 @@ const ReplyEditor: React.FC<ReplyEditorProps> = ({
               className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Send className="w-4 h-4" />
-              {uploading ? '发布中...' : '发布'}
+              {uploading ? t('publishing') : t('publish')}
             </button>
           </div>
         </div>

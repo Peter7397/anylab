@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../../services/api';
 
 // Debug: Ensure this component is using updated code
@@ -64,6 +65,7 @@ interface DocumentManagerProps {
 }
 
 const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defaultDocType = 'all' }) => {
+  const { t } = useTranslation('ai');
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchParams, setSearchParams] = useState<DocumentSearchParams>({
@@ -227,7 +229,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           setError(null);
         })
         .catch(err => {
-          setError('Failed to load documents');
+          setError(t('failedToLoadDocuments'));
           console.error('Error loading documents:', err);
         });
     } else {
@@ -255,7 +257,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       }
       setError(null);
     } catch (err) {
-      setError('Failed to load documents');
+      setError(t('failedToLoadDocuments'));
       console.error('Error loading documents:', err);
     } finally {
       setLoading(false);
@@ -289,7 +291,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     const cls = map[statusValue] || 'bg-gray-100 text-gray-800';
     const label = String(statusValue).replace('_', ' ');
     return (
-      <span className={`${base} ${cls}`} title={`Processing status: ${label}`}>
+      <span className={`${base} ${cls}`} title={t('processingStatus') + ': ' + label}>
         {label}
       </span>
     );
@@ -306,10 +308,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     return (
       <span 
         className="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-800 flex items-center gap-1"
-        title={`Document was truncated due to size limits. Only ${coverage?.toFixed(1)}% was processed. Consider splitting into smaller files.`}
+        title={t('documentTruncatedWarning', { coverage: coverage?.toFixed(1) })}
       >
         <span>⚠️</span>
-        <span>Truncated ({coverage?.toFixed(0)}%)</span>
+        <span>{t('truncated')} ({coverage?.toFixed(0)}%)</span>
       </span>
     );
   };
@@ -338,13 +340,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     const MAX_TOTAL_SIZE_MB = 500; // 500 MB total
     
     if (files.length > MAX_FILES) {
-      setError(`Too many files selected. Maximum ${MAX_FILES} files allowed.`);
+      setError(t('tooManyFilesSelected', { max: MAX_FILES }));
       return;
     }
 
     const totalSizeMB = files.reduce((sum, file) => sum + file.size, 0) / (1024 * 1024);
     if (totalSizeMB > MAX_TOTAL_SIZE_MB) {
-      setError(`Total file size too large (${totalSizeMB.toFixed(2)} MB). Maximum ${MAX_TOTAL_SIZE_MB} MB allowed.`);
+      setError(t('totalFileSizeTooLarge', { size: totalSizeMB.toFixed(2), max: MAX_TOTAL_SIZE_MB }));
       return;
     }
 
@@ -365,7 +367,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     });
 
     if (invalidFiles.length > 0) {
-      setError(`Invalid file type(s): ${invalidFiles.join(', ')}`);
+      setError(t('invalidFileTypes', { files: invalidFiles.join(', ') }));
     }
 
     if (validFiles.length > 0) {
@@ -412,7 +414,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   const validateFileMetadata = (): boolean => {
     for (const meta of fileMetadata) {
       if (!meta.title.trim()) {
-        setError(`Title is required for file: ${meta.file.name}`);
+        setError(t('titleRequiredForFile', { filename: meta.file.name }));
         return false;
       }
       // Product category and content type are optional - auto-detection will handle them
@@ -424,7 +426,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   const handleUpload = async () => {
     // Handle both new metadata-based uploads and legacy single-file uploads
     if (fileMetadata.length === 0 && selectedFiles.length === 0) {
-      setError('Please select at least one file');
+      setError(t('pleaseSelectAtLeastOneFile'));
       return;
     }
 
@@ -455,14 +457,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     const finalMetadata = fileMetadata.length > 0 ? fileMetadata : metadataToUse;
     
     if (!finalMetadata || finalMetadata.length === 0) {
-      setError('No files to upload');
+      setError(t('noFilesToUpload'));
       return;
     }
     
     // Validate each file's metadata (only title is required, product/content type will be auto-detected)
     for (const meta of finalMetadata) {
       if (!meta.title.trim()) {
-        setError(`Title is required for file: ${meta.file.name}`);
+        setError(t('titleRequiredForFile', { filename: meta.file.name }));
         return;
       }
       // Product category and content type are optional - backend will auto-detect if not provided
@@ -677,7 +679,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       setDocuments(filteredResults);
       setError(null);
     } catch (err) {
-      setError('Failed to search documents');
+      setError(t('failedToSearchDocuments'));
       console.error('Error searching documents:', err);
     } finally {
       setLoading(false);
@@ -704,16 +706,16 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   };
 
   const handleDelete = async (docId: number) => {
-    if (!window.confirm('Are you sure you want to delete this document?')) {
+    if (!window.confirm(t('confirmDeleteDocument'))) {
       return;
     }
 
     try {
       await apiClient.deleteDocument(docId);
-      setSuccess('Document deleted successfully!');
+      setSuccess(t('documentDeletedSuccessfully'));
       loadDocuments();
     } catch (err: any) {
-      setError(err.message || 'Failed to delete document');
+      setError(err.message || t('failedToDeleteDocument'));
     }
   };
 
@@ -729,7 +731,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      setError('Failed to download document');
+      setError(t('failedToDownloadDocument'));
     }
   };
 
@@ -760,7 +762,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       window.open(doc.file_url, '_blank');
     } else {
       // For other document types without file_url, show error
-      setError('Document URL not available');
+      setError(t('documentUrlNotAvailable'));
     }
   };
 
@@ -789,18 +791,18 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         version: editMetadata.version
       });
       
-      setSuccess('Metadata updated successfully!');
+      setSuccess(t('metadataUpdatedSuccessfully'));
       setShowEditModal(false);
       setSelectedDocument(null);
       loadDocuments();
     } catch (err: any) {
-      setError(err.message || 'Failed to update metadata');
+      setError(err.message || t('failedToUpdateMetadata'));
     }
   };
 
   const handleExtractMetadata = async () => {
     const confirmed = window.confirm(
-      'This will extract metadata for all documents missing product/content information. Continue?'
+      t('extractMetadataConfirmation')
     );
     
     if (!confirmed) return;
@@ -812,15 +814,16 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       const result = await apiClient.extractDocumentsMetadata();
       
       setSuccess(
-        `Metadata extracted successfully! ` +
-        `Updated ${result.updated_count} documents, ` +
-        `skipped ${result.skipped_count} with existing metadata.`
+        t('metadataExtractedSuccessfully', { 
+          updated: result.updated_count, 
+          skipped: result.skipped_count 
+        })
       );
       
       // Reload documents to show updated data
       loadDocuments();
     } catch (err: any) {
-      setError(err.message || 'Failed to extract metadata');
+      setError(err.message || t('failedToExtractMetadata'));
     } finally {
       setExtracting(false);
     }
@@ -922,18 +925,20 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     // Show appropriate message
     if (filteredOut.length > 0) {
       setError(
-        `${filteredOut.length} file(s) filtered out (type not selected). ` +
-        `${validFiles.length} file(s) ready to upload.`
+        t('filesFilteredOut', { 
+          filtered: filteredOut.length, 
+          ready: validFiles.length 
+        })
       );
     } else {
-      setSuccess(`Selected ${validFiles.length} files from folder`);
+      setSuccess(t('selectedFilesFromFolder', { count: validFiles.length }));
     }
   };
 
   // NEW: Bulk import functions
   const handleScanFolder = async () => {
     if (!selectedFolder) {
-      setError('Please enter a folder path');
+      setError(t('pleaseEnterFolderPath'));
       return;
     }
 
@@ -945,12 +950,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       
       if (result.success && result.files) {
         setBulkFiles(result.files);
-        setSuccess(`Found ${result.files.length} files in folder`);
+        setSuccess(t('foundFilesInFolder', { count: result.files.length }));
       } else {
-        setError('No files found in folder');
+        setError(t('noFilesFoundInFolder'));
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to scan folder');
+      setError(err.message || t('failedToScanFolder'));
     } finally {
       setBulkProcessing(false);
     }
@@ -959,7 +964,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
   // NEW: Handle bulk import from browser folder with metadata table and batching
   const handleBulkImportFromBrowser = async () => {
     if (bulkFileMetadata.length === 0 && selectedFiles.length === 0) {
-      setError('Please select a folder first');
+      setError(t('pleaseSelectFolderFirst'));
       return;
     }
 
@@ -1035,7 +1040,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
 
   const handleBulkImport = async () => {
     if (bulkFiles.length === 0) {
-      setError('Please scan a folder first');
+      setError(t('pleaseScanFolderFirst'));
       return;
     }
 
@@ -1057,13 +1062,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       startStatusPolling();
       
       setSuccess(
-        `Bulk import initiated! Processing ${result.results.total} files...`
+        t('bulkImportInitiated', { total: result.results.total })
       );
       
       // Don't close modal yet - keep monitoring progress
       
     } catch (err: any) {
-      setError(err.message || 'Failed to import files');
+      setError(err.message || t('failedToImportFiles'));
       setBulkProcessing(false);
       setJobMonitoring(false);
     }
@@ -1093,9 +1098,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           const failed = status.statistics.failed || 0;
           
           setSuccess(
-            `Import completed! ` +
-            `Ready: ${ready}, ` +
-            `Failed: ${failed}`
+            t('importCompleted', { ready, failed })
           );
           
           // Show detailed results
@@ -1131,40 +1134,40 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Document Manager</h2>
-          <p className="text-gray-600">Upload, view, and manage your documents (PDF, Word, Excel, PowerPoint, Text)</p>
+          <h2 className="text-2xl font-bold text-gray-900">{t('documentManager')}</h2>
+          <p className="text-gray-600">{t('documentManagerDescription')}</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setAutoRefreshEnabled(v => !v)}
             className={`px-3 py-2 rounded-lg border transition-colors ${autoRefreshEnabled ? 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-            title="Toggle automatic refresh while processing"
+            title={t('toggleAutoRefresh')}
           >
-            {autoRefreshEnabled ? 'Auto-Refresh: On' : 'Auto-Refresh: Off'}
+            {autoRefreshEnabled ? t('autoRefreshOn') : t('autoRefreshOff')}
           </button>
           <button
             onClick={handleExtractMetadata}
             disabled={extracting}
             className="bg-lime-600 hover:bg-lime-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Automatically extract product/content/version from existing documents"
+            title={t('autoExtractMetadataTitle')}
           >
             <Wand2 size={20} />
-            {extracting ? 'Extracting...' : 'Auto-Extract Metadata'}
+            {extracting ? t('extracting') : t('autoExtractMetadata')}
           </button>
           <button
             onClick={() => setShowBulkUploadModal(true)}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            title="Bulk import from folder"
+            title={t('bulkImportFromFolder')}
           >
             <FolderInput size={20} />
-            Bulk Import
+            {t('bulkImport')}
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
             className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
             <Upload size={20} />
-            Upload Document
+            {t('uploadDocument')}
           </button>
         </div>
       </div>
@@ -1174,26 +1177,26 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         <div className="flex gap-4 items-end">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Search Documents
+              {t('searchDocuments')}
             </label>
             <input
               type="text"
               value={searchParams.query}
               onChange={(e) => setSearchParams(prev => ({ ...prev, query: e.target.value }))}
-              placeholder="Search by title, filename, or description..."
+              placeholder={t('searchByTitleFilenameDescription')}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Document Type
+              {t('documentType')}
             </label>
             <select
               value={searchParams.document_type}
               onChange={(e) => setSearchParams(prev => ({ ...prev, document_type: e.target.value }))}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
-              <option value="all">All Types</option>
+              <option value="all">{t('allTypes')}</option>
               <option value="SSB_KPR">SSB/KPR</option>
               {documentTypes.map(type => (
                 <option key={type.value} value={type.value}>{type.label}</option>
@@ -1202,16 +1205,16 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Search Type
+              {t('searchType')}
             </label>
             <select
               value={searchParams.search_type}
               onChange={(e) => setSearchParams(prev => ({ ...prev, search_type: e.target.value as any }))}
               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             >
-              <option value="both">Title & Content</option>
-              <option value="title">Title Only</option>
-              <option value="content">Content Only</option>
+              <option value="both">{t('titleAndContent')}</option>
+              <option value="title">{t('titleOnly')}</option>
+              <option value="content">{t('contentOnly')}</option>
             </select>
           </div>
           <button
@@ -1219,14 +1222,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
             <Search size={20} />
-            Search
+            {t('search')}
           </button>
           <button
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
             className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
           >
             <Filter size={20} />
-            {showAdvancedFilters ? 'Hide Filters' : 'Advanced Filters'}
+            {showAdvancedFilters ? t('hideFilters') : t('advancedFilters')}
             {showAdvancedFilters ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
         </div>
@@ -1239,14 +1242,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             {/* Product Category Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Product Category
+                {t('productCategory')}
               </label>
               <select
                 value={advancedFilters.product_category}
                 onChange={(e) => setAdvancedFilters(prev => ({ ...prev, product_category: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
               >
-                <option value="">All Products</option>
+                <option value="">{t('allProducts')}</option>
                 {productCategories.filter(cat => cat.value).map(category => (
                   <option key={category.value} value={category.value}>{category.label}</option>
                 ))}
@@ -1256,14 +1259,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             {/* Content Type Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Content Type
+                {t('contentType')}
               </label>
               <select
                 value={advancedFilters.content_type}
                 onChange={(e) => setAdvancedFilters(prev => ({ ...prev, content_type: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
               >
-                <option value="">All Types</option>
+                <option value="">{t('allTypes')}</option>
                 {contentTypes.map(type => (
                   <option key={type.value} value={type.value}>{type.label}</option>
                 ))}
@@ -1273,60 +1276,60 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             {/* Processing Status Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Processing Status
+                {t('processingStatus')}
               </label>
               <select
                 value={advancedFilters.processing_status}
                 onChange={(e) => setAdvancedFilters(prev => ({ ...prev, processing_status: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
               >
-                <option value="">All Status</option>
-                <option value="ready">Ready</option>
-                <option value="pending">Pending</option>
-                <option value="metadata_extracting">Extracting Metadata</option>
-                <option value="chunking">Chunking</option>
-                <option value="embedding">Embedding</option>
-                <option value="failed">Failed</option>
+                <option value="">{t('allStatus')}</option>
+                <option value="ready">{t('ready')}</option>
+                <option value="pending">{t('pending')}</option>
+                <option value="metadata_extracting">{t('extractingMetadata')}</option>
+                <option value="chunking">{t('chunking')}</option>
+                <option value="embedding">{t('embedding')}</option>
+                <option value="failed">{t('failed')}</option>
               </select>
             </div>
 
             {/* Sort By */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Sort By
+                {t('sortBy')}
               </label>
               <select
                 value={advancedFilters.sort_by}
                 onChange={(e) => setAdvancedFilters(prev => ({ ...prev, sort_by: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
               >
-                <option value="uploaded_at">Upload Date</option>
-                <option value="title">Title</option>
-                <option value="filename">Filename</option>
-                <option value="file_size">File Size</option>
-                <option value="page_count">Page Count</option>
+                <option value="uploaded_at">{t('uploadDate')}</option>
+                <option value="title">{t('title')}</option>
+                <option value="filename">{t('filename')}</option>
+                <option value="file_size">{t('fileSize')}</option>
+                <option value="page_count">{t('pageCount')}</option>
               </select>
             </div>
 
             {/* Sort Order */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Order
+                {t('order')}
               </label>
               <select
                 value={advancedFilters.sort_order}
                 onChange={(e) => setAdvancedFilters(prev => ({ ...prev, sort_order: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
               >
-                <option value="desc">Descending</option>
-                <option value="asc">Ascending</option>
+                <option value="desc">{t('descending')}</option>
+                <option value="asc">{t('ascending')}</option>
               </select>
             </div>
 
             {/* Date From */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                From Date
+                {t('fromDate')}
               </label>
               <input
                 type="date"
@@ -1339,7 +1342,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             {/* Date To */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                To Date
+                {t('toDate')}
               </label>
               <input
                 type="date"
@@ -1352,7 +1355,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             {/* File Size Min */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Min Size (MB)
+                {t('minSizeMB')}
               </label>
               <input
                 type="number"
@@ -1366,13 +1369,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             {/* File Size Max */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Max Size (MB)
+                {t('maxSizeMB')}
               </label>
               <input
                 type="number"
                 value={advancedFilters.file_size_max}
                 onChange={(e) => setAdvancedFilters(prev => ({ ...prev, file_size_max: e.target.value }))}
-                placeholder="Unlimited"
+                placeholder={t('unlimited')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
               />
             </div>
@@ -1398,13 +1401,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
               }}
               className="px-4 py-2 text-teal-700 border border-teal-300 rounded-lg hover:bg-teal-100 transition-colors text-sm font-medium"
             >
-              Clear Filters
+              {t('clearFilters')}
             </button>
             <button
               onClick={handleSearch}
               className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
             >
-              Apply Filters
+              {t('applyFilters')}
             </button>
           </div>
         </div>
@@ -1448,13 +1451,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         {loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-2 text-gray-600">Loading documents...</p>
+            <p className="mt-2 text-gray-600">{t('loadingDocuments')}</p>
           </div>
         ) : documents.length === 0 ? (
           <div className="text-center py-8">
             <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600">No documents found</p>
-            <p className="text-gray-500 text-sm">Upload your first document to get started</p>
+            <p className="text-gray-600">{t('noDocumentsFound')}</p>
+            <p className="text-gray-500 text-sm">{t('uploadFirstDocument')}</p>
           </div>
         ) : (
           <div className="grid gap-4">
@@ -1485,7 +1488,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                         {doc.page_count && (
                           <div className="flex items-center gap-1">
                             <FileText size={16} />
-                            <span>{doc.page_count} pages</span>
+                            <span>{doc.page_count} {t('pages')}</span>
                           </div>
                         )}
                         <div className="flex items-center gap-1">
@@ -1507,7 +1510,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       <button
                         onClick={() => handleView(doc)}
                         className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                        title="View Document"
+                        title={t('viewDocument')}
                       >
                         <Eye size={18} />
                       </button>
@@ -1521,14 +1524,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                               onClick={async () => {
                                 try {
                                   await apiClient.retryFileProcessing(ufId);
-                                  setSuccess('Retry scheduled');
+                                  setSuccess(t('retryScheduled'));
                                   loadDocuments();
                                 } catch (e: any) {
-                                  setError(e?.message || 'Failed to retry');
+                                  setError(e?.message || t('failedToRetry'));
                                 }
                               }}
                               className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                              title="Retry Processing"
+                              title={t('retryProcessing')}
                             >
                               <Wand2 size={18} />
                             </button>
@@ -1539,21 +1542,21 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       <button
                         onClick={() => handleDownload(doc)}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title="Download Document"
+                        title={t('downloadDocument')}
                       >
                         <Download size={18} />
                       </button>
                       <button
                         onClick={() => handleEditMetadata(doc)}
                         className="p-2 text-lime-600 hover:bg-lime-50 rounded-lg transition-colors"
-                        title="Edit Metadata"
+                        title={t('editMetadata')}
                       >
                         <Edit size={18} />
                       </button>
                       <button
                         onClick={() => handleDelete(doc.id)}
                         className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete Document"
+                        title={t('deleteDocument')}
                       >
                         <Trash2 size={18} />
                       </button>
@@ -1571,7 +1574,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Upload Document{fileMetadata.length > 1 ? `s (${fileMetadata.length} files)` : ''}</h3>
+              <h3 className="text-lg font-semibold">{t('uploadDocument')}{fileMetadata.length > 1 ? ` (${fileMetadata.length} ${t('files')})` : ''}</h3>
               <button
                 onClick={() => {
                   setShowUploadModal(false);
@@ -1588,7 +1591,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
               {/* File Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Document Files (Multiple Selection)
+                  {t('documentFilesMultipleSelection')}
                 </label>
                 <input
                   type="file"
@@ -1600,7 +1603,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 {selectedFiles.length > 0 && (
                   <div className="mt-2">
                     <p className="text-sm text-gray-600 mb-2">
-                      Selected {selectedFiles.length} file(s) - Total size: {(selectedFiles.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2)} MB
+                      {t('selectedFilesTotalSize', { 
+                        count: selectedFiles.length, 
+                        size: (selectedFiles.reduce((sum, f) => sum + f.size, 0) / 1024 / 1024).toFixed(2) 
+                      })}
                     </p>
                   </div>
                 )}
@@ -1611,7 +1617,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      File Metadata {fileMetadata.length > 1 && '(Edit each file individually)'}
+                      {t('fileMetadata')} {fileMetadata.length > 1 && `(${t('editEachFileIndividually')})`}
                     </label>
                     {fileMetadata.length > 1 && (
                       <div className="flex gap-2">
@@ -1627,7 +1633,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                           className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 border border-emerald-300 focus:outline-none cursor-pointer"
                           defaultValue=""
                         >
-                          <option value="">Apply Product to All</option>
+                          <option value="">{t('applyProductToAll')}</option>
                           {productCategories.filter(cat => cat.value).map(category => (
                             <option key={category.value} value={category.value}>{category.label}</option>
                           ))}
@@ -1644,7 +1650,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                           className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 border border-emerald-300 focus:outline-none cursor-pointer"
                           defaultValue=""
                         >
-                          <option value="">Apply Content Type to All</option>
+                          <option value="">{t('applyContentTypeToAll')}</option>
                           {contentTypes.filter(type => type.value).map(type => (
                             <option key={type.value} value={type.value}>{type.label}</option>
                           ))}
@@ -1658,13 +1664,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Filename</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Title *</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Description</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Product</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Content Type</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Version</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Size</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('filename')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('title')} *</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('description')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('product')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('contentType')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('version')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('size')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1685,7 +1691,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     setFileMetadata(newMetadata);
                                   }}
                                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
-                                  placeholder="Enter title"
+                                  placeholder={t('enterTitle')}
                                 />
                               </td>
                               <td className="px-3 py-2">
@@ -1698,7 +1704,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     setFileMetadata(newMetadata);
                                   }}
                                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
-                                  placeholder="Optional"
+                                  placeholder={t('optional')}
                                 />
                               </td>
                               <td className="px-3 py-2">
@@ -1741,7 +1747,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     setFileMetadata(newMetadata);
                                   }}
                                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
-                                  placeholder="e.g., 3.2.1"
+                                  placeholder={t('versionExample')}
                                 />
                               </td>
                               <td className="px-3 py-2 text-gray-600 text-xs">
@@ -1846,7 +1852,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                   disabled={isUploading || fileMetadata.length === 0}
                   className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isUploading ? 'Uploading...' : `Upload ${fileMetadata.length} file(s)`}
+                  {isUploading ? t('uploading') : t('uploadFiles', { count: fileMetadata.length })}
                 </button>
               </div>
             </div>
@@ -1876,7 +1882,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-500">
-                  <p>Document viewer not available</p>
+                  <p>{t('documentViewerNotAvailable')}</p>
                 </div>
               )}
             </div>
@@ -1889,7 +1895,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Edit Metadata</h3>
+              <h3 className="text-lg font-semibold">{t('editMetadata')}</h3>
               <button
                 onClick={() => setShowEditModal(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -1901,7 +1907,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Category <span className="text-gray-500 text-xs">(optional)</span>
+                  {t('productCategory')} <span className="text-gray-500 text-xs">({t('optional')})</span>
                 </label>
                 <select
                   value={editMetadata.product_category}
@@ -1916,7 +1922,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Document Type <span className="text-gray-500 text-xs">(optional)</span>
+                  {t('contentType')} <span className="text-gray-500 text-xs">({t('optional')})</span>
                 </label>
                 <select
                   value={editMetadata.content_type}
@@ -1931,13 +1937,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Version
+                  {t('version')}
                 </label>
                 <input
                   type="text"
                   value={editMetadata.version}
                   onChange={(e) => setEditMetadata(prev => ({ ...prev, version: e.target.value }))}
-                  placeholder="e.g., 3.2.1"
+                  placeholder={t('versionExample')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 />
               </div>
@@ -1947,13 +1953,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                   onClick={() => setShowEditModal(false)}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  Cancel
+                  {t('cancel')}
                 </button>
                 <button
                   onClick={handleSaveMetadata}
                   className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
                 >
-                  Save
+                  {t('save')}
                 </button>
               </div>
             </div>
@@ -1966,7 +1972,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Bulk Import from Folder</h3>
+              <h3 className="text-lg font-semibold">{t('bulkImportFromFolder')}</h3>
               <button
                 onClick={() => setShowBulkUploadModal(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -1986,7 +1992,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   } transition-colors`}
                 >
-                  🌐 Select from Browser
+                  🌐 {t('selectFromBrowser')}
                 </button>
                 <button
                   onClick={() => setUploadSource('server')}
@@ -1996,7 +2002,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   } transition-colors`}
                 >
-                  💾 Server Folder Path
+                  💾 {t('serverFolderPath')}
                 </button>
               </div>
 
@@ -2004,7 +2010,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
               {uploadSource === 'browser' && (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    📄 Select File Types to Include
+                    📄 {t('selectFileTypesToInclude')}
                   </label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                     {documentTypes.map((docType) => {
@@ -2063,7 +2069,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
-                    Only files with selected types will be included in the upload
+                    {t('onlySelectedTypesIncluded')}
                   </p>
                 </div>
               )}
@@ -2072,7 +2078,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
               {uploadSource === 'browser' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Folder from Your Computer
+                    {t('selectFolderFromComputer')}
                   </label>
                   <input
                     type="file"
@@ -2082,7 +2088,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Choose a folder to upload all files from your local machine
+                    {t('chooseFolderToUpload')}
                   </p>
                 </div>
               )}
@@ -2091,14 +2097,14 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
               {uploadSource === 'server' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Server Folder Path
+                    {t('serverFolderPath')}
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={selectedFolder}
                       onChange={(e) => setSelectedFolder(e.target.value)}
-                      placeholder="e.g., /media/uploads/documents"
+                      placeholder={t('serverFolderPathExample')}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     />
                     <button
@@ -2107,11 +2113,11 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50"
                     >
                       <FolderOpen size={20} />
-                      {bulkProcessing ? 'Scanning...' : 'Scan Folder'}
+                      {bulkProcessing ? t('scanning') : t('scanFolder')}
                     </button>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Enter a server-side folder path to scan for files
+                    {t('enterServerFolderPath')}
                   </p>
                 </div>
               )}
@@ -2121,15 +2127,15 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
                   <h4 className="font-semibold mb-2 flex items-center gap-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent"></div>
-                    Processing Status
+                    {t('processingStatus')}
                   </h4>
                   <div className="grid grid-cols-4 gap-4 text-sm">
                     <div>
-                      <div className="text-gray-600">Pending</div>
+                      <div className="text-gray-600">{t('pending')}</div>
                       <div className="text-gray-800 font-bold">{importStatus.statistics?.pending || 0}</div>
                     </div>
                     <div>
-                      <div className="text-emerald-600">Processing</div>
+                      <div className="text-emerald-600">{t('processing')}</div>
                       <div className="text-emerald-800 font-bold">
                         {(importStatus.statistics?.metadata_extracting || 0) + 
                          (importStatus.statistics?.chunking || 0) + 
@@ -2137,11 +2143,11 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       </div>
                     </div>
                     <div>
-                      <div className="text-green-600">Ready</div>
+                      <div className="text-green-600">{t('ready')}</div>
                       <div className="text-green-800 font-bold">{importStatus.statistics?.ready || 0}</div>
                     </div>
                     <div>
-                      <div className="text-red-600">Failed</div>
+                      <div className="text-red-600">{t('failed')}</div>
                       <div className="text-red-800 font-bold">{importStatus.statistics?.failed || 0}</div>
                     </div>
                   </div>
@@ -2153,7 +2159,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 <div>
                   <div className="flex justify-between items-center mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      File Metadata {bulkFileMetadata.length > 1 && '(Edit each file individually)'}
+                      {t('fileMetadata')} {bulkFileMetadata.length > 1 && `(${t('editEachFileIndividually')})`}
                     </label>
                     {bulkFileMetadata.length > 1 && (
                       <div className="flex gap-2">
@@ -2168,7 +2174,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                           className="text-xs px-2 py-1 bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200 border border-emerald-300 focus:outline-none cursor-pointer"
                           defaultValue=""
                         >
-                          <option value="">Apply Product to All</option>
+                          <option value="">{t('applyProductToAll')}</option>
                           {productCategories.filter(cat => cat.value).map(category => (
                             <option key={category.value} value={category.value}>{category.label}</option>
                           ))}
@@ -2198,13 +2204,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Filename</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Title *</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Description</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Product</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Content Type</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Version</th>
-                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">Size</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('filename')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('title')} *</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('description')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('product')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('contentType')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('version')}</th>
+                            <th className="px-3 py-2 text-left font-medium text-gray-700 border-b">{t('size')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2225,7 +2231,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     setBulkFileMetadata(newMetadata);
                                   }}
                                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
-                                  placeholder="Enter title"
+                                  placeholder={t('enterTitle')}
                                 />
                               </td>
                               <td className="px-3 py-2">
@@ -2238,7 +2244,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     setBulkFileMetadata(newMetadata);
                                   }}
                                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
-                                  placeholder="Optional"
+                                  placeholder={t('optional')}
                                 />
                               </td>
                               <td className="px-3 py-2">
@@ -2281,7 +2287,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                                     setBulkFileMetadata(newMetadata);
                                   }}
                                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-primary-500"
-                                  placeholder="e.g., 3.2.1"
+                                  placeholder={t('versionExample')}
                                 />
                               </td>
                               <td className="px-3 py-2 text-gray-600 text-xs">
@@ -2306,9 +2312,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 sticky top-0">
                         <tr>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Status</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Filename</th>
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">Size</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">{t('status')}</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">{t('filename')}</th>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">{t('size')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2320,28 +2326,28 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                           
                           const getStatusBadge = () => {
                             if (!fileStatus) {
-                              return <span className="text-gray-500 text-xs">⏳ Pending</span>;
+                              return <span className="text-gray-500 text-xs">⏳ {t('pending')}</span>;
                             }
                             
                             const status = fileStatus.processing_status;
                             const isReady = fileStatus.is_ready;
                             
                             if (isReady) {
-                              return <span className="text-green-600 text-xs">✓ Ready</span>;
+                              return <span className="text-green-600 text-xs">✓ {t('ready')}</span>;
                             }
                             if (status === 'failed') {
-                              return <span className="text-red-600 text-xs">✗ Failed</span>;
+                              return <span className="text-red-600 text-xs">✗ {t('failed')}</span>;
                             }
                             if (status === 'metadata_extracting') {
-                              return <span className="text-emerald-600 text-xs">📄 Metadata</span>;
+                              return <span className="text-emerald-600 text-xs">📄 {t('metadata')}</span>;
                             }
                             if (status === 'chunking') {
-                              return <span className="text-emerald-600 text-xs">✂️ Chunking</span>;
+                              return <span className="text-emerald-600 text-xs">✂️ {t('chunking')}</span>;
                             }
                             if (status === 'embedding') {
-                              return <span className="text-emerald-600 text-xs">🔢 Embedding</span>;
+                              return <span className="text-emerald-600 text-xs">🔢 {t('embedding')}</span>;
                             }
-                            return <span className="text-yellow-600 text-xs">⏳ Waiting</span>;
+                            return <span className="text-yellow-600 text-xs">⏳ {t('waiting')}</span>;
                           };
                           
                           return (
@@ -2365,13 +2371,13 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium text-gray-700">
-                      Files Filtered Out ({filteredOutFiles.length})
+                      {t('filesFilteredOutTitle', { count: filteredOutFiles.length })}
                     </label>
                     <button
                       onClick={() => setFilteredOutFiles([])}
                       className="text-xs text-gray-500 hover:text-gray-700"
                     >
-                      Hide
+                      {t('hide')}
                     </button>
                   </div>
                   <div className="border border-orange-200 rounded-lg max-h-40 overflow-y-auto bg-orange-50">
@@ -2394,18 +2400,18 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
               {/* Enhanced Results with Error Reporting */}
               {bulkResults && (
                 <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-                  <h4 className="font-semibold mb-2">Import Results</h4>
+                  <h4 className="font-semibold mb-2">{t('importResults')}</h4>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     <div>
-                      <div className="text-gray-600">Successful</div>
+                      <div className="text-gray-600">{t('successful')}</div>
                       <div className="text-green-600 font-bold">{bulkResults.successful}</div>
                     </div>
                     <div>
-                      <div className="text-gray-600">Failed</div>
+                      <div className="text-gray-600">{t('failed')}</div>
                       <div className="text-red-600 font-bold">{bulkResults.failed}</div>
                     </div>
                     <div>
-                      <div className="text-gray-600">Skipped</div>
+                      <div className="text-gray-600">{t('skipped')}</div>
                       <div className="text-yellow-600 font-bold">{bulkResults.skipped}</div>
                     </div>
                   </div>
@@ -2474,7 +2480,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
-                  Close
+                  {t('close')}
                 </button>
                 {!jobMonitoring && (
                   <button
@@ -2483,8 +2489,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {bulkProcessing 
-                      ? `Importing ${uploadSource === 'browser' ? bulkFileMetadata.length : bulkFiles.length} files...` 
-                      : `Import ${uploadSource === 'browser' ? bulkFileMetadata.length : bulkFiles.length} files`}
+                      ? t('importingFiles', { count: uploadSource === 'browser' ? bulkFileMetadata.length : bulkFiles.length }) 
+                      : t('importFiles', { count: uploadSource === 'browser' ? bulkFileMetadata.length : bulkFiles.length })}
                   </button>
                 )}
                 {jobMonitoring && (
@@ -2499,7 +2505,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     }}
                     className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
                   >
-                    Stop Monitoring
+                    {t('stopMonitoring')}
                   </button>
                 )}
               </div>
@@ -2515,7 +2521,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             <div className="flex items-center gap-2">
               <div className={`animate-spin rounded-full h-4 w-4 border-2 border-primary-600 border-t-transparent ${!isUploading ? 'hidden' : ''}`}></div>
               <h3 className="font-semibold text-gray-900">
-                Upload Progress ({uploadQueue.filter(q => q.status === 'completed').length}/{uploadQueue.length})
+                {t('uploadProgress')} ({uploadQueue.filter(q => q.status === 'completed').length}/{uploadQueue.length})
               </h3>
             </div>
             <button
@@ -2575,7 +2581,11 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                         </div>
                       </div>
                       <span className={`text-xs font-medium ${getStatusColor()}`}>
-                        {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                        {item.status === 'queued' ? t('queued') :
+                         item.status === 'uploading' ? t('uploading') :
+                         item.status === 'processing' ? t('processing') :
+                         item.status === 'completed' ? t('completed') :
+                         item.status === 'failed' ? t('failed') : item.status}
                       </span>
                     </div>
                     
@@ -2610,19 +2620,19 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
           <div className="border-t p-4 bg-gray-50">
             <div className="grid grid-cols-3 gap-2 text-xs">
               <div>
-                <div className="text-gray-600">Queued</div>
+                <div className="text-gray-600">{t('queued')}</div>
                 <div className="font-semibold text-gray-700">
                   {uploadQueue.filter(q => q.status === 'queued').length}
                 </div>
               </div>
               <div>
-                <div className="text-emerald-600">In Progress</div>
+                <div className="text-emerald-600">{t('inProgress')}</div>
                 <div className="font-semibold text-emerald-700">
                   {uploadQueue.filter(q => q.status === 'uploading' || q.status === 'processing').length}
                 </div>
               </div>
               <div>
-                <div className="text-green-600">Completed</div>
+                <div className="text-green-600">{t('completed')}</div>
                 <div className="font-semibold text-green-700">
                   {uploadQueue.filter(q => q.status === 'completed').length}
                 </div>
@@ -2630,7 +2640,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
             </div>
             {uploadQueue.some(q => q.status === 'failed') && (
               <div className="mt-2 text-xs text-red-600">
-                Failed: {uploadQueue.filter(q => q.status === 'failed').length}
+                {t('failed')}: {uploadQueue.filter(q => q.status === 'failed').length}
               </div>
             )}
           </div>

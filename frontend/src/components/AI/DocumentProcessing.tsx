@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Upload, FileVideo, Image, CheckCircle, AlertCircle, X, Download, Eye } from 'lucide-react';
 import { apiClient } from '../../services/api';
 
@@ -13,6 +14,7 @@ interface ProcessedFile {
 }
 
 const DocumentProcessing: React.FC = () => {
+  const { t } = useTranslation('documents');
   const [activeTab, setActiveTab] = useState<'video' | 'image'>('video');
   const [files, setFiles] = useState<ProcessedFile[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -32,7 +34,7 @@ const DocumentProcessing: React.FC = () => {
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      setError('Please select a file');
+      setError(t('pleaseSelectFile'));
       return;
     }
 
@@ -79,7 +81,7 @@ const DocumentProcessing: React.FC = () => {
       if (fileInput) fileInput.value = '';
       
     } catch (err: any) {
-      setError(err?.message || 'Failed to process file');
+      setError(err?.message || t('failedToProcessFile'));
       console.error('Upload error:', err);
     } finally {
       setUploading(false);
@@ -91,9 +93,9 @@ const DocumentProcessing: React.FC = () => {
   };
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return `0 ${t('bytes')}`;
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = [t('bytes'), t('kb'), t('mb'), t('gb')];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
@@ -103,8 +105,8 @@ const DocumentProcessing: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Document Processing</h1>
-          <p className="text-gray-600">Process videos and images for AI analysis</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('documentProcessing')}</h1>
+          <p className="text-gray-600">{t('processVideosAndImagesForAIAnalysis')}</p>
         </div>
       </div>
 
@@ -120,7 +122,7 @@ const DocumentProcessing: React.FC = () => {
             }`}
           >
             <FileVideo className="inline mr-2" size={16} />
-            Video Processing
+            {t('videoProcessing')}
           </button>
           <button
             onClick={() => setActiveTab('image')}
@@ -131,7 +133,7 @@ const DocumentProcessing: React.FC = () => {
             }`}
           >
             <Image className="inline mr-2" size={16} />
-            Image OCR
+            {t('imageOcr')}
           </button>
         </nav>
       </div>
@@ -139,14 +141,14 @@ const DocumentProcessing: React.FC = () => {
       {/* Upload Section */}
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          {activeTab === 'video' ? 'Upload Video for Transcript Extraction' : 'Upload Image for OCR Processing'}
+          {activeTab === 'video' ? t('uploadVideoForTranscriptExtraction') : t('uploadImageForOcrProcessing')}
         </h3>
 
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-start">
             <AlertCircle className="text-red-600 mt-0.5 mr-3" size={20} />
             <div className="flex-1">
-              <p className="text-sm font-medium text-red-800">Error</p>
+              <p className="text-sm font-medium text-red-800">{t('error')}</p>
               <p className="text-sm text-red-600">{error}</p>
             </div>
             <button onClick={() => setError(null)}>
@@ -159,7 +161,7 @@ const DocumentProcessing: React.FC = () => {
           {/* File Upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select {activeTab === 'video' ? 'Video' : 'Image'} File
+              {activeTab === 'video' ? t('selectVideoFile') : t('selectImageFile')}
             </label>
             <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-gray-400 transition-colors">
               <div className="space-y-1 text-center">
@@ -171,7 +173,7 @@ const DocumentProcessing: React.FC = () => {
                       onClick={() => setSelectedFile(null)}
                       className="mt-2 text-sm text-red-600 hover:text-red-800"
                     >
-                      Remove
+                      {t('remove')}
                     </button>
                   </div>
                 ) : (
@@ -182,7 +184,7 @@ const DocumentProcessing: React.FC = () => {
                         htmlFor="file-input"
                         className="relative cursor-pointer bg-white rounded-md font-medium text-emerald-600 hover:text-blue-500 focus-within:outline-none"
                       >
-                        <span>Upload a file</span>
+                        <span>{t('uploadAFile')}</span>
                         <input
                           id="file-input"
                           type="file"
@@ -191,10 +193,10 @@ const DocumentProcessing: React.FC = () => {
                           onChange={handleFileSelect}
                         />
                       </label>
-                      <p className="pl-1">or drag and drop</p>
+                      <p className="pl-1">{t('orDragAndDrop')}</p>
                     </div>
                     <p className="text-xs text-gray-500">
-                      {activeTab === 'video' ? 'MP4, MOV, AVI up to 500MB' : 'PNG, JPG, GIF up to 10MB'}
+                      {activeTab === 'video' ? t('videoFileFormats') : t('imageFileFormats')}
                     </p>
                   </>
                 )}
@@ -205,12 +207,12 @@ const DocumentProcessing: React.FC = () => {
           {/* Title Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Title (optional)
+              {t('title')} ({t('optional')})
             </label>
             <input
               type="text"
               className="input-field"
-              placeholder={`Enter ${activeTab === 'video' ? 'video' : 'image'} title`}
+              placeholder={activeTab === 'video' ? t('enterVideoTitle') : t('enterImageTitle')}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -219,12 +221,12 @@ const DocumentProcessing: React.FC = () => {
           {/* Description Input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description (optional)
+              {t('description')} ({t('optional')})
             </label>
             <textarea
               className="input-field"
               rows={3}
-              placeholder={`Enter ${activeTab === 'video' ? 'video' : 'image'} description`}
+              placeholder={activeTab === 'video' ? t('enterVideoDescription') : t('enterImageDescription')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -239,12 +241,12 @@ const DocumentProcessing: React.FC = () => {
             {uploading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Processing...
+                {t('processing')}
               </>
             ) : (
               <>
                 <Upload size={16} className="mr-2" />
-                Process {activeTab === 'video' ? 'Video' : 'Image'}
+                {activeTab === 'video' ? t('processVideo') : t('processImage')}
               </>
             )}
           </button>
@@ -254,7 +256,7 @@ const DocumentProcessing: React.FC = () => {
       {/* Results Section */}
       {files.length > 0 && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Processed Files</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('processedFiles')}</h3>
           <div className="space-y-4">
             {files
               .filter(f => f.type === activeTab)
@@ -290,31 +292,31 @@ const DocumentProcessing: React.FC = () => {
                           {file.type === 'video' ? (
                             <>
                               {file.metadata.duration && (
-                                <div>Duration: {parseFloat(file.metadata.duration).toFixed(2)}s</div>
+                                <div>{t('duration')}: {parseFloat(file.metadata.duration).toFixed(2)}s</div>
                               )}
                               {file.metadata.language && (
-                                <div>Language: {file.metadata.language}</div>
+                                <div>{t('language')}: {file.metadata.language}</div>
                               )}
                               {file.metadata.word_count && (
-                                <div>Words: {file.metadata.word_count}</div>
+                                <div>{t('words')}: {file.metadata.word_count}</div>
                               )}
                               {file.metadata.confidence && (
-                                <div>Confidence: {(file.metadata.confidence * 100).toFixed(1)}%</div>
+                                <div>{t('confidence')}: {(file.metadata.confidence * 100).toFixed(1)}%</div>
                               )}
                             </>
                           ) : (
                             <>
                               {file.metadata.dimensions && (
-                                <div>Dimensions: {file.metadata.dimensions}</div>
+                                <div>{t('dimensions')}: {file.metadata.dimensions}</div>
                               )}
                               {file.metadata.word_count && (
-                                <div>Words: {file.metadata.word_count}</div>
+                                <div>{t('words')}: {file.metadata.word_count}</div>
                               )}
                               {file.metadata.confidence && (
-                                <div>Confidence: {(file.metadata.confidence * 100).toFixed(1)}%</div>
+                                <div>{t('confidence')}: {(file.metadata.confidence * 100).toFixed(1)}%</div>
                               )}
                               {file.metadata.language && (
-                                <div>Language: {file.metadata.language}</div>
+                                <div>{t('language')}: {file.metadata.language}</div>
                               )}
                             </>
                           )}
@@ -343,7 +345,7 @@ const DocumentProcessing: React.FC = () => {
       {files.filter(f => f.type === activeTab).length === 0 && (
         <div className="card text-center py-12">
           <p className="text-gray-500">
-            No {activeTab === 'video' ? 'video' : 'image'} files processed yet
+            {activeTab === 'video' ? t('noVideoFilesProcessedYet') : t('noImageFilesProcessedYet')}
           </p>
         </div>
       )}

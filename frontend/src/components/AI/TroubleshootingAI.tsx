@@ -13,6 +13,7 @@ import {
   FileCode,
   CheckCircle
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../../services/api';
 import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
 
@@ -33,6 +34,7 @@ const TROUBLESHOOTING_HISTORY_STORAGE_KEY = 'troubleshooting_history';
 const TROUBLESHOOTING_MESSAGES_STORAGE_KEY = 'troubleshooting_messages';
 
 const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer }) => {
+  const { t } = useTranslation('ai');
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -122,7 +124,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
     // If no text and no file, do nothing
     if (!trimmed && !uploadedFile) return;
     // If file only, provide a sensible default prompt
-    const currentQuery = trimmed || (uploadedFile ? 'Please analyze this log file' : '');
+    const currentQuery = trimmed || (uploadedFile ? t('pleaseAnalyzeLogFile') : '');
     if (isLoading) return;
 
     const messageId = Date.now().toString();
@@ -152,7 +154,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
       const historyItem = {
         id: messageId,
         prompt: currentQuery,
-        preview: logContent ? `Log file: ${uploadedFile?.name}` : currentQuery,
+        preview: logContent ? `${t('logFile')}: ${uploadedFile?.name}` : currentQuery,
         timestamp: new Date().toISOString()
       };
       setChatHistory(prev => [historyItem, ...prev.slice(0, 9)]); // Keep last 10
@@ -174,7 +176,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: response.analysis || 'No analysis provided',
+        content: response.analysis || t('noAnalysisProvided'),
         timestamp: new Date().toISOString(),
         suggestions: response.suggestions || []
       };
@@ -190,7 +192,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
 
     } catch (error: any) {
       console.error('Troubleshooting error:', error);
-      const serverMessage = (error && error.message) ? String(error.message) : 'Failed to analyze log file. Please try again.';
+      const serverMessage = (error && error.message) ? String(error.message) : t('failedToAnalyzeLogFile');
       const errorMessage: Message = {
         id: Date.now().toString(),
         role: 'assistant',
@@ -255,12 +257,12 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-amber-100 rounded-lg">
-              <AlertCircle className="h-6 w-6 text-amber-600" />
+            <div className="p-2 bg-primary-100 rounded-lg">
+              <AlertCircle className="h-6 w-6 text-primary-600" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Troubleshooting AI</h1>
-              <p className="text-sm text-gray-500">AI-powered log analysis and troubleshooting</p>
+              <h1 className="text-xl font-semibold text-gray-900">{t('troubleshooting')}</h1>
+              <p className="text-sm text-gray-500">{t('aiPoweredLogAnalysis')}</p>
             </div>
           </div>
           
@@ -269,7 +271,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
             <button
               onClick={() => setShowHistory(!showHistory)}
               className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              title={showHistory ? "Hide History" : "Show History"}
+              title={showHistory ? t('hideHistory') : t('showHistory')}
             >
               <History className="h-5 w-5" />
             </button>
@@ -278,7 +280,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
             <button
               onClick={clearHistory}
               className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Clear History"
+              title={t('clearHistory')}
             >
               <Trash2 className="h-5 w-5" />
             </button>
@@ -295,17 +297,17 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
             {messages.length === 0 ? (
               <div className="text-center py-12">
                 <FileCode className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Troubleshooting AI</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">{t('troubleshooting')}</h3>
                 <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                  Upload log files to get AI-powered troubleshooting suggestions and diagnostic insights.
+                  {t('uploadLogFilesDescription')}
                 </p>
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md mx-auto text-left">
-                  <p className="text-sm text-blue-800 font-medium mb-2">Supported Log Types:</p>
-                  <ul className="text-sm text-blue-700 space-y-1">
-                    <li>• Application logs (.log, .txt)</li>
-                    <li>• Error logs</li>
-                    <li>• System logs</li>
-                    <li>• Debug output</li>
+                <div className="bg-primary-50 border border-primary-200 rounded-lg p-4 max-w-md mx-auto text-left">
+                  <p className="text-sm text-primary-800 font-medium mb-2">{t('supportedLogTypes')}:</p>
+                  <ul className="text-sm text-primary-700 space-y-1">
+                    <li>• {t('applicationLogs')}</li>
+                    <li>• {t('errorLogs')}</li>
+                    <li>• {t('systemLogs')}</li>
+                    <li>• {t('debugOutput')}</li>
                   </ul>
                 </div>
               </div>
@@ -319,18 +321,18 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                     <div
                       className={`max-w-3xl rounded-lg p-4 ${
                         message.role === 'user'
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-primary-600 text-white'
                           : 'bg-white border border-gray-200'
                       }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           {message.logContent && (
-                            <div className={`mb-3 p-3 rounded ${message.role === 'user' ? 'bg-blue-700' : 'bg-gray-50'}`}>
-                              <div className={`text-xs font-medium mb-1 ${message.role === 'user' ? 'text-blue-200' : 'text-gray-600'}`}>
-                                Log File Content:
+                            <div className={`mb-3 p-3 rounded ${message.role === 'user' ? 'bg-primary-700' : 'bg-gray-50'}`}>
+                              <div className={`text-xs font-medium mb-1 ${message.role === 'user' ? 'text-primary-200' : 'text-gray-600'}`}>
+                                {t('logFileContent')}:
                               </div>
-                              <pre className={`text-xs overflow-auto max-h-40 ${message.role === 'user' ? 'text-blue-100' : 'text-gray-700'}`}>
+                              <pre className={`text-xs overflow-auto max-h-40 ${message.role === 'user' ? 'text-primary-100' : 'text-gray-700'}`}>
                                 {message.logContent.substring(0, 500)}
                                 {message.logContent.length > 500 && '...'}
                               </pre>
@@ -348,7 +350,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                             <div className="mt-4 pt-4 border-t border-gray-200">
                               <div className="flex items-center mb-3">
                                 <CheckCircle size={16} className="text-green-600 mr-2" />
-                                <span className="text-sm font-semibold text-gray-900">Suggested Solutions:</span>
+                                <span className="text-sm font-semibold text-gray-900">{t('suggestedSolutions')}:</span>
                               </div>
                               <ol className="list-decimal list-inside space-y-2">
                                 {message.suggestions.map((suggestion, index) => (
@@ -372,21 +374,21 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                                 } catch (err) {}
                                 e.currentTarget.selectedIndex = 0;
                               }}
-                              className={`text-xs border border-gray-300 rounded px-1 py-0.5 bg-white ${message.role === 'user' ? 'text-blue-800' : 'text-gray-600'}`}
+                              className={`text-xs border border-gray-300 rounded px-1 py-0.5 bg-white ${message.role === 'user' ? 'text-primary-800' : 'text-gray-600'}`}
                               defaultValue=""
-                              title="Ask in..."
+                              title={t('askIn')}
                             >
-                              <option value="">Ask in…</option>
-                              <option value="chat">Free Chat</option>
-                              <option value="rag_basic">Basic RAG</option>
-                              <option value="rag">Advanced RAG</option>
-                              <option value="rag_comprehensive">Comprehensive RAG</option>
+                              <option value="">{t('askInPlaceholder')}</option>
+                              <option value="chat">{t('freeChat')}</option>
+                              <option value="rag_basic">{t('basicRag')}</option>
+                              <option value="rag">{t('advancedRag')}</option>
+                              <option value="rag_comprehensive">{t('comprehensiveRag')}</option>
                             </select>
                           )}
                           <button
                             onClick={() => copyToClipboard(message.content, message.id)}
-                            className={`ml-2 p-1 rounded ${message.role === 'user' ? 'hover:bg-blue-700' : 'hover:bg-gray-100'}`}
-                            title="Copy message"
+                            className={`ml-2 p-1 rounded ${message.role === 'user' ? 'hover:bg-primary-700' : 'hover:bg-gray-100'}`}
+                            title={t('copyMessage')}
                           >
                             {copiedMessageId === message.id ? (
                               <Check className="h-4 w-4 text-green-600" />
@@ -398,7 +400,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                       </div>
                       
                       <p className={`text-xs mt-2 ${
-                        message.role === 'user' ? 'text-blue-200' : 'text-gray-500'
+                        message.role === 'user' ? 'text-primary-200' : 'text-gray-500'
                       }`}>
                         {new Date(message.timestamp).toLocaleString()}
                       </p>
@@ -410,8 +412,8 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                   <div className="flex justify-start">
                     <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
                       <div className="flex items-center space-x-2">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
-                        <span className="text-gray-600">Analyzing log file...</span>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                        <span className="text-gray-600">{t('analyzingLogFile')}</span>
                       </div>
                     </div>
                   </div>
@@ -426,19 +428,19 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
           <div className="bg-white border-t border-gray-200 p-6">
             {/* File Upload Indicator */}
             {uploadedFile && (
-              <div className="mb-3 flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="mb-3 flex items-center justify-between bg-primary-50 border border-primary-200 rounded-lg p-3">
                 <div className="flex items-center space-x-2">
-                  <FileText size={16} className="text-blue-600" />
-                  <span className="text-sm text-blue-900 font-medium">{uploadedFile.name}</span>
-                  <span className="text-xs text-blue-600">
+                  <FileText size={16} className="text-primary-600" />
+                  <span className="text-sm text-primary-900 font-medium">{uploadedFile.name}</span>
+                  <span className="text-xs text-primary-600">
                     ({(uploadedFile.size / 1024).toFixed(1)} KB)
                   </span>
                 </div>
                 <button
                   onClick={removeFile}
-                  className="p-1 hover:bg-blue-100 rounded"
+                  className="p-1 hover:bg-primary-100 rounded"
                 >
-                  <X size={16} className="text-blue-600" />
+                  <X size={16} className="text-primary-600" />
                 </button>
               </div>
             )}
@@ -448,7 +450,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors border border-gray-300"
-                title="Upload log file"
+                title={t('uploadLogFile')}
               >
                 <Upload size={20} className="text-gray-600" />
               </button>
@@ -466,8 +468,8 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Describe your issue or ask questions about the log file..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                  placeholder={t('describeIssueOrAskQuestions')}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   rows={3}
                   disabled={isLoading}
                 />
@@ -477,14 +479,14 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
               <button
                 onClick={handleSend}
                 disabled={isLoading || (!inputMessage.trim() && !uploadedFile)}
-                className="px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Send className="h-5 w-5" />
               </button>
             </div>
             
             <div className="mt-3 text-xs text-gray-500">
-              Upload a log file or describe your issue, and AI will provide troubleshooting suggestions
+              {t('troubleshootingNote')}
             </div>
           </div>
         </div>
@@ -494,12 +496,12 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
           <div className="w-80 bg-white border-l border-gray-200 flex flex-col">
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">Troubleshooting History</h3>
+                <h3 className="text-lg font-medium text-gray-900">{t('troubleshootingHistory')}</h3>
                 <button
                   onClick={() => refreshUnifiedHistory()}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  className="text-sm text-primary-600 hover:text-primary-700"
                 >
-                  Refresh
+                  {t('refresh')}
                 </button>
               </div>
             </div>
@@ -507,9 +509,9 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
               {unifiedHistory.length === 0 ? (
                 <div className="text-center py-8">
                   <History className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No troubleshooting history</h3>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">{t('noTroubleshootingHistory')}</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Your troubleshooting sessions will appear here.
+                    {t('troubleshootingSessionsWillAppear')}
                   </p>
                 </div>
               ) : (
@@ -520,7 +522,7 @@ const TroubleshootingAI: React.FC<TroubleshootingAIProps> = ({ onOpenInViewer })
                         <div className="flex-1">
                           <button
                             onClick={() => { setInputMessage(item.content); setShowHistory(false); }}
-                            className="text-sm font-medium text-gray-900 hover:text-amber-600 transition-colors text-left"
+                            className="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors text-left"
                           >
                             {item.content}
                           </button>

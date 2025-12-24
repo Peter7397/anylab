@@ -1,0 +1,22 @@
+{
+  "networkError": "网络错误",
+  "serverError": "服务器错误",
+  "notFound": "未找到",
+  "unauthorized": "未授权访问",
+  "forbidden": "禁止访问",
+  "badRequest": "请求错误",
+  "timeout": "请求超时",
+  "unknownError": "未知错误",
+  "loginFailed": "登录失败",
+  "logoutFailed": "登出失败",
+  "saveFailed": "保存失败",
+  "deleteFailed": "删除失败",
+  "uploadFailed": "上传失败",
+  "downloadFailed": "下载失败",
+  "loadFailed": "加载失败",
+  "operationFailed": "操作失败",
+  "invalidCredentials": "无效的凭据",
+  "sessionExpired": "会话已过期",
+  "permissionDenied": "权限不足"
+}
+

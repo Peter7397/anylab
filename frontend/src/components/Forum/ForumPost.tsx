@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Heart, 
@@ -55,6 +56,7 @@ interface ForumPostData {
 }
 
 const ForumPost: React.FC = () => {
+  const { t } = useTranslation('forum');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [post, setPost] = useState<ForumPostData | null>(null);
@@ -101,7 +103,7 @@ const ForumPost: React.FC = () => {
         setIsAuthor(true);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load post');
+      setError(err.message || t('failedToLoadPost'));
       console.error('Failed to load post:', err);
     } finally {
       setLoading(false);
@@ -129,13 +131,13 @@ const ForumPost: React.FC = () => {
   };
 
   const handleDelete = async () => {
-    if (!post || !window.confirm('确定要删除这个帖子吗？')) return;
+    if (!post || !window.confirm(t('confirmDeletePost'))) return;
     try {
       await apiClient.deleteForumPost(post.id);
       navigate('/forum');
     } catch (err: any) {
       console.error('Failed to delete post:', err);
-      alert('删除失败: ' + (err.message || 'Unknown error'));
+      alert(t('deleteFailed') + ': ' + (err.message || t('unknownError')));
     }
   };
 
@@ -146,19 +148,13 @@ const ForumPost: React.FC = () => {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return date.toLocaleString();
   };
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
+    if (bytes === 0) return `0 ${t('bytes')}`;
     const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const sizes = [t('bytes'), t('kb'), t('mb'), t('gb')];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
@@ -168,7 +164,7 @@ const ForumPost: React.FC = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">加载中...</p>
+          <p className="mt-2 text-gray-600">{t('loading')}</p>
         </div>
       </div>
     );
@@ -178,9 +174,9 @@ const ForumPost: React.FC = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-600">{error || '帖子不存在'}</p>
+          <p className="text-red-600">{error || t('postNotFound')}</p>
           <Link to="/forum" className="mt-4 text-blue-600 hover:underline">
-            返回论坛
+            {t('backToForum')}
           </Link>
         </div>
       </div>
@@ -195,7 +191,7 @@ const ForumPost: React.FC = () => {
           to="/forum"
           className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-6"
         >
-          ← 返回论坛
+          ← {t('backToForum')}
         </Link>
 
         {/* Post Card */}
@@ -269,7 +265,7 @@ const ForumPost: React.FC = () => {
             {/* Attachments */}
             {post.attachments && post.attachments.length > 0 && (
               <div className="mb-6 pt-6 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">附件</h3>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">{t('attachments')}</h3>
                 <div className="space-y-2">
                   {post.attachments.map(attachment => (
                     <a
@@ -315,7 +311,7 @@ const ForumPost: React.FC = () => {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Reply className="w-4 h-4" />
-                回复
+                {t('reply')}
               </button>
             </div>
           </div>

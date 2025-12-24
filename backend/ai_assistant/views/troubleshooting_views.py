@@ -31,7 +31,8 @@ def analyze_logs(request):
         # Call Ollama to analyze the log file
         # Use consistent settings keys across the codebase
         ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
-        model = getattr(settings, 'OLLAMA_MODEL', 'llama3:8b')
+        from ai_assistant.utils.model_settings import get_ollama_model
+        model = get_ollama_model()
         request_timeout = getattr(settings, 'OLLAMA_REQUEST_TIMEOUT', 120)
         default_max_tokens = getattr(settings, 'OLLAMA_DEFAULT_MAX_TOKENS', 256)
         num_ctx = getattr(settings, 'OLLAMA_NUM_CTX', 1024)

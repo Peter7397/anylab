@@ -18,20 +18,23 @@ import {
   X,
   MessageSquare
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { ChatMessage, KnowledgeDocument } from '../../types';
 import { apiClient } from '../../services/api';
+import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
 
 // Unified Loading Component - Shows same loading state across all tabs
 const LoadingMessage: React.FC = () => {
+  const { t } = useTranslation('ai');
   return (
     <div className="flex justify-start">
       <div className="bg-gray-100 rounded-lg p-4 max-w-3xl">
         <div className="flex items-center space-x-3">
           <Loader2 size={16} className="text-primary-600 animate-spin" />
           <div>
-            <span className="text-gray-700 font-medium">AI is thinking...</span>
+            <span className="text-gray-700 font-medium">{t('aiIsThinking')}</span>
             <div className="text-xs text-gray-500 mt-1">
-              Generating response with Qwen 7B model
+              {t('generatingResponse')}
             </div>
           </div>
         </div>
@@ -42,6 +45,7 @@ const LoadingMessage: React.FC = () => {
 
 // References Component for RAG responses
 const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
+  const { t } = useTranslation('ai');
   const handleDownload = async (downloadUrl: string, filename: string) => {
     try {
       const response = await apiClient.downloadDocument(parseInt(downloadUrl.split('/').slice(-2)[0]));
@@ -56,20 +60,37 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
       document.body.removeChild(a);
     } catch (error) {
       console.error('Download failed:', error);
-      alert('Download failed. Please try again.');
+      alert(t('downloadFailed'));
     }
   };
 
   const handleViewDocument = (source: any) => {
     if (source.uploaded_file_id) {
-      // Auto-detect API base URL based on current hostname
+      // Auto-detect API base URL based on current hostname (same logic as api.ts)
       const hostname = window.location.hostname;
       const protocol = window.location.protocol;
-      const port = '8000';
-      const backendHost = (hostname === 'localhost' || hostname === '127.0.0.1') ? 'localhost' : hostname;
-      const baseUrl = `${protocol}//${backendHost}:${port}/api`;
-      // baseUrl already includes /api, so just add the ai/pdf path
-      const viewerUrl = `${baseUrl}/ai/pdf/${source.uploaded_file_id}/view/?page=${source.page_number || 1}`;
+      const port = '8001';
+      
+      // Helper function to check if hostname is an IP address
+      const isIPAddress = (host: string): boolean => {
+        const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+        const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+        return ipv4Pattern.test(host) || ipv6Pattern.test(host);
+      };
+      
+      let baseUrl: string;
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        baseUrl = `${protocol}//localhost:${port}/api`;
+      } else if (!isIPAddress(hostname)) {
+        // Domain name - use same domain (Nginx will proxy)
+        baseUrl = `${protocol}//${hostname}/api`;
+      } else {
+        // IP address - use same hostname with port
+        baseUrl = `${protocol}//${hostname}:${port}/api`;
+      }
+      
+      // baseUrl already includes /api, so just add the ai/documents/pdf path
+      const viewerUrl = `${baseUrl}/ai/documents/pdf/${source.uploaded_file_id}/view/?page=${source.page_number || 1}`;
       window.open(viewerUrl, '_blank');
     }
   };
@@ -85,7 +106,7 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
       <div className="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
         <h4 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center">
           <FileText size={14} className="mr-1" />
-          参考文献 ({sources.length})
+          {t('references')} ({sources.length})
         </h4>
         <div className="space-y-1">
           {sources.map((source, index) => (
@@ -105,15 +126,15 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
     <div className="mt-4 p-3 bg-emerald-50 rounded-lg border border-emerald-200">
       <h4 className="text-sm font-semibold text-emerald-900 mb-2 flex items-center">
         <FileText size={14} className="mr-1" />
-        最相关参考文献
+        {t('mostRelevantReference')}
       </h4>
       <div className="flex items-center justify-between p-2 bg-white rounded border">
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-gray-900 truncate">
-            {mostRelevantSource.filename || mostRelevantSource.title || 'Document'}
+            {mostRelevantSource.filename || mostRelevantSource.title || t('document')}
           </div>
           <div className="text-xs text-gray-500">
-            第 {mostRelevantSource.page_number || 'N/A'} 页, 块 {mostRelevantSource.chunk_index || 'N/A'}
+            {t('page')} {mostRelevantSource.page_number || 'N/A'}, {t('chunk')} {mostRelevantSource.chunk_index || 'N/A'}
             {mostRelevantSource.file_size && ` • ${(mostRelevantSource.file_size / 1024 / 1024).toFixed(2)} MB`}
           </div>
           {mostRelevantSource.content && (
@@ -127,7 +148,7 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
             <button
               onClick={() => handleViewDocument(mostRelevantSource)}
               className="p-1 text-primary-600 hover:text-primary-800 hover:bg-primary-100 rounded transition-colors"
-              title="在查看器中打开文档"
+              title={t('openDocumentInViewer')}
             >
               <Eye size={14} />
             </button>
@@ -136,7 +157,7 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
             <button
               onClick={() => handleDownload(mostRelevantSource.download_url, mostRelevantSource.filename || mostRelevantSource.title || 'document')}
               className="p-1 text-primary-600 hover:text-primary-800 hover:bg-primary-100 rounded transition-colors"
-              title="下载文档"
+              title={t('downloadDocument')}
             >
               <Download size={14} />
             </button>
@@ -147,9 +168,8 @@ const ReferencesList: React.FC<{ sources: any[] }> = ({ sources }) => {
   );
 };
 
-import { useUnifiedChatHistory } from '../../hooks/useUnifiedChatHistory';
-
 const ChatAssistant: React.FC = () => {
+  const { t } = useTranslation('ai');
   // Check authentication status
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
@@ -157,7 +177,7 @@ const ChatAssistant: React.FC = () => {
     {
       id: '1',
       type: 'ai',
-      content: 'Hello! I\'m your AI assistant. You can ask any question here — troubleshooting, system analysis, or anything from your knowledge library. Answers are AI-generated and may be incorrect or incomplete; please verify important information. How can I help you today?',
+      content: t('helloMessage'),
       timestamp: new Date().toISOString(),
       sources: ['System Manual v2.1.pdf', 'Troubleshooting Guide'],
     },
@@ -459,12 +479,12 @@ const ChatAssistant: React.FC = () => {
   };
 
   const clearCurrentHistory = () => {
-    if (window.confirm('Are you sure you want to clear the chat history? This action cannot be undone.')) {
+    if (window.confirm(t('clearChatHistory'))) {
       setChatHistory([]);
       setMessages([{
         id: '1',
         type: 'ai',
-        content: 'Hello! I\'m your AI assistant. You can ask any question here — troubleshooting, system analysis, or anything from your knowledge library. Answers are AI-generated and may be incorrect or incomplete; please verify important information. How can I help you today?',
+        content: t('helloMessage'),
         timestamp: new Date().toISOString(),
         sources: ['System Manual v2.1.pdf', 'Troubleshooting Guide'],
       }]);
@@ -472,12 +492,12 @@ const ChatAssistant: React.FC = () => {
   };
 
   const clearAllHistory = () => {
-    if (window.confirm('Are you sure you want to clear the chat history? This action cannot be undone.')) {
+    if (window.confirm(t('clearChatHistory'))) {
       setChatHistory([]);
       setMessages([{
         id: '1',
         type: 'ai',
-        content: 'Hello! I\'m your AI assistant. You can ask any question here — troubleshooting, system analysis, or anything from your knowledge library. Answers are AI-generated and may be incorrect or incomplete; please verify important information. How can I help you today?',
+        content: t('helloMessage'),
         timestamp: new Date().toISOString(),
         sources: ['System Manual v2.1.pdf', 'Troubleshooting Guide'],
       }]);
@@ -496,8 +516,8 @@ const ChatAssistant: React.FC = () => {
               <MessageSquare className="h-6 w-6 text-primary-600" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Free AI Chat</h1>
-              <p className="text-sm text-gray-500">Open conversation with Qwen 7B for brainstorming and general questions</p>
+              <h1 className="text-xl font-semibold text-gray-900">{t('freeAiChat')}</h1>
+              <p className="text-sm text-gray-500">{t('openConversation')}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -507,7 +527,7 @@ const ChatAssistant: React.FC = () => {
                 className="flex items-center px-3 py-1 text-sm text-primary-600 hover:text-primary-700"
               >
                 <Zap className="mr-1 h-4 w-4" />
-                Performance
+                {t('performance')}
               </button>
             )}
             <button
@@ -515,7 +535,7 @@ const ChatAssistant: React.FC = () => {
               className="flex items-center px-3 py-1 text-sm text-gray-600 hover:text-gray-700"
             >
               <History className="mr-1 h-4 w-4" />
-              History
+              {t('history')}
             </button>
           </div>
         </div>
@@ -528,15 +548,15 @@ const ChatAssistant: React.FC = () => {
             <div className="flex items-center space-x-4">
               <span className="flex items-center">
                 <Clock className="mr-1 h-4 w-4 text-primary-600" />
-                Response: {performanceStats.responseTime}ms
+                {t('response')}: {performanceStats.responseTime}ms
               </span>
               <span className="flex items-center">
                 <Target className="mr-1 h-4 w-4 text-primary-600" />
-                Model: {performanceStats.ollama_model}
+                {t('model')}: {performanceStats.ollama_model}
               </span>
               <span className="flex items-center">
                 <FileText className="mr-1 h-4 w-4 text-primary-600" />
-                Queries: {performanceStats.recent_queries?.total_queries || 0}
+                {t('queries')}: {performanceStats.recent_queries?.total_queries || 0}
               </span>
             </div>
             <button
@@ -559,9 +579,9 @@ const ChatAssistant: React.FC = () => {
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <MessageSquare className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Start Free AI Chat</h3>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">{t('startFreeAiChat')}</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Ask anything for open, GPT‑like conversation with Qwen 7B.
+                    {t('askAnything')}
                   </p>
                 </div>
               </div>
@@ -595,19 +615,19 @@ const ChatAssistant: React.FC = () => {
                                 }}
                                 className="text-xs border border-gray-300 rounded px-1 py-0.5 text-gray-600 bg-white"
                                 defaultValue=""
-                                title="Ask in..."
+                                title={t('askIn')}
                               >
-                                <option value="">Ask in…</option>
-                                <option value="rag_basic">Basic RAG</option>
-                                <option value="rag">Advanced RAG</option>
-                                <option value="rag_comprehensive">Comprehensive RAG</option>
-                                <option value="troubleshooting">Troubleshooting</option>
+                                <option value="">{t('askInPlaceholder')}</option>
+                                <option value="rag_basic">{t('basicRag')}</option>
+                                <option value="rag">{t('advancedRag')}</option>
+                                <option value="rag_comprehensive">{t('comprehensiveRag')}</option>
+                                <option value="troubleshooting">{t('troubleshooting')}</option>
                               </select>
                             )}
                             <button
                               onClick={() => copyToClipboard(message.content, message.id)}
                               className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
-                              title="Copy formatted text"
+                              title={t('copyFormattedText')}
                             >
                               {copiedMessageId === message.id ? (
                                 <Check className="h-4 w-4 text-green-600" />
@@ -632,10 +652,10 @@ const ChatAssistant: React.FC = () => {
             
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+                    <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
                   <div className="flex items-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
-                    <span className="text-gray-600">AI is thinking...</span>
+                    <span className="text-gray-600">{t('aiIsThinking')}</span>
                   </div>
                 </div>
               </div>
@@ -652,7 +672,7 @@ const ChatAssistant: React.FC = () => {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleComposerKeyPress}
-                  placeholder="Ask anything (Free AI Chat)..."
+                  placeholder={t('askAnythingPlaceholder')}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
                   rows={3}
                   disabled={isLoading}
@@ -668,7 +688,7 @@ const ChatAssistant: React.FC = () => {
             </div>
             
             <div className="mt-3 text-xs text-gray-500">
-              Free AI Chat provides open conversation without document search. For document-based answers, try Basic, Advanced, or Comprehensive RAG.
+              {t('freeAiChatDescription')}
             </div>
           </div>
         </div>
@@ -678,12 +698,12 @@ const ChatAssistant: React.FC = () => {
           <div className="w-80 bg-white border-l border-gray-200 flex flex-col flex-shrink-0">
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium text-gray-900">Chat History</h3>
+                <h3 className="text-lg font-medium text-gray-900">{t('chatHistory')}</h3>
                 <button
                   onClick={() => refreshUnifiedHistory()}
                   className="text-sm text-primary-600 hover:text-primary-700"
                 >
-                  Refresh
+                  {t('refresh')}
                 </button>
               </div>
             </div>
@@ -691,9 +711,9 @@ const ChatAssistant: React.FC = () => {
               {unifiedHistory.length === 0 ? (
                 <div className="text-center py-8">
                   <History className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No chat history</h3>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">{t('noChatHistory')}</h3>
                   <p className="mt-1 text-sm text-gray-500">
-                    Your conversations will appear here.
+                    {t('conversationsWillAppear')}
                   </p>
                 </div>
               ) : (

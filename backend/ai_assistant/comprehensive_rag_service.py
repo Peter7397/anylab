@@ -401,6 +401,11 @@ class ComprehensiveRAGService(AdvancedRAGService):
         if model is None:
             model = self.model_name
         
+        # Validate model is set
+        if not model:
+            logger.error("Ollama model is not set! Please configure OLLAMA_MODEL in settings or via System Settings.")
+            raise ValueError("Ollama model is not configured. Please set a model in System Settings.")
+        
         # Create cache key
         prompt_hash = hashlib.md5(prompt.encode('utf-8')).hexdigest()
         cache_key = f"comprehensive_response_{model}_{query_type}_{prompt_hash}"
@@ -458,8 +463,10 @@ class ComprehensiveRAGService(AdvancedRAGService):
         params = comprehensive_params.get(query_type, comprehensive_params['general'])
         
         try:
+            api_url = f"{self.ollama_url}/api/chat"
+            logger.debug(f"Calling Ollama API: {api_url} with model: {model}")
             response = requests.post(
-                f"{self.ollama_url}/api/chat",
+                api_url,
                 json={
                     "model": model,
                     "messages": [
@@ -474,7 +481,12 @@ class ComprehensiveRAGService(AdvancedRAGService):
                 timeout=480  # Increased timeout for longer responses
             )
             response.raise_for_status()
-            response_text = response.json()["message"]["content"]
+            response_data = response.json()
+            response_text = response_data.get("message", {}).get("content", "")
+            
+            if not response_text:
+                logger.error(f"Empty response from Ollama. Response: {response_data}")
+                raise ValueError("Empty response from Ollama API")
             
             # Cache the comprehensive response
             cache.set(cache_key, response_text, self.comprehensive_cache_ttl)
@@ -482,19 +494,29 @@ class ComprehensiveRAGService(AdvancedRAGService):
             
             return response_text
             
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.error(f"Ollama API endpoint not found (404). URL: {api_url}, Model: {model}. Check if Ollama is running and the URL is correct.")
+                raise ValueError(f"Ollama API endpoint not found. Please check if Ollama is running at {self.ollama_url} and the model '{model}' exists.")
+            else:
+                logger.error(f"HTTP error from Ollama: {e.response.status_code} - {e.response.text}")
+                raise
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Cannot connect to Ollama at {self.ollama_url}. Make sure Ollama is running.")
+            raise ValueError(f"Cannot connect to Ollama at {self.ollama_url}. Please ensure Ollama is running.")
         except Exception as e:
             logger.error(f"Error in comprehensive generation: {e}")
             raise
     
-    def query_with_comprehensive_rag(self, query: str, top_k: int = None, user=None) -> Dict:
-        """Complete comprehensive RAG pipeline for maximum detail"""
+    def query_with_comprehensive_rag(self, query: str, top_k: int = None, user=None, language='en-US') -> Dict:
+        """Complete comprehensive RAG pipeline for maximum detail with language support"""
         if top_k is None:
             top_k = self.comprehensive_top_k
             
         try:
-            # Create cache key
+            # Create cache key (include language)
             query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
-            cache_key = f"comprehensive_rag_{query_hash}_{top_k}"
+            cache_key = f"comprehensive_rag_{query_hash}_{top_k}_{language}"
             
             # Try cache first
             cached_result = cache.get(cache_key)
@@ -506,7 +528,10 @@ class ComprehensiveRAGService(AdvancedRAGService):
             relevant_docs = self.search_for_comprehensive_results(query, top_k)
             
             if not relevant_docs:
-                response = "I don't have enough information in my knowledge base to provide a comprehensive answer to your question. Please try rephrasing your question or check if the relevant documents have been uploaded."
+                if 'zh' in language.lower():
+                    response = "我的知识库中没有足够的信息来全面回答您的问题。请尝试重新表述您的问题，或检查相关文档是否已上传。"
+                else:
+                    response = "I don't have enough information in my knowledge base to provide a comprehensive answer to your question. Please try rephrasing your question or check if the relevant documents have been uploaded."
                 result = {
                     "response": response,
                     "sources": [],

@@ -158,7 +158,7 @@ class HybridSearchEngine:
             # Create view URL for PDF viewer
             view_url = None
             if uploaded_file_id:
-                view_url = f"/api/ai/pdf/{uploaded_file_id}/view/?page={page_number}"
+                view_url = f"/api/ai/documents/pdf/{uploaded_file_id}/view/?page={page_number}"
             
             documents.append({
                 "id": row[0],

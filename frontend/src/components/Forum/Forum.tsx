@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { 
   MessageSquare, 
@@ -57,6 +58,7 @@ interface ForumPost {
 }
 
 const Forum: React.FC = () => {
+  const { t } = useTranslation('forum');
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [categories, setCategories] = useState<ForumCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,7 +124,7 @@ const Forum: React.FC = () => {
         setPosts(data.posts || []);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load posts');
+      setError(err.message || t('failedToLoadPosts'));
       console.error('Failed to load posts:', err);
     } finally {
       setLoading(false);
@@ -156,11 +158,11 @@ const Forum: React.FC = () => {
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return '刚刚';
-    if (minutes < 60) return `${minutes}分钟前`;
-    if (hours < 24) return `${hours}小时前`;
-    if (days < 7) return `${days}天前`;
-    return date.toLocaleDateString('zh-CN');
+    if (minutes < 1) return t('justNow');
+    if (minutes < 60) return t('minutesAgo', { count: minutes });
+    if (hours < 24) return t('hoursAgo', { count: hours });
+    if (days < 7) return t('daysAgo', { count: days });
+    return date.toLocaleDateString();
   };
 
   return (
@@ -169,13 +171,13 @@ const Forum: React.FC = () => {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-3xl font-bold text-gray-900">论坛</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{t('forum')}</h1>
             <Link
               to="/forum/new"
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-5 h-5 mr-2" />
-              发帖
+              {t('createPost')}
             </Link>
           </div>
 
@@ -188,7 +190,7 @@ const Forum: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="搜索帖子..."
+                placeholder={t('searchPosts')}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -196,7 +198,7 @@ const Forum: React.FC = () => {
               onClick={handleSearch}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              搜索
+              {t('search')}
             </button>
           </div>
 
@@ -216,7 +218,7 @@ const Forum: React.FC = () => {
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              全部
+              {t('all')}
             </button>
             {categories.map(cat => (
               <button
@@ -246,7 +248,7 @@ const Forum: React.FC = () => {
               }`}
             >
               <Pin className="w-4 h-4" />
-              置顶
+              {t('pinned')}
             </button>
             <button
               onClick={() => {
@@ -260,7 +262,7 @@ const Forum: React.FC = () => {
               }`}
             >
               <Star className="w-4 h-4" />
-              精华
+              {t('featured')}
             </button>
           </div>
         </div>
@@ -269,7 +271,7 @@ const Forum: React.FC = () => {
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="mt-2 text-gray-600">加载中...</p>
+            <p className="mt-2 text-gray-600">{t('loading')}</p>
           </div>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -278,7 +280,7 @@ const Forum: React.FC = () => {
         ) : posts.length === 0 ? (
           <div className="text-center py-12">
             <MessageSquare className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">暂无帖子</p>
+            <p className="text-gray-600">{t('noPosts')}</p>
           </div>
         ) : (
           <>
@@ -360,7 +362,7 @@ const Forum: React.FC = () => {
                       </div>
                       {post.last_reply_author && (
                         <span className="text-xs text-gray-500">
-                          最后回复: {post.last_reply_author.username} {formatDate(post.last_reply_at!)}
+                          {t('lastReply')}: {post.last_reply_author.username} {formatDate(post.last_reply_at!)}
                         </span>
                       )}
                     </div>
@@ -377,17 +379,17 @@ const Forum: React.FC = () => {
                   disabled={currentPage === 1}
                   className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                 >
-                  上一页
+                  {t('previousPage')}
                 </button>
                 <span className="px-4 py-2 text-gray-700">
-                  第 {currentPage} 页，共 {totalPages} 页
+                  {t('pageOf', { current: currentPage, total: totalPages })}
                 </span>
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
                   className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
                 >
-                  下一页
+                  {t('nextPage')}
                 </button>
               </div>
             )}

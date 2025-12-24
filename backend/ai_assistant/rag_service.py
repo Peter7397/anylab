@@ -8,6 +8,7 @@ from django.db import connection
 from django.conf import settings
 from django.core.cache import cache
 from .models import DocumentFile, UploadedFile, DocumentChunk, QueryHistory
+from .utils.model_settings import get_ollama_model
 import logging
 import json
 
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class EnhancedRAGService:
     def __init__(self, model_name=None):
-        self.model_name = model_name or getattr(settings, 'OLLAMA_MODEL', 'llama3:8b')
+        self.model_name = model_name or get_ollama_model()
         self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
         self.embedding_model = getattr(settings, 'EMBEDDING_MODEL', 'bge-m3')
         # Standardized cache settings across all RAG services
@@ -570,7 +571,7 @@ class EnhancedRAGService:
                 # Create view URL for PDF viewer
                 view_url = None
                 if uploaded_file_id:
-                    view_url = f"/api/ai/pdf/{uploaded_file_id}/view/?page={page_number}"
+                    view_url = f"/api/ai/documents/pdf/{uploaded_file_id}/view/?page={page_number}"
                 
                 formatted_results.append({
                     "id": row[0],
@@ -597,28 +598,43 @@ class EnhancedRAGService:
             logger.error(f"Error in vector search: {e}")
             return []
 
-    def ollama_generate(self, prompt, model=None):
-        """Generate response using Ollama with caching"""
+    def ollama_generate(self, prompt, model=None, language='en-US'):
+        """Generate response using Ollama with caching and language support"""
         if model is None:
             model = self.model_name
+        
+        # Validate model is set
+        if not model:
+            logger.error("Ollama model is not set! Please configure OLLAMA_MODEL in settings or via System Settings.")
+            raise ValueError("Ollama model is not configured. Please set a model in System Settings.")
             
-        # Create cache key for response
+        # Create cache key for response (include language in cache key)
         prompt_hash = hashlib.md5(prompt.encode('utf-8')).hexdigest()
-        cache_key = f"response_{prompt_hash}"
+        cache_key = f"response_{prompt_hash}_{language}"
         
         # Try to get from cache first
         cached_response = cache.get(cache_key)
         if cached_response is not None:
             logger.info(f"Using cached response for prompt hash: {prompt_hash[:8]}...")
             return cached_response
+        
+        # Select system prompt based on language
+        if 'zh' in language.lower():
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
+                                  '你是一个专业的助手。请仅使用提供的上下文回答问题，保持简洁准确。')
+        else:
+            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
+                                  'You are a helpful assistant. Use only the following context to answer the question. Be concise and accurate.')
             
         try:
+            api_url = f"{self.ollama_url}/api/chat"
+            logger.debug(f"Calling Ollama API: {api_url} with model: {model}")
             response = requests.post(
-                f"{self.ollama_url}/api/chat",
+                api_url,
                 json={
                     "model": model,
                     "messages": [
-                        {"role": "system", "content": "You are a helpful assistant. Use only the following context to answer the question. Be concise and accurate."},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
                     ],
                     "stream": False,
@@ -634,21 +650,37 @@ class EnhancedRAGService:
                 timeout=getattr(settings, 'OLLAMA_REQUEST_TIMEOUT', 120)  # Reduced timeout
             )
             response.raise_for_status()
-            response_text = response.json()["message"]["content"]
+            response_data = response.json()
+            response_text = response_data.get("message", {}).get("content", "")
+            
+            if not response_text:
+                logger.error(f"Empty response from Ollama. Response: {response_data}")
+                raise ValueError("Empty response from Ollama API")
             
             # Cache the response
             cache.set(cache_key, response_text, self.response_cache_ttl)
             logger.info(f"Cached response for prompt hash: {prompt_hash[:8]}...")
             
             return response_text
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.error(f"Ollama API endpoint not found (404). URL: {api_url}, Model: {model}. Check if Ollama is running and the URL is correct.")
+                raise ValueError(f"Ollama API endpoint not found. Please check if Ollama is running at {self.ollama_url} and the model '{model}' exists.")
+            else:
+                logger.error(f"HTTP error from Ollama: {e.response.status_code} - {e.response.text}")
+                raise
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Cannot connect to Ollama at {self.ollama_url}. Make sure Ollama is running.")
+            raise ValueError(f"Cannot connect to Ollama at {self.ollama_url}. Please ensure Ollama is running.")
         except Exception as e:
-            logger.error(f"Error generating response: {e}")
+            logger.error(f"Error generating response from Ollama: {e}")
             raise
 
-    def generate_response(self, query, context_documents):
+    def generate_response(self, query, context_documents, language='en-US'):
         """Generate response with proper context handling - optimized for maximum comprehensive answers"""
+        # Language-aware "I don't know" response
         if not context_documents:
-            return "I don't know."
+            return "我不知道。" if 'zh' in language.lower() else "I don't know."
         
         # Build context with reference numbers - use all 10 documents for maximum comprehensive responses
         context_lines = []
@@ -660,29 +692,46 @@ class EnhancedRAGService:
         
         context = "\n\n".join(context_lines)
         
-        # Improved RAG prompt that ensures context-only responses with proper citations
-        prompt = (
-            "You are a helpful assistant.\n"
-            "Answer the user's question ONLY using the provided context below.\n"
-            "Cite all information derived from the context using bracketed reference numbers (e.g., [1], or multiple [1][3]).\n"
-            "If the requested information is not found in the context, respond directly with: \"I don't know.\"\n"
-            "Do not use your internal knowledge base or common sense to answer questions.\n"
-            "Provide comprehensive answers using all relevant information from the context.\n"
-            "If multiple sources contain relevant information, synthesize them into a complete response.\n"
-            "Use as many relevant sources as possible to provide a thorough answer.\n\n"
-            f"Context:\n{context}\n\n"
-            f"Question: {query}\n\n"
-            "Answer:"
-        )
+        # Language-aware RAG prompts
+        if 'zh' in language.lower():
+            # Chinese prompt
+            prompt = (
+                "你是一个专业的助手。\n"
+                "请仅使用以下提供的上下文来回答用户的问题。\n"
+                "引用上下文中的信息时使用方括号引用编号（例如：[1]，或多个 [1][3]）。\n"
+                "如果上下文中没有相关信息，请直接回答：\"我不知道。\"\n"
+                "不要使用你的内部知识库或常识来回答问题。\n"
+                "使用上下文中所有相关信息提供全面的答案。\n"
+                "如果多个来源包含相关信息，请将它们综合成一个完整的回答。\n"
+                "尽可能使用更多相关来源来提供详尽的答案。\n\n"
+                f"上下文：\n{context}\n\n"
+                f"问题：{query}\n\n"
+                "回答："
+            )
+        else:
+            # English prompt
+            prompt = (
+                "You are a helpful assistant.\n"
+                "Answer the user's question ONLY using the provided context below.\n"
+                "Cite all information derived from the context using bracketed reference numbers (e.g., [1], or multiple [1][3]).\n"
+                "If the requested information is not found in the context, respond directly with: \"I don't know.\"\n"
+                "Do not use your internal knowledge base or common sense to answer questions.\n"
+                "Provide comprehensive answers using all relevant information from the context.\n"
+                "If multiple sources contain relevant information, synthesize them into a complete response.\n"
+                "Use as many relevant sources as possible to provide a thorough answer.\n\n"
+                f"Context:\n{context}\n\n"
+                f"Question: {query}\n\n"
+                "Answer:"
+            )
         
-        return self.ollama_generate(prompt)
+        return self.ollama_generate(prompt, language=language)
 
-    def query_with_rag(self, query, top_k=10, user=None):  # Increased from 8 to 10
-        """Main RAG pipeline with caching"""
+    def query_with_rag(self, query, top_k=10, user=None, language='en-US'):  # Increased from 8 to 10
+        """Main RAG pipeline with caching and language support"""
         try:
-            # Create cache key for entire RAG query
+            # Create cache key for entire RAG query (include language)
             query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
-            cache_key = f"rag_query_{query_hash}_{top_k}"
+            cache_key = f"rag_query_{query_hash}_{top_k}_{language}"
             
             # Try to get from cache first
             cached_result = cache.get(cache_key)
@@ -694,15 +743,15 @@ class EnhancedRAGService:
             relevant_docs = self.search_relevant_documents(query, top_k)
             
             if not relevant_docs:
-                response = "I don't know."
+                response = "我不知道。" if 'zh' in language.lower() else "I don't know."
                 result = {
                     "response": response,
                     "sources": [],
                     "query": query
                 }
             else:
-                # Generate response
-                response = self.generate_response(query, relevant_docs)
+                # Generate response with language support
+                response = self.generate_response(query, relevant_docs, language=language)
                 result = {
                     "response": response,
                     "sources": relevant_docs,

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { useTranslation } from 'react-i18next';
 import { Download, FileText, FileSearch, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 // Use worker from public/ to avoid dynamic import issues
 GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
@@ -41,6 +42,7 @@ function multiplyTransforms(m1: number[], m2: number[]): number[] {
 }
 
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, initialPage, initialQuery }) => {
+  const { t } = useTranslation('ai');
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,16 +85,100 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
     
     const run = async () => {
       try {
+        setError(null);
+        setLoading(true);
+        
+        // Convert relative URL to absolute URL if needed
+        let absoluteUrl = url;
+        if (url.startsWith('/')) {
+          const hostname = window.location.hostname;
+          const protocol = window.location.protocol;
+          const port = '8001';
+          
+          // Helper function to check if hostname is an IP address
+          const isIPAddress = (host: string): boolean => {
+            const ipv4Pattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+            const ipv6Pattern = /^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$/;
+            return ipv4Pattern.test(host) || ipv6Pattern.test(host);
+          };
+          
+          if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            absoluteUrl = `${protocol}//localhost:${port}${url}`;
+          } else if (!isIPAddress(hostname)) {
+            // Domain name - use same domain (Nginx will proxy)
+            absoluteUrl = `${protocol}//${hostname}${url}`;
+          } else {
+            // IP address - use same hostname with port
+            absoluteUrl = `${protocol}//${hostname}:${port}${url}`;
+          }
+          
+          console.log('PDF Viewer - URL conversion:', { original: url, absolute: absoluteUrl });
+        }
+        
         const headers: Record<string, string> = {};
         const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
         if (token) headers.Authorization = `Bearer ${token}`;
-        const res = await fetch(url, { headers });
+        
+        console.log('PDF Viewer - Fetching from:', absoluteUrl);
+        const res = await fetch(absoluteUrl, { headers });
+        
+        console.log('PDF Viewer - Response status:', res.status, res.statusText);
+        const contentType = res.headers.get('content-type') || '';
+        console.log('PDF Viewer - Content-Type:', contentType);
+        
+        // Check if response is OK
+        if (!res.ok) {
+          // Clone response to read error message without consuming body
+          const clonedRes = res.clone();
+          const errorContentType = clonedRes.headers.get('content-type');
+          if (errorContentType && errorContentType.includes('application/json')) {
+            const errorData = await clonedRes.json();
+            console.error('PDF Viewer - Error response:', errorData);
+            throw new Error(errorData.error || errorData.message || `HTTP ${res.status}: ${res.statusText}`);
+          } else {
+            const text = await clonedRes.text();
+            console.error('PDF Viewer - Error response (non-JSON):', text.substring(0, 500));
+            throw new Error(`HTTP ${res.status}: ${res.statusText}. ${text.substring(0, 200)}`);
+          }
+        }
+        
+        // Check content type to ensure it's a PDF
+        if (!contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
+          // Might be an error response, clone to read without consuming
+          const clonedRes = res.clone();
+          const text = await clonedRes.text();
+          console.error('PDF Viewer - Non-PDF content received:', text.substring(0, 500));
+          try {
+            const errorData = JSON.parse(text);
+            throw new Error(errorData.error || errorData.message || 'Server returned non-PDF content');
+          } catch {
+            throw new Error(`Expected PDF but received ${contentType}. Response: ${text.substring(0, 200)}`);
+          }
+        }
+        
         const buf = await res.arrayBuffer();
         if (cancelled) return;
+        
+        // Validate PDF structure - check for PDF header
+        const uint8Array = new Uint8Array(buf);
+        const pdfHeader = String.fromCharCode(...uint8Array.slice(0, 4));
+        console.log('PDF Viewer - PDF header check:', pdfHeader, 'Buffer size:', buf.byteLength);
+        
+        if (pdfHeader !== '%PDF') {
+          // Show first 100 bytes for debugging
+          const preview = Array.from(uint8Array.slice(0, 100))
+            .map(b => String.fromCharCode(b))
+            .join('')
+            .replace(/[^\x20-\x7E]/g, '.');
+          console.error('PDF Viewer - Invalid PDF header. First 100 bytes:', preview);
+          throw new Error(`Invalid PDF structure: File does not start with PDF header. Found: "${pdfHeader}"`);
+        }
 
         if (containerRef.current) containerRef.current.innerHTML = '';
 
+        console.log('PDF Viewer - Loading PDF document...');
         const pdf = await getDocument({ data: buf }).promise;
+        console.log('PDF Viewer - PDF loaded successfully. Pages:', pdf.numPages);
         if (cancelled) return;
         setNumPages(pdf.numPages);
 
@@ -199,8 +285,24 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           findInPdf(initialQuery).catch(() => {});
         }
       } catch (e: any) {
-        setError(e?.message || 'Failed to load PDF');
+        console.error('PDF loading error:', e);
+        let errorMessage = t('failedToLoadPdf');
+        
+        if (e?.message) {
+          errorMessage = e.message;
+        } else if (e?.name === 'InvalidPDFException') {
+          errorMessage = 'Invalid PDF structure: The file may be corrupted or not a valid PDF.';
+        } else if (e?.name === 'MissingPDFException') {
+          errorMessage = 'PDF file not found or could not be loaded.';
+        } else if (e?.name === 'UnexpectedResponseException') {
+          errorMessage = 'Unexpected response from server. Please check if the file exists.';
+        } else if (typeof e === 'string') {
+          errorMessage = e;
+        }
+        
+        setError(errorMessage);
         setLoading(false);
+        setLoadingProgress({ current: 0, total: 0 });
       }
     };
     run();
@@ -545,14 +647,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                 findInPdf(searchQuery);
               }
             }}
-            placeholder="Search in document..."
+            placeholder={t('searchInDocument')}
             className="flex-1 px-3 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
           <button
             onClick={() => findInPdf(searchQuery)}
             className="px-3 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 focus:ring-2 focus:ring-primary-500"
           >
-            Search
+            {t('search')}
           </button>
         </div>
         
@@ -560,7 +662,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         {totalMatches > 0 && (
           <div className="flex items-center justify-between mb-2 p-2 bg-primary-50 rounded border border-primary-200">
             <div className="text-sm text-primary-700">
-              Match {currentMatchIndex + 1} of {totalMatches}
+              {t('matchOf', { current: currentMatchIndex + 1, total: totalMatches })}
             </div>
             <div className="flex space-x-1">
               <button
@@ -568,26 +670,26 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                 disabled={totalMatches <= 1}
                 className="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                ← Prev
+                ← {t('prev')}
               </button>
               <button
                 onClick={() => navigateToMatch('next')}
                 disabled={totalMatches <= 1}
                 className="px-2 py-1 text-xs bg-primary-600 text-white rounded hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Next →
+                {t('next')} →
               </button>
             </div>
           </div>
         )}
         {debugMode && (
           <div className="text-xs text-red-600 mb-2 p-2 bg-red-50 border border-red-200 rounded">
-            🔍 Debug mode: Red boxes show text boundaries
+            🔍 {t('debugModeRedBoxes')}
           </div>
         )}
         {searchQuery.trim() && (
           <div className="text-xs text-gray-600 mb-2 flex items-center space-x-2">
-            <span>Searching for: "{searchQuery}"</span>
+            <span>{t('searchingFor', { query: searchQuery })}</span>
             {searching && (
               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary-500"></div>
             )}
@@ -599,18 +701,18 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           {searching ? (
             <div className="text-sm text-gray-500 flex items-center space-x-2">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
-              <span>Searching...</span>
+              <span>{t('searching')}</span>
             </div>
           ) : hits.length === 0 ? (
             searchQuery.trim() ? (
-              <p className="text-sm text-gray-500">No results found for "{searchQuery}"</p>
+              <p className="text-sm text-gray-500">{t('noResultsFoundFor', { query: searchQuery })}</p>
             ) : (
-              <p className="text-sm text-gray-500">Enter a search term to find content</p>
+              <p className="text-sm text-gray-500">{t('enterSearchTerm')}</p>
             )
           ) : (
             <>
               <div className="text-sm font-medium text-gray-700 mb-2">
-                Found {hits.length} result{hits.length !== 1 ? 's' : ''} for "{searchQuery}"
+                {t('foundResultsFor', { count: hits.length, query: searchQuery })}
               </div>
               {hits.map((h, i) => (
                 <button
@@ -618,7 +720,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                   onClick={() => pageRefs.current[h.pageNumber]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                   className="block text-left w-full p-3 border rounded hover:bg-primary-50 hover:border-primary-200 transition-colors"
                 >
-                  <div className="text-xs text-primary-600 font-medium mb-1">Page {h.pageNumber}</div>
+                  <div className="text-xs text-primary-600 font-medium mb-1">{t('page')} {h.pageNumber}</div>
                   <div className="text-sm text-gray-700 leading-relaxed">{h.snippet}</div>
                 </button>
               ))}
@@ -637,7 +739,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           <div className="p-6 text-gray-600">
             <div className="flex items-center space-x-2 mb-4">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
-              <span>Loading document...</span>
+              <span>{t('loadingDocument')}</span>
             </div>
             {loadingProgress.total > 0 && (
               <>
@@ -648,7 +750,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                   ></div>
                 </div>
                 <div className="text-sm text-gray-500 mt-2">
-                  Page {loadingProgress.current} of {loadingProgress.total}
+                  {t('page')} {loadingProgress.current} {t('of')} {loadingProgress.total}
                 </div>
               </>
             )}
@@ -661,7 +763,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           <>
             <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-50">
               <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Zoom:</span>
+                <span className="text-sm text-gray-600">{t('zoom')}:</span>
                 <button
                   onClick={() => setCurrentScale(Math.max(0.5, currentScale - 0.1))}
                   className="px-2 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50"
@@ -681,7 +783,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                   onClick={() => setCurrentScale(scale)}
                   className="px-2 py-1 text-sm bg-primary-600 text-white border border-primary-600 rounded hover:bg-primary-700"
                 >
-                  Fit
+                  {t('fit')}
                 </button>
                 <button
                   onClick={() => setDebugMode(!debugMode)}
@@ -691,23 +793,23 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                       : 'bg-white border-gray-300 hover:bg-gray-50'
                   }`}
                 >
-                  Debug
+                  {t('debug')}
                 </button>
                 <button
                   onClick={() => findInPdf('test')}
                   className="px-2 py-1 text-sm bg-green-500 text-white border border-green-500 rounded hover:bg-green-600"
                 >
-                  Test
+                  {t('test')}
                 </button>
                 <button
                   onClick={testTextExtraction}
                   className="px-2 py-1 text-sm bg-lime-500 text-white border border-purple-500 rounded hover:bg-lime-600"
                 >
-                  Extract
+                  {t('extract')}
                 </button>
               </div>
               <div className="text-sm text-gray-600">
-                Page {numPages > 0 ? `1 of ${numPages}` : ''}
+                {t('page')} {numPages > 0 ? `1 ${t('of')} ${numPages}` : ''}
               </div>
             </div>
             <div className="flex-1 overflow-auto">
@@ -737,6 +839,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
 };
 
 const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
+  const { t } = useTranslation('ai');
   const [html, setHtml] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -764,7 +867,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
         }
       } catch (e: any) {
         if (!cancelled) {
-          setError(e?.message || 'Failed to load DOCX');
+          setError(e?.message || t('failedToLoadDocx'));
           setLoading(false);
         }
       }
@@ -861,7 +964,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
 
   if (loading) return <div className="p-6 text-gray-600 flex items-center space-x-2">
     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
-    <span>Loading Word document...</span>
+    <span>{t('loadingWordDocument')}</span>
   </div>;
 
   if (error) return <div className="p-6 text-red-600">{error}</div>;
@@ -872,7 +975,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
       <div className="flex items-center justify-between p-4 border-b bg-gray-50">
         <div className="flex items-center space-x-4">
           <FileText size={20} className="text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">Word Document</span>
+          <span className="text-sm font-medium text-gray-700">{t('wordDocument')}</span>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -885,11 +988,11 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
                 setSearchQuery(e.target.value);
                 searchInDocument(e.target.value);
               }}
-              placeholder="Search in document..."
+              placeholder={t('searchInDocument')}
               className="px-3 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchResults > 0 && (
-              <span className="text-sm text-primary-600">{searchResults} matches</span>
+              <span className="text-sm text-primary-600">{searchResults} {t('matches')}</span>
             )}
           </div>
           <button
@@ -897,7 +1000,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
             className="flex items-center space-x-1 px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
           >
             <Download size={16} />
-            <span>Download</span>
+            <span>{t('download')}</span>
           </button>
         </div>
       </div>
@@ -911,6 +1014,7 @@ const DocxRenderer: React.FC<{ url: string }> = ({ url }) => {
 };
 
 const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
+  const { t } = useTranslation('ai');
   const [text, setText] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -936,7 +1040,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
         }
       } catch (e: any) {
         if (!cancelled) {
-          setError(e?.message || 'Failed to load text file');
+          setError(e?.message || t('failedToLoadTextFile'));
           setLoading(false);
         }
       }
@@ -995,7 +1099,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
 
   if (loading) return <div className="p-6 text-gray-600 flex items-center space-x-2">
     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
-    <span>Loading text file...</span>
+    <span>{t('loadingTextFile')}</span>
   </div>;
 
   if (error) return <div className="p-6 text-red-600">{error}</div>;
@@ -1006,7 +1110,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
       <div className="flex items-center justify-between p-4 border-b bg-gray-50">
         <div className="flex items-center space-x-4">
           <FileText size={20} className="text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">Text Document</span>
+          <span className="text-sm font-medium text-gray-700">{t('textDocument')}</span>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -1016,11 +1120,11 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search in text..."
+              placeholder={t('searchInText')}
               className="px-3 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchResults > 0 && (
-              <span className="text-sm text-blue-600">{searchResults} matches</span>
+              <span className="text-sm text-blue-600">{searchResults} {t('matches')}</span>
             )}
           </div>
           <button
@@ -1028,7 +1132,7 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
             className="flex items-center space-x-1 px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
           >
             <Download size={16} />
-            <span>Download</span>
+            <span>{t('download')}</span>
           </button>
         </div>
       </div>
@@ -1047,10 +1151,11 @@ const TxtRenderer: React.FC<{ url: string }> = ({ url }) => {
 };
 
 const HtmlRenderer: React.FC<{ url: string }> = ({ url }) => {
+  const { t } = useTranslation('ai');
   const [error, setError] = useState<string | null>(null);
 
   const handleIframeError = () => {
-    setError('Failed to load HTML content');
+    setError(t('failedToLoadHtmlContent'));
   };
 
   const downloadHtml = async () => {
@@ -1076,7 +1181,7 @@ const HtmlRenderer: React.FC<{ url: string }> = ({ url }) => {
           onClick={() => setError(null)}
           className="mt-2 px-4 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
         >
-          Retry
+          {t('retry')}
         </button>
       </div>
     );
@@ -1088,7 +1193,7 @@ const HtmlRenderer: React.FC<{ url: string }> = ({ url }) => {
       <div className="flex items-center justify-between p-4 border-b bg-gray-50">
         <div className="flex items-center space-x-4">
           <FileText size={20} className="text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">HTML Document</span>
+          <span className="text-sm font-medium text-gray-700">{t('htmlDocument')}</span>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -1097,7 +1202,7 @@ const HtmlRenderer: React.FC<{ url: string }> = ({ url }) => {
             className="flex items-center space-x-1 px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
           >
             <Download size={16} />
-            <span>Download</span>
+            <span>{t('download')}</span>
           </button>
         </div>
       </div>
@@ -1118,6 +1223,7 @@ const HtmlRenderer: React.FC<{ url: string }> = ({ url }) => {
 };
 
 const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
+  const { t } = useTranslation('ai');
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [activeSheet, setActiveSheet] = useState<string>('');
   const [sheetData, setSheetData] = useState<any[][]>([]);
@@ -1159,7 +1265,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
         setLoading(false);
       } catch (e: any) {
         if (!cancelled) {
-          setError(e?.message || 'Failed to load Excel file');
+          setError(e?.message || t('failedToLoadExcelFile'));
           setLoading(false);
         }
       }
@@ -1227,7 +1333,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
 
   if (loading) return <div className="p-6 text-gray-600 flex items-center space-x-2">
     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-    <span>Loading Excel file...</span>
+    <span>{t('loadingExcelFile')}</span>
   </div>;
   
   if (error) return <div className="p-6 text-red-600">{error}</div>;
@@ -1239,7 +1345,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
         <div className="flex items-center space-x-4">
           {/* Sheet tabs */}
           <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-gray-700">Sheets:</span>
+            <span className="text-sm font-medium text-gray-700">{t('sheets')}:</span>
             {workbook?.SheetNames.map(sheetName => (
               <button
                 key={sheetName}
@@ -1267,11 +1373,11 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
                 setSearchQuery(e.target.value);
                 searchInSheet(e.target.value);
               }}
-              placeholder="Search in sheet..."
+              placeholder={t('searchInSheet')}
               className="px-3 py-1 text-sm border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchResults.length > 0 && (
-              <span className="text-sm text-primary-600">{searchResults.length} matches</span>
+              <span className="text-sm text-primary-600">{searchResults.length} {t('matches')}</span>
             )}
           </div>
           <button
@@ -1279,7 +1385,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
             className="flex items-center space-x-1 px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600"
           >
             <Download size={16} />
-            <span>Download</span>
+            <span>{t('download')}</span>
           </button>
         </div>
       </div>
@@ -1325,10 +1431,10 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
               {isLoadingMore ? (
                 <div className="flex items-center space-x-2">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  <span>Loading...</span>
+                  <span>{t('loading')}</span>
                 </div>
               ) : (
-                `Load More (${visibleRows} of ${sheetData.length} rows)`
+                t('loadMoreRows', { visible: visibleRows, total: sheetData.length })
               )}
             </button>
           </div>
@@ -1339,6 +1445,7 @@ const XlsRenderer: React.FC<{ url: string }> = ({ url }) => {
 };
 
 const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
+  const { t } = useTranslation('ai');
   const [slides, setSlides] = useState<Array<{title: string, content: string, image?: string}>>([]);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -1362,12 +1469,12 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
         // For now, we'll provide a fallback viewer with download option
         // In a production environment, you might want to convert PPT to PDF or images server-side
         if (!cancelled) {
-          setError('PowerPoint files require conversion for web viewing. Please use the download option below to view the file locally.');
+          setError(t('powerpointRequiresConversion'));
           setLoading(false);
         }
       } catch (e: any) {
         if (!cancelled) {
-          setError(e?.message || 'Failed to load PowerPoint file');
+          setError(e?.message || t('failedToLoadPowerPointFile'));
           setLoading(false);
         }
       }
@@ -1392,7 +1499,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
 
   if (loading) return <div className="p-6 text-gray-600 flex items-center space-x-2">
     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-500"></div>
-    <span>Loading PowerPoint file...</span>
+    <span>{t('loadingPowerPointFile')}</span>
   </div>;
 
   return (
@@ -1401,7 +1508,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
       <div className="flex items-center justify-between p-4 border-b bg-gray-50">
         <div className="flex items-center space-x-4">
           <FileText size={20} className="text-gray-600" />
-          <span className="text-sm font-medium text-gray-700">PowerPoint Presentation</span>
+          <span className="text-sm font-medium text-gray-700">{t('powerPointPresentation')}</span>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -1410,7 +1517,7 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
             className="flex items-center space-x-1 px-3 py-1 text-sm bg-primary-600 text-white rounded hover:bg-primary-700"
           >
             <Download size={16} />
-            <span>Download to View</span>
+            <span>{t('downloadToView')}</span>
           </button>
         </div>
       </div>
@@ -1425,21 +1532,19 @@ const PptRenderer: React.FC<{ url: string }> = ({ url }) => {
             <div className="mb-4">
               <p className="text-red-600 mb-2">{error}</p>
               <p className="text-sm text-gray-600">
-                PowerPoint files cannot be displayed directly in the browser. 
-                Please download the file to view it with Microsoft PowerPoint, 
-                LibreOffice Impress, or Google Slides.
+                {t('powerPointCannotBeDisplayed')}
               </p>
             </div>
           )}
           <div className="space-y-2">
             <p className="text-sm text-gray-600">
-              Supported viewers:
+              {t('supportedViewers')}:
             </p>
             <ul className="text-xs text-gray-500 space-y-1">
-              <li>• Microsoft PowerPoint</li>
-              <li>• LibreOffice Impress</li>
-              <li>• Google Slides (upload required)</li>
-              <li>• Apple Keynote</li>
+              <li>• {t('microsoftPowerPoint')}</li>
+              <li>• {t('libreOfficeImpress')}</li>
+              <li>• {t('googleSlidesUploadRequired')}</li>
+              <li>• {t('appleKeynote')}</li>
             </ul>
           </div>
         </div>

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../../services/api';
 
 const Login: React.FC = () => {
+  const { t } = useTranslation(['auth', 'common']);
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -52,7 +54,7 @@ const Login: React.FC = () => {
       window.location.href = '/dashboard';
     } catch (err: any) {
       console.error('Login - Login failed:', err);
-      const message = err?.message || 'Login failed. Please check your credentials and try again.';
+      const message = err?.message || t('loginFailed');
       setError(message);
       setLoading(false);
     }
@@ -64,8 +66,8 @@ const Login: React.FC = () => {
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900">AnyLab</h1>
           <p className="text-sm text-gray-500">Smart Knowledge, Securely in Your Lab</p>
-          <h2 className="text-xl font-semibold text-gray-900 mt-4">Sign in</h2>
-          <p className="text-sm text-gray-500 mt-1">Enter your credentials to continue</p>
+          <h2 className="text-xl font-semibold text-gray-900 mt-4">{t('signIn')}</h2>
+          <p className="text-sm text-gray-500 mt-1">{t('enterCredentials')}</p>
         </div>
 
         {error && (
@@ -77,7 +79,7 @@ const Login: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-              Username
+              {t('username')}
             </label>
             <input
               id="username"
@@ -93,7 +95,7 @@ const Login: React.FC = () => {
 
           <div>
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
+              {t('password')}
             </label>
             <input
               id="password"
@@ -112,7 +114,7 @@ const Login: React.FC = () => {
             disabled={loading}
             className={`w-full inline-flex justify-center items-center rounded-md bg-primary-600 px-4 py-2 text-white font-medium shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? t('loggingIn') : t('signIn')}
           </button>
         </form>
 
@@ -120,9 +122,9 @@ const Login: React.FC = () => {
           <button
             type="button"
             className="text-sm text-primary-600 hover:text-primary-700"
-            onClick={() => alert('Please contact your administrator to reset your password.')}
+            onClick={() => alert(t('contactAdminForPasswordReset'))}
           >
-            Forgot your password?
+            {t('forgotPassword')}
           </button>
         </div>
       </div>

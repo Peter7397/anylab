@@ -17,10 +17,12 @@ import {
   Tag,
   GitBranch
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { System } from '../../types';
 import { apiClient } from '../../services/api';
 
 const Dashboard: React.FC = () => {
+  const { t } = useTranslation(['dashboard', 'common']);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -69,15 +71,15 @@ const Dashboard: React.FC = () => {
 
   // Use real stats if available, otherwise use mock
   const dashboardStats = stats ? [
-    { name: 'Total Documents', value: stats.documents?.total || '0', icon: FileText, change: `+${stats.documents?.today || 0}`, changeType: stats.documents?.today > 0 ? 'positive' : 'neutral' },
-    { name: 'Chunks Indexed', value: stats.chunks?.total || '0', icon: Database, change: `${stats.chunks?.with_embeddings || 0} embedded`, changeType: stats.chunks?.pending === 0 ? 'positive' : 'neutral' },
-    { name: 'RAG Queries Today', value: stats.rag_queries?.today || '0', icon: Search, change: `${stats.rag_queries?.total || 0} total`, changeType: stats.rag_queries?.today > 0 ? 'positive' : 'neutral' },
-    { name: 'Processing Queue', value: (stats.processing_queue?.pending || 0) + (stats.processing_queue?.processing || 0), icon: Loader, change: stats.processing_queue?.failed ? `-${stats.processing_queue.failed} failed` : 'All clear', changeType: stats.processing_queue?.failed > 0 ? 'negative' : 'positive' },
+    { name: t('totalDocuments'), value: stats.documents?.total || '0', icon: FileText, change: `+${stats.documents?.today || 0}`, changeType: stats.documents?.today > 0 ? 'positive' : 'neutral' },
+    { name: t('chunksIndexed'), value: stats.chunks?.total || '0', icon: Database, change: `${stats.chunks?.with_embeddings || 0} ${t('embedded')}`, changeType: stats.chunks?.pending === 0 ? 'positive' : 'neutral' },
+    { name: t('ragQueriesToday'), value: stats.rag_queries?.today || '0', icon: Search, change: `${stats.rag_queries?.total || 0} ${t('total')}`, changeType: stats.rag_queries?.today > 0 ? 'positive' : 'neutral' },
+    { name: t('processingQueue'), value: (stats.processing_queue?.pending || 0) + (stats.processing_queue?.processing || 0), icon: Loader, change: stats.processing_queue?.failed ? `-${stats.processing_queue.failed} ${t('failed')}` : t('allClear'), changeType: stats.processing_queue?.failed > 0 ? 'negative' : 'positive' },
   ] : [
-    { name: 'Total PCs', value: '24', icon: Monitor, change: '+2', changeType: 'positive' },
-    { name: 'Issues Detected', value: '3', icon: AlertTriangle, change: '-1', changeType: 'negative' },
-    { name: 'Systems Online', value: '21', icon: CheckCircle, change: '+1', changeType: 'positive' },
-    { name: 'Pending Maintenance', value: '5', icon: Clock, change: '+2', changeType: 'neutral' },
+    { name: t('totalPcs'), value: '24', icon: Monitor, change: '+2', changeType: 'positive' },
+    { name: t('issuesDetected'), value: '3', icon: AlertTriangle, change: '-1', changeType: 'negative' },
+    { name: t('systemsOnline'), value: '21', icon: CheckCircle, change: '+1', changeType: 'positive' },
+    { name: t('pendingMaintenance'), value: '5', icon: Clock, change: '+2', changeType: 'neutral' },
   ];
 
 
@@ -95,16 +97,16 @@ const Dashboard: React.FC = () => {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">System overview and quick insights</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('title')}</h1>
+          <p className="text-gray-600">{t('subtitle')}</p>
         </div>
         <div className="flex space-x-3 items-center">
           <button onClick={loadDashboardData} className="btn-secondary">
             <RefreshCw size={16} className="mr-2" />
-            Refresh
+            {t('refresh')}
           </button>
           <span className="text-xs text-gray-500">
-            Updated: {lastUpdate.toLocaleTimeString()}
+            {t('lastUpdate')}: {lastUpdate.toLocaleTimeString()}
           </span>
         </div>
       </div>
@@ -144,8 +146,8 @@ const Dashboard: React.FC = () => {
                 <Network className="text-green-600" size={24} />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">GraphRAG Knowledge Graph</h2>
-                <p className="text-sm text-gray-600">Entity embeddings & semantic search</p>
+                <h2 className="text-lg font-semibold text-gray-900">{t('graphragKnowledgeGraph')}</h2>
+                <p className="text-sm text-gray-600">{t('entityEmbeddingsSemanticSearch')}</p>
               </div>
             </div>
           </div>
@@ -161,7 +163,7 @@ const Dashboard: React.FC = () => {
                 </span>
               </div>
               <p className="text-2xl font-bold text-gray-900">{stats.graphrag.entities.with_embeddings}</p>
-              <p className="text-sm text-gray-600">Entity Embeddings</p>
+              <p className="text-sm text-gray-600">{t('entityEmbeddings')}</p>
               <div className="mt-2 bg-gray-200 rounded-full h-2">
                 <div 
                   className="bg-gradient-to-r from-lime-500 to-emerald-500 h-2 rounded-full transition-all duration-500"
@@ -174,9 +176,9 @@ const Dashboard: React.FC = () => {
             <div className="bg-white rounded-lg p-4 border border-green-200">
               <Tag className="text-primary-600 mb-2" size={20} />
               <p className="text-2xl font-bold text-gray-900">{stats.graphrag.entities.total}</p>
-              <p className="text-sm text-gray-600">Total Entities</p>
+              <p className="text-sm text-gray-600">{t('totalEntities')}</p>
               <p className="text-xs text-gray-500 mt-1">
-                {stats.graphrag.entities.without_embeddings} pending
+                {stats.graphrag.entities.without_embeddings} {t('pending')}
               </p>
             </div>
 
@@ -184,9 +186,9 @@ const Dashboard: React.FC = () => {
             <div className="bg-white rounded-lg p-4 border border-green-200">
               <GitBranch className="text-green-600 mb-2" size={20} />
               <p className="text-2xl font-bold text-gray-900">{stats.graphrag.graph.total_nodes}</p>
-              <p className="text-sm text-gray-600">Graph Nodes</p>
+              <p className="text-sm text-gray-600">{t('graphNodes')}</p>
               <p className="text-xs text-gray-500 mt-1">
-                {stats.graphrag.graph.documents_in_graph} documents
+                {stats.graphrag.graph.documents_in_graph} {t('documents')}
               </p>
             </div>
 
@@ -194,9 +196,9 @@ const Dashboard: React.FC = () => {
             <div className="bg-white rounded-lg p-4 border border-green-200">
               <Network className="text-teal-600 mb-2" size={20} />
               <p className="text-2xl font-bold text-gray-900">{stats.graphrag.queries.today}</p>
-              <p className="text-sm text-gray-600">Queries Today</p>
+              <p className="text-sm text-gray-600">{t('ragQueriesToday')}</p>
               <p className="text-xs text-gray-500 mt-1">
-                {stats.graphrag.queries.total} total
+                {stats.graphrag.queries.total} {t('total')}
               </p>
             </div>
           </div>
@@ -206,7 +208,7 @@ const Dashboard: React.FC = () => {
             <div className="bg-white rounded-lg p-4 border border-green-200">
               <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
                 <Search className="mr-2 text-green-600" size={16} />
-                Recent GraphRAG Queries
+                {t('recentGraphragQueries')}
               </h3>
               <div className="space-y-2">
                 {stats.graphrag.recent_queries.map((query: any) => (

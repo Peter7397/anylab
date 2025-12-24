@@ -1,8 +1,10 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { FolderOpen } from 'lucide-react';
 import DocumentManager from './DocumentManager';
 
 const DocumentManagerPage: React.FC = () => {
+  const { t } = useTranslation('documents');
   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
@@ -13,8 +15,8 @@ const DocumentManagerPage: React.FC = () => {
               <FolderOpen className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-gray-900">Library Manager</h1>
-              <p className="text-sm text-gray-500">Upload, organize, and manage your knowledge base documents</p>
+              <h1 className="text-xl font-semibold text-gray-900">{t('libraryManager')}</h1>
+              <p className="text-sm text-gray-500">{t('uploadOrganizeAndManageKnowledgeBaseDocuments')}</p>
             </div>
           </div>
         </div>

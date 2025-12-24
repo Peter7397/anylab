@@ -133,7 +133,7 @@ class AutomaticFileProcessor:
                 # Step 5: Build GraphRAG (entity extraction and graph construction)
                 try:
                     logger.info(f"Building GraphRAG for {uploaded_file.filename}")
-                    from .services.graph_builder import GraphBuilder
+                    from .service_classes.graph_builder import GraphBuilder
                     graph_builder = GraphBuilder()
                     
                     # Get chunks from database (they were just created)

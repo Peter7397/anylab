@@ -121,6 +121,7 @@ C. AI Assistant (RAG)
 	- Conversational assistant (like ChatGPT).
 	- Filter responses by document source.
 	- Display references/citations in answers.
+	- Chat and analytics history scoped per user by default; administrators can access global summaries via dedicated endpoints.
 - Integrated Log Troubleshooting:
 	- Combine logs + RAG knowledge for contextual AI diagnosis.
 ---
@@ -313,6 +314,15 @@ volumes:
   - RAG Upload (disabled placeholder): `POST /api/ai/rag/upload/`
   - RAG Chat (disabled placeholder): `POST /api/ai/rag/chat/`
   - RAG Info (disabled placeholder): `GET /api/ai/rag/info/`
+  - Unified chat history: 
+    - `GET /api/ai/chat/history/` — returns chat history for the authenticated user (supports `limit`, `channel`, `thread_id` filters; max 500 results).
+    - `POST /api/ai/chat/message/` — records a chat message for the authenticated user.
+  - Dashboard statistics:
+    - `GET /api/ai/dashboard/stats/` — per-user dashboard view scoped to the requesting user’s activity.
+    - `GET /api/ai/dashboard/stats/global/` — admin-only global dashboard metrics (requires `is_staff`).
+  - Analytics:
+    - `GET /api/ai/analytics/performance/` — performance analytics scoped to the authenticated user.
+    - `GET /api/ai/analytics/performance/global/` — admin-only global performance analytics (requires `is_staff`).
 - PDF Management (under AI):
   - `GET /api/ai/pdfs/`
   - `POST /api/ai/pdfs/upload/` (multipart: title, file, description)

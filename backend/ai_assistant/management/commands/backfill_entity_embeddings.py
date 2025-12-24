@@ -6,7 +6,7 @@ enabling semantic similarity search for GraphRAG.
 """
 
 from django.core.management.base import BaseCommand
-from ai_assistant.services.neo4j_service import get_neo4j_service
+from ai_assistant.service_classes.neo4j_service import get_neo4j_service
 from ai_assistant.rag_service import EnhancedRAGService
 import logging
 

@@ -11,6 +11,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.utils.translation import gettext as _
 from .models import Role, UserRole
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
@@ -33,7 +34,7 @@ def login_view(request):
             next_url = request.GET.get('next', '/')
             return redirect(next_url)
         else:
-            messages.error(request, 'Invalid username or password.')
+            messages.error(request, _('Invalid username or password.'))
     
     return render(request, 'users/login.html')
 
@@ -60,7 +61,7 @@ def api_login(request):
         
         if not username or not password:
             return Response({
-                'error': 'Username and password are required'
+                'error': _('Username and password are required')
             }, status=status.HTTP_400_BAD_REQUEST)
         
         user = authenticate(username=username, password=password)
@@ -70,7 +71,7 @@ def api_login(request):
             refresh = RefreshToken.for_user(user)
             
             return Response({
-                'message': 'Login successful',
+                'message': _('Login successful'),
                 'user': {
                     'id': user.id,
                     'username': user.username,
@@ -84,12 +85,12 @@ def api_login(request):
             }, status=status.HTTP_200_OK)
         else:
             return Response({
-                'error': 'Invalid credentials'
+                'error': _('Invalid credentials')
             }, status=status.HTTP_401_UNAUTHORIZED)
             
     except json.JSONDecodeError:
         return Response({
-            'error': 'Invalid JSON data'
+            'error': _('Invalid JSON data')
         }, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
@@ -98,7 +99,7 @@ def api_logout(request):
     """API-based logout view"""
     logout(request)
     return Response({
-        'message': 'Logout successful'
+        'message': _('Logout successful')
     }, status=status.HTTP_200_OK)
 
 @api_view(['GET', 'PUT'])
@@ -143,7 +144,7 @@ def user_profile(request):
                 'date_joined': request.user.date_joined,
             }
         })
-    return Response({'error': 'Validation error', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'error': _('Validation error'), 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])
@@ -158,7 +159,7 @@ def my_permissions(request):
 def user_list(request):
     """List users (GET) or create a new user (POST) - staff only"""
     if not request.user.is_staff:
-        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'error': _('Permission denied')}, status=status.HTTP_403_FORBIDDEN)
 
     if request.method == 'GET':
         users = User.objects.all()
@@ -170,7 +171,7 @@ def user_list(request):
     if serializer.is_valid():
         user = serializer.save()
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
-    return Response({'error': 'Validation error', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    return Response({'error': _('Validation error'), 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET', 'PUT', 'DELETE'])
@@ -178,12 +179,12 @@ def user_list(request):
 def user_detail(request, user_id):
     """Retrieve, update, or delete a user - staff only"""
     if not request.user.is_staff:
-        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'error': _('Permission denied')}, status=status.HTTP_403_FORBIDDEN)
 
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': _('User not found')}, status=status.HTTP_404_NOT_FOUND)
 
     if request.method == 'GET':
         return Response(UserSerializer(user).data)
@@ -193,11 +194,11 @@ def user_detail(request, user_id):
         if serializer.is_valid():
             serializer.save()
             return Response(UserSerializer(user).data)
-        return Response({'error': 'Validation error', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': _('Validation error'), 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
     # DELETE
     user.delete()
-    return Response({'message': 'User deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+    return Response({'message': _('User deleted successfully')}, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['POST'])
@@ -205,21 +206,21 @@ def user_detail(request, user_id):
 def user_reset_password(request, user_id):
     """Reset a user's password - staff only"""
     if not request.user.is_staff:
-        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        return Response({'error': _('Permission denied')}, status=status.HTTP_403_FORBIDDEN)
 
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': _('User not found')}, status=status.HTTP_404_NOT_FOUND)
 
     new_password = request.data.get('password') or request.data.get('new_password')
     if not new_password or len(new_password) < 4:
-        return Response({'error': 'Password must be at least 4 characters'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': _('Password must be at least 4 characters')}, status=status.HTTP_400_BAD_REQUEST)
 
     user.set_password(new_password)
     user.save()
 
-    return Response({'message': 'Password reset successfully'}, status=status.HTTP_200_OK)
+    return Response({'message': _('Password reset successfully')}, status=status.HTTP_200_OK)
 
 
 # ============= Role Management Endpoints =============
@@ -248,7 +249,7 @@ def role_detail(request, role_id):
     try:
         role = Role.objects.get(id=role_id)
     except Role.DoesNotExist:
-        return Response({'error': 'Role not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': _('Role not found')}, status=status.HTTP_404_NOT_FOUND)
     
     if request.method == 'GET':
         serializer = RoleSerializer(role)
@@ -263,7 +264,7 @@ def role_detail(request, role_id):
     
     elif request.method == 'DELETE':
         role.delete()
-        return Response({'message': 'Role deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'message': _('Role deleted successfully')}, status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(['POST'])
@@ -275,16 +276,16 @@ def assign_role(request):
     
     if not user_id or not role_id:
         return Response({
-            'error': 'user_id and role_id are required'
+            'error': _('user_id and role_id are required')
         }, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         user = User.objects.get(id=user_id)
         role = Role.objects.get(id=role_id)
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': _('User not found')}, status=status.HTTP_404_NOT_FOUND)
     except Role.DoesNotExist:
-        return Response({'error': 'Role not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': _('Role not found')}, status=status.HTTP_404_NOT_FOUND)
     
     # Check if role is already assigned
     user_role, created = UserRole.objects.get_or_create(
@@ -310,16 +311,16 @@ def remove_role(request):
     
     if not user_id or not role_id:
         return Response({
-            'error': 'user_id and role_id are required'
+            'error': _('user_id and role_id are required')
         }, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         user_role = UserRole.objects.get(user_id=user_id, role_id=role_id)
         user_role.is_active = False
         user_role.save()
-        return Response({'message': 'Role removed successfully'}, status=status.HTTP_200_OK)
+        return Response({'message': _('Role removed successfully')}, status=status.HTTP_200_OK)
     except UserRole.DoesNotExist:
-        return Response({'error': 'User role not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': _('User role not found')}, status=status.HTTP_404_NOT_FOUND)
 
 
 @api_view(['GET'])
@@ -329,7 +330,7 @@ def user_roles(request, user_id):
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response({'error': _('User not found')}, status=status.HTTP_404_NOT_FOUND)
     
     user_roles = UserRole.objects.filter(user=user, is_active=True)
     serializer = UserRoleSerializer(user_roles, many=True)

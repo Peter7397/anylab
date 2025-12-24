@@ -34,12 +34,12 @@ from ..rag_service import EnhancedRAGService
 from ..improved_rag_service import enhanced_rag_service
 from ..advanced_rag_service import advanced_rag_service
 from ..comprehensive_rag_service import comprehensive_rag_service
-from ..services.graph_rag_service import graph_rag_service
+from ..service_classes.graph_rag_service import graph_rag_service
 from ..serializers import (
     PDFDocumentSerializer, WebLinkSerializer, 
     KnowledgeShareSerializer, QueryHistorySerializer, DocumentSerializer
 )
-from ..services.rag_service import RAGService
+from ..service_classes.rag_service import RAGService
 from .base_views import (
     BaseViewMixin, success_response, error_response, bad_request_response,
     internal_error_response, unauthorized_response
@@ -63,6 +63,11 @@ def chat_with_ollama(request):
         if not prompt:
             return bad_request_response('Prompt is required')
 
+        # Get language preference from Accept-Language header
+        accept_language = request.META.get('HTTP_ACCEPT_LANGUAGE', 'en-US')
+        # Extract primary language (e.g., 'zh-CN' or 'en-US')
+        language = accept_language.split(',')[0].strip() if accept_language else 'en-US'
+
         # Get generation parameters
         generation_params = {
             'max_tokens': request.data.get('max_tokens'),
@@ -70,7 +75,8 @@ def chat_with_ollama(request):
             'top_p': request.data.get('top_p'),
             'top_k': request.data.get('top_k'),
             'repeat_penalty': request.data.get('repeat_penalty'),
-            'num_ctx': request.data.get('num_ctx')
+            'num_ctx': request.data.get('num_ctx'),
+            'language': language  # Pass language to service
         }
         
         # Use service layer
@@ -97,12 +103,16 @@ def rag_search(request):
         if not query:
             return bad_request_response('Query is required')
         
+        # Get language preference from Accept-Language header
+        accept_language = request.META.get('HTTP_ACCEPT_LANGUAGE', 'en-US')
+        language = accept_language.split(',')[0].strip() if accept_language else 'en-US'
+        
         # Get search parameters
         top_k = int(request.data.get('top_k', 0)) or None
         search_mode = request.data.get('search_mode', 'comprehensive')
         
-        # Use service layer
-        result = rag_service.rag_search(query, request.user, search_mode, top_k)
+        # Use service layer with language parameter
+        result = rag_service.rag_search(query, request.user, search_mode, top_k, language=language)
         
         if result['success']:
             BaseViewMixin.log_response(result['data'], 'rag_search')
@@ -125,10 +135,14 @@ def advanced_rag_search(request):
         if not query:
             return bad_request_response('Query is required')
         
+        # Get language preference from Accept-Language header
+        accept_language = request.META.get('HTTP_ACCEPT_LANGUAGE', 'en-US')
+        language = accept_language.split(',')[0].strip() if accept_language else 'en-US'
+        
         top_k = int(request.data.get('top_k', 8))
         search_mode = request.data.get('search_mode', 'hybrid')
         
-        result = advanced_rag_service.query_with_advanced_rag(query, top_k=top_k, user=request.user)
+        result = advanced_rag_service.query_with_advanced_rag(query, top_k=top_k, user=request.user, language=language)
         
         BaseViewMixin.log_response(result, 'advanced_rag_search')
         return success_response("Advanced RAG search completed successfully", result)
@@ -148,10 +162,14 @@ def comprehensive_rag_search(request):
         if not query:
             return bad_request_response('Query is required')
         
+        # Get language preference from Accept-Language header
+        accept_language = request.META.get('HTTP_ACCEPT_LANGUAGE', 'en-US')
+        language = accept_language.split(',')[0].strip() if accept_language else 'en-US'
+        
         top_k = int(request.data.get('top_k', 10))
         include_stats = request.data.get('include_stats', False)
         
-        result = comprehensive_rag_service.query_with_comprehensive_rag(query, top_k=top_k, user=request.user)
+        result = comprehensive_rag_service.query_with_comprehensive_rag(query, top_k=top_k, user=request.user, language=language)
         
         BaseViewMixin.log_response(result, 'comprehensive_rag_search')
         return success_response("Comprehensive RAG search completed successfully", result)
@@ -611,21 +629,39 @@ def document_search(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def pdf_view(request, file_id):
-    """View PDF document"""
+    """View PDF document - serves the actual PDF file"""
     try:
         BaseViewMixin.log_request(request, 'pdf_view')
         
         uploaded_file = UploadedFile.objects.get(id=file_id)
         
-        file_info = {
-            'id': uploaded_file.id,
-            'filename': uploaded_file.filename,
-            'page_count': uploaded_file.page_count,
-            'file_size': uploaded_file.file_size,
-            'uploaded_at': uploaded_file.uploaded_at
-        }
+        # Find the associated DocumentFile that has the actual file
+        from ai_assistant.models import DocumentFile
+        document_file = DocumentFile.objects.filter(uploaded_file=uploaded_file).first()
         
-        return success_response("PDF information retrieved", file_info)
+        if document_file and document_file.file:
+            # Serve the PDF file
+            from django.http import FileResponse
+            import os
+            file_path = document_file.file.path
+            if os.path.exists(file_path):
+                response = FileResponse(open(file_path, 'rb'), content_type='application/pdf')
+                response['Content-Disposition'] = f'inline; filename="{uploaded_file.filename.split("/")[-1]}"'
+                return response
+            else:
+                return error_response("File not found on disk")
+        else:
+            # Fallback: try to construct path from uploaded_file.filename
+            import os
+            from django.conf import settings
+            file_path = os.path.join(settings.MEDIA_ROOT, uploaded_file.filename)
+            if os.path.exists(file_path):
+                from django.http import FileResponse
+                response = FileResponse(open(file_path, 'rb'), content_type='application/pdf')
+                response['Content-Disposition'] = f'inline; filename="{uploaded_file.filename.split("/")[-1]}"'
+                return response
+            else:
+                return error_response(f"File not found: {uploaded_file.filename}")
         
     except UploadedFile.DoesNotExist:
         return error_response("File not found")

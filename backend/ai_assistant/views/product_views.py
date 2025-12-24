@@ -76,7 +76,7 @@ def get_product_documents(request, product_category):
                     'document_type': doc.document_type,
                     'metadata': metadata,
                     'download_url': f"/api/ai/documents/{doc.id}/download/",
-                    'view_url': f"/api/ai/pdf/{doc.id}/view/?page=1" if doc.document_type == 'pdf' else None
+                    'view_url': f"/api/ai/documents/pdf/{doc.id}/view/?page=1" if doc.document_type == 'pdf' else None
                 })
                 
             except json.JSONDecodeError:

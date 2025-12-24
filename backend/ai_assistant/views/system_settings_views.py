@@ -8,17 +8,32 @@ import logging
 import json
 import redis
 import requests
+import importlib.util
 
 from django.conf import settings as dj_settings
 from django.utils import timezone
+from django.core.cache import cache
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
+from ..utils.model_settings import get_ollama_model, get_model_for_ai_mode, set_ollama_model, get_current_ai_mode, AI_MODE_MODELS, DYNAMIC_SETTINGS_CACHE_KEY, DYNAMIC_SETTINGS_CACHE_TTL
 
 logger = logging.getLogger(__name__)
 
 
+def _get_dynamic_settings():
+    """Get dynamic settings from cache, with fallback to defaults."""
+    cached = cache.get(DYNAMIC_SETTINGS_CACHE_KEY)
+    if cached:
+        return cached
+    return {
+        'ollama_model': get_ollama_model(),
+        'ai_mode': None,  # Will be inferred from model if not set
+    }
+
+
 def _get_settings_snapshot():
+    dynamic_settings = _get_dynamic_settings()
     return {
         'app': {
             'debug': getattr(dj_settings, 'DEBUG', False),
@@ -44,7 +59,12 @@ def _get_settings_snapshot():
         },
         'rag': {
             'ollama_url': getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434'),
-            'model': getattr(dj_settings, 'OLLAMA_MODEL', 'llama3:8b'),
+            'model': get_ollama_model(),
+            'ai_mode': get_current_ai_mode(),
+            'recommended_models': {
+                'performance': AI_MODE_MODELS['performance'],
+                'lightweight': AI_MODE_MODELS['lightweight'],
+            },
             'request_timeout': getattr(dj_settings, 'OLLAMA_REQUEST_TIMEOUT', 120),
             'num_ctx': getattr(dj_settings, 'OLLAMA_NUM_CTX', 1024),
             'max_tokens': getattr(dj_settings, 'OLLAMA_DEFAULT_MAX_TOKENS', 256),
@@ -72,8 +92,104 @@ def _get_settings_snapshot():
 @api_view(['GET'])
 @permission_classes([IsAdminUser])
 def get_settings(request):
-    """Return consolidated system settings (read-only for now)."""
+    """Return consolidated system settings."""
     return Response(_get_settings_snapshot())
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminUser])
+def get_available_models(request):
+    """Get list of available Ollama models."""
+    try:
+        ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        r = requests.get(f"{ollama_url}/api/tags", timeout=5)
+        if r.status_code == 200:
+            models_data = r.json().get('models', [])
+            available_models = [tag.get('name', '') for tag in models_data if tag.get('name')]
+            return Response({
+                'success': True,
+                'models': available_models
+            })
+        else:
+            return Response({
+                'success': False,
+                'error': f'Ollama API returned status {r.status_code}',
+                'models': []
+            }, status=400)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching Ollama models: {e}")
+        return Response({
+            'success': False,
+            'error': f'Could not connect to Ollama at {ollama_url}. Make sure Ollama is running.',
+            'models': []
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error fetching Ollama models: {e}")
+        return Response({
+            'success': False,
+            'error': str(e),
+            'models': []
+        }, status=500)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([IsAdminUser])
+def update_settings(request):
+    """Update system settings (currently supports Ollama model only)."""
+    try:
+        dynamic_settings = _get_dynamic_settings()
+        
+            # Update Ollama model if provided
+        if 'rag' in request.data and 'model' in request.data['rag']:
+            new_model = request.data['rag']['model'].strip()
+            if not new_model:
+                return Response({'error': 'Model name cannot be empty'}, status=400)
+            
+            # Validate model exists in Ollama (optional check)
+            ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+            try:
+                r = requests.get(f"{ollama_url}/api/tags", timeout=5)
+                if r.status_code == 200:
+                    models_data = r.json().get('models', [])
+                    available_models = [tag.get('name', '') for tag in models_data]
+                    if new_model not in available_models:
+                        # Check for similar model names (e.g., qwen2:2b vs qwen2.5:2b)
+                        similar_models = [m for m in available_models if new_model.split(':')[0] in m or m.split(':')[0] in new_model]
+                        if similar_models:
+                            logger.warning(f"Model {new_model} not found, but similar models available: {similar_models}")
+                            return Response({
+                                'error': f'Model "{new_model}" not found in Ollama. Available similar models: {", ".join(similar_models)}. Please use one of these model names.',
+                                'available_models': available_models,
+                                'similar_models': similar_models
+                            }, status=400)
+                        else:
+                            logger.warning(f"Model {new_model} not found in Ollama. Available: {available_models}")
+                            return Response({
+                                'error': f'Model "{new_model}" not found in Ollama. Available models: {", ".join(available_models[:10])}',
+                                'available_models': available_models
+                            }, status=400)
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Could not validate model with Ollama (connection error): {e}")
+                # Don't block the update if we can't connect - just warn
+            except Exception as e:
+                logger.warning(f"Could not validate model with Ollama: {e}")
+            
+            # Update cache using utility function (preserve AI mode if set)
+            current_mode = get_current_ai_mode()
+            set_ollama_model(new_model, ai_mode=current_mode if current_mode else None)
+            
+            logger.info(f"Ollama model updated to: {new_model} by user {request.user.username}")
+            
+            return Response({
+                'success': True,
+                'message': f'Ollama model updated to {new_model}',
+                'settings': _get_settings_snapshot()
+            })
+        
+        return Response({'error': 'No valid settings to update'}, status=400)
+    except Exception as e:
+        logger.error(f"Error updating settings: {e}")
+        return Response({'error': str(e)}, status=500)
 
 
 @api_view(['POST'])
@@ -115,7 +231,7 @@ def test_connection(request):
         
         # Check Neo4j
         try:
-            from ai_assistant.services.neo4j_service import get_neo4j_service
+            from ai_assistant.service_classes.neo4j_service import get_neo4j_service
             neo4j = get_neo4j_service()
             if neo4j.test_connection():
                 stats = neo4j.get_graph_stats()
@@ -163,7 +279,12 @@ def test_connection(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def switch_ai_mode(request):
-    """Switch AI mode (performance/lightweight) for the current user."""
+    """Switch AI mode (performance/lightweight) for the current user.
+    
+    This updates both:
+    1. Embedding service mode (for vector embeddings)
+    2. Ollama model (for RAG query generation)
+    """
     try:
         mode = request.data.get('mode')
         if mode not in ['performance', 'lightweight']:
@@ -174,22 +295,67 @@ def switch_ai_mode(request):
         
         # Update the global embedding service mode
         from ai_assistant.services import embedding_service
-        success = embedding_service.switch_mode(mode)
+        embedding_success = embedding_service.switch_mode(mode)
         
-        if success:
-            # Store user preference (you can extend this to save to user profile)
-            # For now, we'll just update the service
-            logger.info(f"User {request.user.username} switched to {mode} mode")
+        # Update Ollama model based on AI mode
+        recommended_model = get_model_for_ai_mode(mode)
+        
+        # Validate the recommended model exists in Ollama
+        ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        try:
+            r = requests.get(f"{ollama_url}/api/tags", timeout=5)
+            if r.status_code == 200:
+                models_data = r.json().get('models', [])
+                available_models = [tag.get('name', '') for tag in models_data]
+                
+                if recommended_model not in available_models:
+                    # Try to find a similar model
+                    model_family = recommended_model.split(':')[0]  # e.g., 'qwen2.5' or 'qwen2'
+                    similar_models = [m for m in available_models if model_family in m or m.split(':')[0] in model_family]
+                    
+                    if similar_models:
+                        # Use the first similar model found (prefer smaller for lightweight, larger for performance)
+                        if mode == 'lightweight':
+                            # Prefer smaller models (1.5b, 2b, etc.)
+                            lightweight_models = [m for m in similar_models if any(size in m for size in ['1.5b', '2b', '3b'])]
+                            if lightweight_models:
+                                recommended_model = lightweight_models[0]
+                            else:
+                                recommended_model = similar_models[0]
+                        else:
+                            # Prefer larger models (7b, 8b, etc.)
+                            performance_models = [m for m in similar_models if any(size in m for size in ['7b', '8b', '13b'])]
+                            if performance_models:
+                                recommended_model = performance_models[0]
+                            else:
+                                recommended_model = similar_models[0]
+                        
+                        logger.info(f"Model {get_model_for_ai_mode(mode)} not found, using similar model: {recommended_model}")
+                    else:
+                        logger.warning(f"Recommended model {recommended_model} not found and no similar models available. Available: {available_models}")
+        except Exception as e:
+            logger.warning(f"Could not validate model with Ollama: {e}. Proceeding with recommended model: {recommended_model}")
+        
+        set_ollama_model(recommended_model, ai_mode=mode)
+        
+        if embedding_success:
+            logger.info(f"User {request.user.username} switched to {mode} mode (Ollama model: {recommended_model})")
             return Response({
                 'success': True,
                 'mode': mode,
-                'message': f'Switched to {mode} mode successfully'
+                'ollama_model': recommended_model,
+                'message': f'Switched to {mode} mode successfully. Ollama model set to {recommended_model}'
             })
         else:
-            return Response(
-                {'error': f'Failed to switch to {mode} mode. Model may not be available.'},
-                status=500
-            )
+            # Even if embedding switch fails, Ollama model was updated
+            logger.warning(f"Embedding mode switch failed, but Ollama model updated to {recommended_model}")
+            return Response({
+                'success': True,
+                'mode': mode,
+                'ollama_model': recommended_model,
+                'message': f'Ollama model set to {recommended_model}. Embedding mode switch may have failed.',
+                'warning': 'Embedding mode switch failed, but Ollama model was updated'
+            })
     except Exception as e:
         logger.error(f"Error switching AI mode: {e}")
         return Response(
@@ -232,7 +398,7 @@ def health_check(request):
     
     # Check Neo4j
     try:
-        from ai_assistant.services.neo4j_service import get_neo4j_service
+        from ai_assistant.service_classes.neo4j_service import get_neo4j_service
         neo4j = get_neo4j_service()
         if neo4j.test_connection():
             stats = neo4j.get_graph_stats()

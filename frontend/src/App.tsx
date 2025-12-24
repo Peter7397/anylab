@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import './i18n/config'; // Initialize i18n
 import Layout from './components/Layout/Layout';
 import Dashboard from './components/Dashboard/Dashboard';
 import Login from './components/Auth/Login';
@@ -69,6 +70,7 @@ function App() {
                         {/* Knowledge Library (requires knowledge.view) */}
                         <Route path="/ai/knowledge" element={<RequireFeature feature="knowledge.view"><KnowledgeLibrary /></RequireFeature>} />
                         <Route path="/ai/knowledge/viewer" element={<RequireFeature feature="knowledge.view"><DocumentViewerPage /></RequireFeature>} />
+                        <Route path="/ai/viewer" element={<RequireFeature feature="knowledge.view"><DocumentViewerPage /></RequireFeature>} />
                         <Route path="/ai/knowledge/manager" element={<RequireFeature feature="knowledge.view"><DocumentManagerPage /></RequireFeature>} />
                         <Route path="/ai/knowledge/ssb" element={<RequireFeature feature="knowledge.view"><SSBDatabase /></RequireFeature>} />
                         <Route path="/ai/knowledge/help-portal" element={<RequireFeature feature="knowledge.view"><HelpPortal /></RequireFeature>} />
