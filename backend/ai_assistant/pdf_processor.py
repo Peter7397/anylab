@@ -9,6 +9,7 @@ import logging
 import fitz  # PyMuPDF
 import hashlib
 import json
+import io
 from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime

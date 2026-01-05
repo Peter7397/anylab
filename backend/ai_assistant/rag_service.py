@@ -10,21 +10,36 @@ from django.core.cache import cache
 from .models import DocumentFile, UploadedFile, DocumentChunk, QueryHistory
 from .utils.model_settings import get_ollama_model
 from .hybrid_search import QueryProcessor
+from .utils.structured_logging import get_structured_logger, LogLevel
 import logging
 import json
 import re
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
+structured_logger = get_structured_logger(__name__)
 
 # Initialize query processor for adaptive expansion
 query_processor = QueryProcessor()
 
 class EnhancedRAGService:
-    def __init__(self, model_name=None):
+    def __init__(
+        self,
+        model_name: Optional[str] = None,
+        query_processor_instance: Optional[Any] = None,
+        ollama_url: Optional[str] = None
+    ):
+        """
+        Initialize Enhanced RAG Service with dependency injection
+        
+        Args:
+            model_name: Optional Ollama model name (defaults to settings)
+            query_processor_instance: Optional QueryProcessor instance (for testing)
+            ollama_url: Optional Ollama API URL (for testing)
+        """
         self.model_name = model_name or get_ollama_model()
-        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
+        self.ollama_url = ollama_url or getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         self.embedding_model = getattr(settings, 'EMBEDDING_MODEL', 'bge-m3')
         # Standardized cache settings across all RAG services
         self.embedding_cache_ttl = getattr(settings, 'EMBEDDING_CACHE_TTL', 24 * 3600)  # 24 hours (standardized)
@@ -32,12 +47,13 @@ class EnhancedRAGService:
         self.response_cache_ttl = getattr(settings, 'RESPONSE_CACHE_TTL', 1800)  # 30 minutes
         # Adaptive query expansion settings
         self.use_adaptive_expansion = getattr(settings, 'RAG_USE_ADAPTIVE_EXPANSION', True)
-        self.query_processor = query_processor
+        # Dependency injection: Use provided query processor or default
+        self.query_processor = query_processor_instance or query_processor
         # Performance monitoring
         self.enable_performance_monitoring = getattr(settings, 'RAG_ENABLE_PERFORMANCE_MONITORING', True)
         self._performance_metrics = {}  # Store metrics for current session
         
-    def get_embedding_from_ollama(self, text):
+    def get_embedding_from_ollama(self, text: str) -> List[float]:
         """
         Get embedding from BGE-M3 ONLY
         NO FALLBACKS - Quality requirement
@@ -48,6 +64,12 @@ class EnhancedRAGService:
         - 1024 dimensions (BGE-M3 standard)
         - No hash-based fallback
         - Will retry but NO compromises on model quality
+        
+        Args:
+            text: Text to embed
+            
+        Returns:
+            List of 1024 float values (embedding vector)
         """
         # Clean null bytes from text (Ollama cannot handle NUL characters)
         if isinstance(text, str):
@@ -62,7 +84,10 @@ class EnhancedRAGService:
         # Try to get from cache first
         cached_embedding = cache.get(cache_key)
         if cached_embedding is not None:
-            logger.info(f"Using cached embedding for text hash: {text_hash[:8]}...")
+            structured_logger.log_operation('embedding_cache_hit', {
+                'text_hash': text_hash[:8],
+                'text_length': len(text)
+            })
             return cached_embedding
         
         # Use BGE-M3 ONLY - NO FALLBACKS
@@ -95,7 +120,12 @@ class EnhancedRAGService:
                 
                 # Cache the embedding
                 cache.set(cache_key, embedding, self.embedding_cache_ttl)
-                logger.info(f"Successfully used BGE-M3 for embedding and cached it")
+                structured_logger.log_operation('embedding_generated', {
+                    'text_hash': text_hash[:8],
+                    'text_length': len(text),
+                    'model': 'bge-m3',
+                    'dimensions': len(embedding)
+                })
                 return embedding
                 
             except requests.exceptions.Timeout:
@@ -114,13 +144,14 @@ class EnhancedRAGService:
         # Should never reach here, but if we do, raise error
         raise Exception("Failed to get BGE-M3 embedding after all retries")
     
-    def get_embeddings_from_ollama_batch(self, texts):
+    def get_embeddings_from_ollama_batch(self, texts: List[str]) -> List[List[float]]:
         """Get embeddings for multiple texts efficiently with batch processing
         
         This method processes a batch of texts by:
         1. Checking cache first for each text (fast lookup)
         2. Only calling Ollama API for uncached texts
         3. Processing remaining uncached texts in parallel for efficiency
+        4. Uses connection pooling and circuit breaker for reliability
         
         Args:
             texts: List of text strings to embed
@@ -130,10 +161,13 @@ class EnhancedRAGService:
         """
         import hashlib
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        from .utils.rag_constants import MAX_BATCH_SIZE, MAX_CONCURRENT_WORKERS
+        from .utils.http_client import get_http_client
+        from .utils.circuit_breaker import get_ollama_circuit_breaker, CircuitBreakerOpenError
         
-        # Safety check: Limit batch size to prevent memory issues (increased from 50 to 200 for optimization)
-        MAX_BATCH_SIZE = 200
-        MAX_CONCURRENT_WORKERS = 10
+        # Use constants from rag_constants
+        circuit_breaker = get_ollama_circuit_breaker()
+        http_client = get_http_client(self.ollama_url)
         
         if len(texts) > MAX_BATCH_SIZE:
             logger.warning(f"Batch too large ({len(texts)} chunks), limiting to {MAX_BATCH_SIZE}")
@@ -146,7 +180,9 @@ class EnhancedRAGService:
         # Phase 1: Check cache for all texts
         for idx, text in enumerate(texts):
             if not text.strip():
-                results[idx] = self._simple_embedding_fallback(text)
+                # Empty text - use zero vector instead of fallback
+                from .utils.rag_constants import EMBEDDING_DIMENSIONS
+                results[idx] = [0.0] * EMBEDDING_DIMENSIONS
                 continue
                 
             text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
@@ -160,58 +196,64 @@ class EnhancedRAGService:
                 api_calls_needed.append((idx, text))
         
         if cache_hits > 0:
-            logger.info(f"Cache hits: {cache_hits}/{len(texts)} chunks")
+            structured_logger.log_operation('batch_embedding_cache', {
+                'cache_hits': cache_hits,
+                'total': len(texts),
+                'cache_hit_rate': cache_hits / len(texts) if texts else 0
+            })
         
         # Phase 2: Process uncached texts with parallel API calls
         if api_calls_needed:
-            logger.info(f"Fetching {len(api_calls_needed)} embeddings from Ollama (parallel processing)")
+            structured_logger.log_operation('batch_embedding_start', {
+                'uncached_count': len(api_calls_needed),
+                'total': len(texts),
+                'workers': MAX_CONCURRENT_WORKERS
+            })
             
             def fetch_embedding(idx, text):
-                """Fetch embedding using BGE-M3 ONLY - NO FALLBACKS"""
-                max_retries = 3
-                retry_count = 0
+                """Fetch embedding using BGE-M3 with circuit breaker and connection pooling"""
+                from .utils.rag_constants import EMBEDDING_DIMENSIONS, OLLAMA_EMBEDDING_TIMEOUT
                 
-                while retry_count < max_retries:
-                    try:
-                        response = requests.post(
-                            f"{self.ollama_url}/api/embeddings",
-                            json={
-                                "model": "bge-m3",  # BGE-M3 ONLY
-                                "prompt": text
-                            },
-                            timeout=60  # Longer timeout for quality
-                        )
-                        response.raise_for_status()
-                        embedding = response.json()["embedding"]
-                        
-                        # Ensure 1024 dimensions
-                        if len(embedding) != 1024:
-                            if len(embedding) < 1024:
-                                embedding = list(embedding) + [0.0] * (1024 - len(embedding))
-                            else:
-                                embedding = embedding[:1024]
-                        
-                        # Cache it
-                        text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-                        cache_key = f"embedding_{text_hash}"
-                        cache.set(cache_key, embedding, self.embedding_cache_ttl)
-                        
-                        return idx, embedding
-                        
-                    except requests.exceptions.Timeout:
-                        retry_count += 1
-                        logger.warning(f"BGE-M3 timeout for text {idx} (attempt {retry_count}/{max_retries})")
-                        if retry_count >= max_retries:
-                            raise Exception(f"BGE-M3 embedding timeout for text {idx}")
-                            
-                    except Exception as e:
-                        logger.error(f"BGE-M3 embedding error for text {idx}: {e}")
-                        retry_count += 1
-                        if retry_count >= max_retries:
-                            raise Exception(f"BGE-M3 embedding failed for text {idx}: {str(e)}")
-                        continue
+                def _make_request():
+                    """Make HTTP request with connection pooling"""
+                    return http_client.post(
+                        "/api/embeddings",
+                        json={
+                            "model": "bge-m3",  # BGE-M3 ONLY
+                            "prompt": text
+                        },
+                        timeout=OLLAMA_EMBEDDING_TIMEOUT
+                    )
                 
-                raise Exception(f"Failed to get BGE-M3 embedding for text {idx}")
+                try:
+                    # Use circuit breaker to protect against cascading failures
+                    response = circuit_breaker.call(_make_request)
+                    response.raise_for_status()
+                    embedding = response.json()["embedding"]
+                    
+                    # Ensure correct dimensions
+                    if len(embedding) != EMBEDDING_DIMENSIONS:
+                        if len(embedding) < EMBEDDING_DIMENSIONS:
+                            embedding = list(embedding) + [0.0] * (EMBEDDING_DIMENSIONS - len(embedding))
+                        else:
+                            embedding = embedding[:EMBEDDING_DIMENSIONS]
+                    
+                    # Cache it using centralized cache utils
+                    from .utils.cache_utils import generate_embedding_cache_key
+                    cache_key = generate_embedding_cache_key(text, model="bge-m3")
+                    cache.set(cache_key, embedding, self.embedding_cache_ttl)
+                    
+                    return idx, embedding
+                    
+                except CircuitBreakerOpenError as e:
+                    logger.error(f"Circuit breaker open for embedding {idx}: {e}")
+                    raise Exception(f"Ollama service unavailable (circuit breaker open): {str(e)}")
+                except requests.exceptions.Timeout as e:
+                    logger.warning(f"BGE-M3 timeout for text {idx}: {e}")
+                    raise Exception(f"BGE-M3 embedding timeout for text {idx}")
+                except Exception as e:
+                    logger.error(f"BGE-M3 embedding error for text {idx}: {e}")
+                    raise Exception(f"BGE-M3 embedding failed for text {idx}: {str(e)}")
             
             # Use ThreadPoolExecutor for parallel processing (limited to prevent server overload)
             with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_WORKERS) as executor:
@@ -230,22 +272,16 @@ class EnhancedRAGService:
         
         return results
     
-    def _simple_embedding_fallback(self, text):
-        """Simple fallback embedding when Ollama embedding fails"""
-        # Create a simple 1024-dimensional embedding based on text hash
-        import hashlib
-        hash_obj = hashlib.md5(text.encode())
-        hash_bytes = hash_obj.digest()
-        
-        # Convert hash to 1024-dimensional vector
-        embedding = []
-        for i in range(1024):
-            embedding.append((hash_bytes[i % 16] / 255.0) * 2 - 1)
-        
-        return embedding
 
-    def compute_file_hash(self, file_path):
-        """Compute SHA256 hash of file for deduplication"""
+    def compute_file_hash(self, file_path: str) -> str:
+        """Compute SHA256 hash of file for deduplication
+        
+        Args:
+            file_path: Path to file
+            
+        Returns:
+            SHA256 hash as hex string
+        """
         sha256 = hashlib.sha256()
         with open(file_path, 'rb') as f:
             for chunk in iter(lambda: f.read(8192), b''):
@@ -261,7 +297,13 @@ class EnhancedRAGService:
         uploaded_file.seek(0)  # Reset file pointer again
         return sha256.hexdigest()
 
-    def process_pdf_and_build_index(self, pdf_file, title=None, file_hash=None, request=None):
+    def process_pdf_and_build_index(
+        self,
+        pdf_file,
+        title: Optional[str] = None,
+        file_hash: Optional[str] = None,
+        request=None
+    ) -> Dict[str, Any]:
         """Process PDF file and build vector index using Ollama embeddings"""
         try:
             # Handle different file types
@@ -360,7 +402,14 @@ class EnhancedRAGService:
                 'error': str(e)
             }
 
-    def process_document_and_build_index(self, document_file, file_path=None, file_hash=None, user=None, title=None):
+    def process_document_and_build_index(
+        self,
+        document_file,
+        file_path: Optional[str] = None,
+        file_hash: Optional[str] = None,
+        user=None,
+        title: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Process various document types and build vector index using Ollama embeddings"""
         try:
             # Handle different file types
@@ -603,7 +652,16 @@ class EnhancedRAGService:
             'query_type': self.query_processor.classify_query(query)
         }
     
-    def search_relevant_documents(self, query, top_k=10):  # Increased from 8 to 10 for maximum comprehensive results
+    def search_relevant_documents(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        """Search for relevant documents using vector similarity
+        
+        Args:
+            query: Search query text
+            top_k: Number of results to return (default: 10)
+            
+        Returns:
+            List of relevant document dictionaries
+        """
         """Search for relevant documents using vector similarity with Ollama embeddings and adaptive query expansion"""
         start_time = time.time()
         metrics = {
@@ -670,11 +728,30 @@ class EnhancedRAGService:
             
             formatting_start = time.time()
             formatted_results = []
+            
+            # Calculate similarity scores for explanation
+            query_vec = np.array(query_embedding)
+            query_norm = np.linalg.norm(query_vec)
+            
             for row in results:
                 uploaded_file_id = row[2]
                 page_number = row[3] or 1
                 filename = row[5] or "Unknown Document"
                 content = row[1]
+                chunk_id = row[0]
+                
+                # Get chunk embedding for similarity calculation
+                similarity_score = None
+                if query_norm > 0:
+                    try:
+                        chunk = DocumentChunk.objects.filter(id=chunk_id).first()
+                        if chunk and chunk.embedding:
+                            chunk_vec = np.array(chunk.embedding)
+                            chunk_norm = np.linalg.norm(chunk_vec)
+                            if chunk_norm > 0:
+                                similarity_score = float(np.dot(query_vec, chunk_vec) / (query_norm * chunk_norm))
+                    except Exception:
+                        pass
                 
                 # Generate title: use filename if valid, otherwise extract from content
                 if filename and filename != "Unknown Document":
@@ -691,8 +768,13 @@ class EnhancedRAGService:
                 if uploaded_file_id:
                     view_url = f"/api/ai/documents/pdf/{uploaded_file_id}/view/?page={page_number}"
                 
+                # Generate explanation for why this result was returned
+                explanation = self._generate_result_explanation(
+                    content, similarity_score, filename, page_number
+                )
+                
                 formatted_results.append({
-                    "id": row[0],
+                    "id": chunk_id,
                     "content": content,
                     "uploaded_file_id": uploaded_file_id,
                     "page_number": page_number,
@@ -703,7 +785,9 @@ class EnhancedRAGService:
                     "file_size": row[7],
                     "download_url": f"/api/ai/documents/{uploaded_file_id}/download/" if uploaded_file_id else None,
                     "view_url": view_url,
-                    "source_display": f"{filename} (Page {page_number})" if filename != "Unknown Document" else f"Page {page_number}"
+                    "source_display": f"{filename} (Page {page_number})" if filename != "Unknown Document" else f"Page {page_number}",
+                    "similarity": similarity_score,
+                    "explanation": explanation
                 })
             metrics['stages']['result_formatting'] = (time.time() - formatting_start) * 1000  # ms
             
@@ -755,7 +839,12 @@ class EnhancedRAGService:
             logger.error(f"Error in vector search: {e}")
             return []
 
-    def ollama_generate(self, prompt, model=None, language='en-US'):
+    def ollama_generate(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        language: str = 'en-US'
+    ) -> str:
         """Generate response using Ollama with caching and language support"""
         if model is None:
             # Always fetch the current model dynamically instead of using cached self.model_name
@@ -838,7 +927,12 @@ class EnhancedRAGService:
             logger.error(f"Error generating response from Ollama: {e}")
             raise
 
-    def generate_response(self, query, context_documents, language='en-US'):
+    def generate_response(
+        self,
+        query: str,
+        context_documents: List[Dict[str, Any]],
+        language: str = 'en-US'
+    ) -> str:
         """Generate response with proper context handling - optimized for maximum comprehensive answers"""
         # Language-aware "I don't know" response
         if not context_documents:
@@ -917,7 +1011,14 @@ class EnhancedRAGService:
         
         return self.ollama_generate(prompt, language=language)
 
-    def query_with_rag(self, query, top_k=10, user=None, language='en-US'):  # Increased from 8 to 10
+    def query_with_rag(
+        self,
+        query: str,
+        top_k: int = 10,
+        user=None,
+        language: str = 'en-US',
+        query_image_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Main RAG pipeline with caching, language support, and performance monitoring"""
         start_time = time.time()
         pipeline_metrics = {
@@ -942,9 +1043,21 @@ class EnhancedRAGService:
             complexity = self._analyze_query_complexity(query)
             self._last_query_complexity = complexity
             
-            # Search for relevant documents
+            # Search for relevant documents (with optional visual search)
             search_start = time.time()
-            relevant_docs = self.search_relevant_documents(query, top_k)
+            
+            # Use hybrid search if image provided
+            if query_image_path:
+                from .utils.graphic_rag import GraphicRAGService
+                graphic_rag = GraphicRAGService()
+                relevant_docs = graphic_rag.hybrid_search(
+                    query_text=query,
+                    query_image_path=query_image_path,
+                    top_k=top_k
+                )
+            else:
+                relevant_docs = self.search_relevant_documents(query, top_k)
+            
             pipeline_metrics['stages']['document_search'] = (time.time() - search_start) * 1000  # ms
             pipeline_metrics['documents_found'] = len(relevant_docs)
             
@@ -1037,8 +1150,56 @@ class EnhancedRAGService:
         self._performance_metrics.clear()
         logger.info("Performance metrics cleared")
     
-    def get_index_info(self):
-        """Get information about the vector index"""
+    def _generate_result_explanation(self, content: str, similarity_score: Optional[float], filename: str, page_number: int) -> str:
+        """
+        Generate explanation for why this result was returned
+        
+        Args:
+            content: Document chunk content
+            similarity_score: Cosine similarity score (0-1)
+            filename: Source filename
+            page_number: Page number
+            
+        Returns:
+            Explanation string
+        """
+        explanations = []
+        
+        # Similarity score explanation
+        if similarity_score is not None:
+            if similarity_score >= 0.8:
+                explanations.append(f"Highly relevant (similarity: {similarity_score:.2f})")
+            elif similarity_score >= 0.6:
+                explanations.append(f"Relevant (similarity: {similarity_score:.2f})")
+            elif similarity_score >= 0.4:
+                explanations.append(f"Moderately relevant (similarity: {similarity_score:.2f})")
+            else:
+                explanations.append(f"Low relevance (similarity: {similarity_score:.2f})")
+        
+        # Source information
+        if filename and filename != "Unknown Document":
+            explanations.append(f"From: {filename}")
+        
+        if page_number:
+            explanations.append(f"Page {page_number}")
+        
+        # Content characteristics
+        content_lower = content.lower()
+        if any(keyword in content_lower for keyword in ['error', 'issue', 'problem', 'troubleshoot']):
+            explanations.append("Contains troubleshooting information")
+        if any(keyword in content_lower for keyword in ['step', 'procedure', 'how to', 'instruction']):
+            explanations.append("Contains procedural information")
+        if any(keyword in content_lower for keyword in ['definition', 'what is', 'meaning']):
+            explanations.append("Contains definitional information")
+        
+        return " | ".join(explanations) if explanations else "Relevant document chunk"
+    
+    def get_index_info(self) -> Dict[str, Any]:
+        """Get information about the vector index
+        
+        Returns:
+            Dictionary with index statistics
+        """
         try:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT COUNT(*) FROM ai_assistant_documentchunk")

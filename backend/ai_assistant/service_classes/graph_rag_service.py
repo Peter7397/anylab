@@ -23,11 +23,24 @@ logger = logging.getLogger(__name__)
 class GraphRAGService(ComprehensiveRAGService):
     """RAG service enhanced with graph-based retrieval"""
     
-    def __init__(self, model_name=None):
-        """Initialize Graph RAG service"""
+    def __init__(
+        self,
+        model_name: Optional[str] = None,
+        graph_query_service: Optional[Any] = None,
+        entity_extractor: Optional[Any] = None
+    ):
+        """
+        Initialize Graph RAG service with dependency injection
+        
+        Args:
+            model_name: Optional model name
+            graph_query_service: Optional GraphQueryService instance (for testing)
+            entity_extractor: Optional GraphEntityExtractor instance (for testing)
+        """
         super().__init__(model_name)
-        self.graph_query_service = GraphQueryService()
-        self.entity_extractor = GraphEntityExtractor()
+        # Dependency injection: Use provided services or defaults
+        self.graph_query_service = graph_query_service or GraphQueryService()
+        self.entity_extractor = entity_extractor or GraphEntityExtractor()
         logger.info("GraphRAGService initialized")
     
     def hybrid_search_with_graph(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:

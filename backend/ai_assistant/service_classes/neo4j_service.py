@@ -13,6 +13,11 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+class Neo4jConnectionError(Exception):
+    """Exception raised when Neo4j connection is not available"""
+    pass
+
+
 class Neo4jService:
     """Service for interacting with Neo4j graph database"""
     
@@ -58,10 +63,20 @@ class Neo4jService:
             
         Returns:
             List of dictionaries containing query results
+            
+        Raises:
+            Neo4jConnectionError: If Neo4j driver is not initialized or connection fails
         """
         if not self.driver:
-            logger.error("Neo4j driver not initialized")
-            return []
+            error_msg = "Neo4j driver not initialized - check Neo4j connection settings"
+            logger.error(error_msg)
+            raise Neo4jConnectionError(error_msg)
+        
+        # Test connection before executing query
+        if not self.test_connection():
+            error_msg = "Neo4j connection test failed - service may be unavailable"
+            logger.error(error_msg)
+            raise Neo4jConnectionError(error_msg)
         
         try:
             with self.driver.session(database=settings.NEO4J_DATABASE) as session:
@@ -69,9 +84,10 @@ class Neo4jService:
                 return [record.data() for record in result]
         except Exception as e:
             logger.error(f"Error executing Neo4j query: {e}")
-            logger.error(f"Query: {query}")
+            logger.error(f"Query: {query[:200]}...")  # Truncate long queries
             logger.error(f"Parameters: {parameters}")
-            return []
+            # Re-raise as Neo4jConnectionError for better error handling upstream
+            raise Neo4jConnectionError(f"Neo4j query execution failed: {str(e)}") from e
     
     def execute_write_query(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> bool:
         """
@@ -83,10 +99,20 @@ class Neo4jService:
             
         Returns:
             True if successful, False otherwise
+            
+        Raises:
+            Neo4jConnectionError: If Neo4j driver is not initialized or connection fails
         """
         if not self.driver:
-            logger.error("Neo4j driver not initialized")
-            return False
+            error_msg = "Neo4j driver not initialized - check Neo4j connection settings"
+            logger.error(error_msg)
+            raise Neo4jConnectionError(error_msg)
+        
+        # Test connection before executing query
+        if not self.test_connection():
+            error_msg = "Neo4j connection test failed - service may be unavailable"
+            logger.error(error_msg)
+            raise Neo4jConnectionError(error_msg)
         
         try:
             with self.driver.session(database=settings.NEO4J_DATABASE) as session:
@@ -94,9 +120,10 @@ class Neo4jService:
                 return True
         except Exception as e:
             logger.error(f"Error executing Neo4j write query: {e}")
-            logger.error(f"Query: {query}")
+            logger.error(f"Query: {query[:200]}...")  # Truncate long queries
             logger.error(f"Parameters: {parameters}")
-            return False
+            # Re-raise as Neo4jConnectionError for better error handling upstream
+            raise Neo4jConnectionError(f"Neo4j write query execution failed: {str(e)}") from e
     
     def create_constraints(self):
         """Create common constraints and indexes for better performance"""
@@ -109,6 +136,7 @@ class Neo4jService:
             "CREATE INDEX document_type_index IF NOT EXISTS FOR (d:Document) ON (d.type)",
             "CREATE INDEX entity_type_index IF NOT EXISTS FOR (e:Entity) ON (e.type)",
             "CREATE INDEX entity_name_index IF NOT EXISTS FOR (e:Entity) ON (e.name)",
+            "CREATE INDEX entity_embedding_index IF NOT EXISTS FOR (e:Entity) ON (e.embedding)",
         ]
         
         for constraint in constraints:
@@ -117,6 +145,41 @@ class Neo4jService:
                 logger.info(f"Created constraint/index: {constraint[:50]}...")
             except Exception as e:
                 logger.warning(f"Could not create constraint/index (may already exist): {e}")
+        
+        # Try to create vector index if Neo4j version supports it (5.11+)
+        self._create_vector_index_if_supported()
+    
+    def _create_vector_index_if_supported(self):
+        """Create vector index for entity embeddings if Neo4j version supports it"""
+        try:
+            # Check Neo4j version
+            version_query = "CALL dbms.components() YIELD name, versions, edition RETURN versions[0] AS version"
+            version_result = self.execute_query(version_query)
+            
+            if version_result:
+                version_str = version_result[0].get('version', '')
+                # Parse version (e.g., "5.11.0" -> [5, 11])
+                try:
+                    major, minor = map(int, version_str.split('.')[:2])
+                    if major > 5 or (major == 5 and minor >= 11):
+                        # Neo4j 5.11+ supports vector indexes
+                        vector_index_query = """
+                        CREATE VECTOR INDEX entity_embedding_vector IF NOT EXISTS
+                        FOR (e:Entity) ON e.embedding
+                        OPTIONS {
+                            indexConfig: {
+                                `vector.dimensions`: 1024,
+                                `vector.similarity_function`: 'cosine'
+                            }
+                        }
+                        """
+                        self.execute_write_query(vector_index_query)
+                        logger.info("Created vector index for entity embeddings")
+                except (ValueError, IndexError):
+                    logger.debug(f"Could not parse Neo4j version: {version_str}")
+        except Exception as e:
+            logger.debug(f"Vector index creation not supported or failed: {e}")
+            # Not a critical error - fallback to Python-based similarity
     
     def get_graph_stats(self) -> Dict[str, Any]:
         """Get basic statistics about the graph"""

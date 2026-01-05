@@ -27,9 +27,16 @@ logger = logging.getLogger(__name__)
 class RAGService(BaseService):
     """Service for RAG operations"""
     
-    def __init__(self):
+    def __init__(self, rag_service_instance: Optional[EnhancedRAGService] = None):
+        """
+        Initialize RAG service with dependency injection
+        
+        Args:
+            rag_service_instance: Optional EnhancedRAGService instance (for testing)
+        """
         super().__init__()
-        self.rag_service = EnhancedRAGService()
+        # Dependency injection: Use provided service or default
+        self.rag_service = rag_service_instance or EnhancedRAGService()
     
     def chat_with_ollama(self, prompt: str, user, **kwargs) -> Dict[str, Any]:
         """Generate chat response using Ollama"""
@@ -156,13 +163,28 @@ class RAGService(BaseService):
     
     def rag_search(self, query: str, user, search_mode: str = 'comprehensive', 
                   top_k: int = None, **kwargs) -> Dict[str, Any]:
-        """Perform RAG search with performance monitoring"""
+        """Perform RAG search with performance monitoring and rate limiting"""
+        from .utils.rate_limiter import get_rate_limiter
+        
         start_time = time.time()
+        rate_limiter = get_rate_limiter()
         
         try:
+            # Check rate limit
+            user_id = str(user.id) if user and hasattr(user, 'id') else 'anonymous'
+            is_allowed, rate_limit_reason = rate_limiter.is_allowed(user_id, query=query)
+            
+            if not is_allowed:
+                logger.warning(f"Rate limit exceeded for user {user_id}: {rate_limit_reason}")
+                return self.error_response(
+                    f'Rate limit exceeded: {rate_limit_reason}',
+                    status_code=429
+                )
+            
             self.log_operation('rag_search', {
                 'query_length': len(query),
-                'search_mode': search_mode
+                'search_mode': search_mode,
+                'user_id': user_id
             })
             
             if not query.strip():
@@ -189,13 +211,21 @@ class RAGService(BaseService):
             
             total_time = (time.time() - start_time) * 1000  # Convert to milliseconds
             
-            # Add performance metrics to response
+            # Add performance metrics and rate limit info to response
             if isinstance(result, dict):
                 result['performance'] = {
                     'search_time_ms': search_time,
                     'total_time_ms': total_time,
                     'search_mode': search_mode,
                     'top_k': top_k
+                }
+                
+                # Add rate limit stats
+                rate_stats = rate_limiter.get_user_stats(user_id)
+                result['rate_limit'] = {
+                    'remaining_minute': rate_stats['remaining_minute'],
+                    'remaining_hour': rate_stats['remaining_hour'],
+                    'remaining_cost': rate_stats['remaining_cost']
                 }
             
             logger.info(f"RAG Search Performance - Mode: {search_mode}, Time: {total_time:.2f}ms, Top K: {top_k}")

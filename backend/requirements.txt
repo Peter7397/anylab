@@ -44,6 +44,12 @@ scikit-learn==1.7.2
 faiss-cpu==1.7.4
 ollama==0.1.7
 
+# Visual Embeddings (CLIP for Graphic RAG)
+ftfy==6.1.1
+regex==2024.11.6
+# CLIP installation: pip install git+https://github.com/openai/CLIP.git
+# Or use: clip-by-openai (alternative package)
+
 # Additional AI utilities
 huggingface-hub==0.36.0
 tokenizers==0.22.1

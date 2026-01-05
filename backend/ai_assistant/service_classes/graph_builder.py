@@ -21,11 +21,24 @@ logger = logging.getLogger(__name__)
 class GraphBuilder:
     """Service for building and maintaining the Neo4j knowledge graph"""
     
-    def __init__(self):
-        """Initialize graph builder"""
-        self.neo4j = get_neo4j_service()
-        self.entity_extractor = GraphEntityExtractor()
-        self.rag_service = EnhancedRAGService()  # For generating embeddings
+    def __init__(
+        self,
+        neo4j_service: Optional[Any] = None,
+        entity_extractor: Optional[Any] = None,
+        rag_service: Optional[Any] = None
+    ):
+        """
+        Initialize graph builder with dependency injection
+        
+        Args:
+            neo4j_service: Optional Neo4jService instance (for testing)
+            entity_extractor: Optional GraphEntityExtractor instance (for testing)
+            rag_service: Optional RAGService instance (for testing)
+        """
+        # Dependency injection: Use provided services or defaults
+        self.neo4j = neo4j_service or get_neo4j_service()
+        self.entity_extractor = entity_extractor or GraphEntityExtractor()
+        self.rag_service = rag_service or EnhancedRAGService()  # For generating embeddings
         logger.info("GraphBuilder initialized with embedding support")
     
     def build_graph_from_document(self, uploaded_file: UploadedFile, chunks: List[DocumentChunk] = None) -> Dict[str, Any]:

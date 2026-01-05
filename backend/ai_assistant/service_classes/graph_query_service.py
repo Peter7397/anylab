@@ -7,6 +7,7 @@ Provides graph-based query capabilities for entity traversal and relationship di
 import logging
 import numpy as np
 from typing import List, Dict, Any, Optional, Set
+from typing import Optional, Any
 from .neo4j_service import get_neo4j_service
 from .graph_entity_extractor import GraphEntityExtractor
 from ..rag_service import EnhancedRAGService
@@ -17,11 +18,24 @@ logger = logging.getLogger(__name__)
 class GraphQueryService:
     """Service for querying the knowledge graph"""
     
-    def __init__(self):
-        """Initialize graph query service"""
-        self.neo4j = get_neo4j_service()
-        self.entity_extractor = GraphEntityExtractor()
-        self.rag_service = EnhancedRAGService()  # For generating query embeddings
+    def __init__(
+        self,
+        neo4j_service: Optional[Any] = None,
+        entity_extractor: Optional[Any] = None,
+        rag_service: Optional[Any] = None
+    ):
+        """
+        Initialize graph query service with dependency injection
+        
+        Args:
+            neo4j_service: Optional Neo4jService instance (for testing)
+            entity_extractor: Optional GraphEntityExtractor instance (for testing)
+            rag_service: Optional RAGService instance (for testing)
+        """
+        # Dependency injection: Use provided services or defaults
+        self.neo4j = neo4j_service or get_neo4j_service()
+        self.entity_extractor = entity_extractor or GraphEntityExtractor()
+        self.rag_service = rag_service or EnhancedRAGService()  # For generating query embeddings
         logger.info("GraphQueryService initialized with embedding support")
     
     def find_documents_by_entities(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
@@ -148,6 +162,10 @@ class GraphQueryService:
             
         except Exception as e:
             logger.error(f"Error in graph-based document search: {e}", exc_info=True)
+            # Check if it's a connection error - provide better error message
+            from .neo4j_service import Neo4jConnectionError
+            if isinstance(e, Neo4jConnectionError):
+                logger.warning("Graph search unavailable - Neo4j connection failed, falling back to vector search only")
             return []
     
     def _find_related_documents_via_graph(self, entities: List, max_results: int = 20) -> Dict[str, Dict[str, Any]]:
@@ -228,6 +246,11 @@ class GraphQueryService:
         """
         Find entities similar to query using embedding cosine similarity
         
+        Optimized to:
+        1. Try Neo4j vector index if available (5.11+)
+        2. Limit entity loading to reduce memory usage
+        3. Use efficient similarity calculation
+        
         Args:
             query: User query text
             max_similar: Maximum number of similar entities to return
@@ -236,67 +259,155 @@ class GraphQueryService:
         Returns:
             List of similar entities with similarity scores
         """
+        from .utils.rag_constants import GRAPH_ENTITY_SIMILARITY_THRESHOLD, GRAPH_MAX_SIMILAR_ENTITIES
+        
         try:
             # Generate query embedding
             query_embedding = self.rag_service.get_embedding_from_ollama(query)
             
-            # Get all entities with embeddings from Neo4j
-            query_str = """
-            MATCH (e:Entity)
-            WHERE e.embedding IS NOT NULL
-            RETURN e.id AS entity_id,
-                   e.name AS name,
-                   e.type AS type,
-                   e.embedding AS embedding
-            LIMIT 1000
-            """
+            # Try vector index search first (Neo4j 5.11+)
+            vector_index_results = self._try_vector_index_search(query_embedding, max_similar, similarity_threshold)
+            if vector_index_results:
+                logger.info(f"Found {len(vector_index_results)} entities using vector index")
+                return vector_index_results
             
-            entities = self.neo4j.execute_query(query_str)
-            
-            if not entities:
-                logger.debug("No entities with embeddings found")
-                return []
-            
-            # Calculate cosine similarity for each entity
-            similar_entities = []
-            query_vec = np.array(query_embedding)
-            
-            for entity in entities:
-                entity_embedding = entity.get('embedding')
-                if not entity_embedding:
-                    continue
-                
-                try:
-                    entity_vec = np.array(entity_embedding)
-                    
-                    # Calculate cosine similarity
-                    dot_product = np.dot(query_vec, entity_vec)
-                    norm_query = np.linalg.norm(query_vec)
-                    norm_entity = np.linalg.norm(entity_vec)
-                    
-                    if norm_query > 0 and norm_entity > 0:
-                        similarity = dot_product / (norm_query * norm_entity)
-                        
-                        if similarity >= similarity_threshold:
-                            similar_entities.append({
-                                'entity_id': entity.get('entity_id'),
-                                'name': entity.get('name'),
-                                'type': entity.get('type'),
-                                'similarity': float(similarity)
-                            })
-                except Exception as e:
-                    logger.debug(f"Error calculating similarity for entity {entity.get('name')}: {e}")
-                    continue
-            
-            # Sort by similarity and return top results
-            similar_entities.sort(key=lambda x: x['similarity'], reverse=True)
-            
-            logger.info(f"Found {len(similar_entities)} entities similar to query (threshold: {similarity_threshold})")
-            return similar_entities[:max_similar]
+            # Fallback to optimized Python-based similarity search
+            return self._python_similarity_search(query_embedding, max_similar, similarity_threshold)
             
         except Exception as e:
             logger.error(f"Error finding similar entities by embedding: {e}")
             return []
+    
+    def _try_vector_index_search(self, query_embedding: List[float], max_similar: int, threshold: float) -> List[Dict[str, Any]]:
+        """Try to use Neo4j vector index for similarity search"""
+        try:
+            # Neo4j 5.11+ vector index query
+            query_str = """
+            CALL db.index.vector.queryNodes('entity_embedding_vector', $top_k, $query_embedding)
+            YIELD node, score
+            WHERE score >= $threshold
+            RETURN node.id AS entity_id,
+                   node.name AS name,
+                   node.type AS type,
+                   score AS similarity
+            ORDER BY score DESC
+            LIMIT $max_similar
+            """
+            
+            # Request more candidates to filter by threshold
+            top_k = max_similar * 3  # Get 3x candidates for threshold filtering
+            
+            results = self.neo4j.execute_query(query_str, {
+                'query_embedding': query_embedding,
+                'top_k': top_k,
+                'threshold': threshold,
+                'max_similar': max_similar
+            })
+            
+            if results:
+                return [
+                    {
+                        'entity_id': r.get('entity_id'),
+                        'name': r.get('name'),
+                        'type': r.get('type'),
+                        'similarity': float(r.get('similarity', 0))
+                    }
+                    for r in results
+                ]
+        except Exception as e:
+            logger.debug(f"Vector index search not available: {e}")
+        
+        return []
+    
+    def _python_similarity_search(self, query_embedding: List[float], max_similar: int, threshold: float) -> List[Dict[str, Any]]:
+        """Python-based similarity search with optimized entity loading"""
+        from .utils.rag_constants import GRAPH_MAX_SIMILAR_ENTITIES
+        
+        # Limit entity loading - only get entities with embeddings, prioritize by type
+        # Load fewer entities but smarter selection
+        max_entities_to_load = min(500, max_similar * 50)  # Reduced from 1000
+        
+        query_str = """
+        MATCH (e:Entity)
+        WHERE e.embedding IS NOT NULL
+        WITH e
+        ORDER BY 
+            CASE e.type
+                WHEN 'CONCEPT' THEN 1
+                WHEN 'KEY_TERM' THEN 2
+                WHEN 'IMPORTANT_INFO' THEN 3
+                WHEN 'KEY_POINT' THEN 4
+                ELSE 5
+            END,
+            e.occurrence_count DESC
+        RETURN e.id AS entity_id,
+               e.name AS name,
+               e.type AS type,
+               e.embedding AS embedding
+        LIMIT $limit
+        """
+        
+        entities = self.neo4j.execute_query(query_str, {'limit': max_entities_to_load})
+        
+        if not entities:
+            logger.debug("No entities with embeddings found")
+            return []
+        
+        # Calculate cosine similarity efficiently using numpy
+        similar_entities = []
+        query_vec = np.array(query_embedding, dtype=np.float32)
+        query_norm = np.linalg.norm(query_vec)
+        
+        if query_norm == 0:
+            return []
+        
+        # Batch process entities for better performance
+        entity_vectors = []
+        entity_metadata = []
+        
+        for entity in entities:
+            entity_embedding = entity.get('embedding')
+            if not entity_embedding:
+                continue
+            
+            try:
+                entity_vec = np.array(entity_embedding, dtype=np.float32)
+                entity_norm = np.linalg.norm(entity_vec)
+                
+                if entity_norm > 0:
+                    entity_vectors.append(entity_vec)
+                    entity_metadata.append({
+                        'entity_id': entity.get('entity_id'),
+                        'name': entity.get('name'),
+                        'type': entity.get('type'),
+                        'norm': entity_norm
+                    })
+            except Exception as e:
+                logger.debug(f"Error processing entity {entity.get('name')}: {e}")
+                continue
+        
+        if not entity_vectors:
+            return []
+        
+        # Batch calculate similarities
+        entity_matrix = np.array(entity_vectors)
+        similarities = np.dot(entity_matrix, query_vec) / (np.array([m['norm'] for m in entity_metadata]) * query_norm)
+        
+        # Filter by threshold and sort
+        for idx, similarity in enumerate(similarities):
+            if similarity >= threshold:
+                similar_entities.append({
+                    'entity_id': entity_metadata[idx]['entity_id'],
+                    'name': entity_metadata[idx]['name'],
+                    'type': entity_metadata[idx]['type'],
+                    'similarity': float(similarity)
+                })
+        
+        # Sort by similarity and return top results
+        similar_entities.sort(key=lambda x: x['similarity'], reverse=True)
+        
+        logger.info(f"Found {len(similar_entities)} entities similar to query (threshold: {threshold}, loaded: {len(entities)})")
+        return similar_entities[:max_similar]
     
     def _find_documents_by_semantic_similarity(self, query: str, max_results: int = 10) -> List[Dict[str, Any]]:
         """

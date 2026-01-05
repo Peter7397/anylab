@@ -568,12 +568,79 @@ class EnhancedRetrievalPipeline:
             
         except Exception as e:
             logger.error(f"Error in enhanced retrieval: {e}", exc_info=True)
+            # Fallback to simpler search instead of returning empty results
+            logger.info("Falling back to simpler vector search due to enhanced retrieval error")
+            try:
+                return self._fallback_search(query, top_k=self.final_top_k)
+            except Exception as fallback_error:
+                logger.error(f"Fallback search also failed: {fallback_error}", exc_info=True)
+                return {
+                    'results': [],
+                    'should_abstain': True,
+                    'clarification': f"Error during retrieval: {str(e)}. Please try rephrasing your query.",
+                    'metadata': {'error': str(e), 'fallback_error': str(fallback_error)}
+                }
+    
+    def _fallback_search(self, query: str, top_k: int) -> Dict:
+        """
+        Fallback to simpler vector search when enhanced retrieval fails
+        
+        Args:
+            query: User query
+            top_k: Number of results to return
+            
+        Returns:
+            Dict with results in same format as enhanced_retrieve
+        """
+        try:
+            # Use basic vector search from improved_rag_service
+            from .improved_rag_service import enhanced_rag_service
+            
+            # Simple vector search without all the enhancements
+            vector_results = enhanced_rag_service.search_relevant_documents_with_scoring(
+                query,
+                top_k=top_k
+            )
+            
+            if not vector_results:
+                should_abstain, reason = self.abstain_guardrail.should_abstain([], query)
+                return {
+                    'results': [],
+                    'should_abstain': True,
+                    'clarification': self.abstain_guardrail.generate_clarification_prompt(query, reason),
+                    'metadata': {
+                        'query_type': 'general',
+                        'results_count': 0,
+                        'pipeline': 'fallback'
+                    }
+                }
+            
+            # Check abstain guardrail
+            should_abstain, reason = self.abstain_guardrail.should_abstain(vector_results, query)
+            clarification = None
+            if should_abstain:
+                clarification = self.abstain_guardrail.generate_clarification_prompt(query, reason)
+            
+            # Calculate metadata
+            avg_score = sum(
+                d.get('final_rerank_score', d.get('hybrid_score', d.get('similarity', 0)))
+                for d in vector_results
+            ) / len(vector_results) if vector_results else 0.0
+            
             return {
-                'results': [],
-                'should_abstain': True,
-                'clarification': f"Error during retrieval: {str(e)}",
-                'metadata': {'error': str(e)}
+                'results': vector_results[:top_k],
+                'should_abstain': should_abstain,
+                'clarification': clarification,
+                'metadata': {
+                    'query_type': 'general',
+                    'results_count': len(vector_results),
+                    'avg_score': avg_score,
+                    'pipeline': 'fallback'
+                }
             }
+        except Exception as e:
+            logger.error(f"Error in fallback search: {e}", exc_info=True)
+            raise
     
     def _vector_search_with_filters(
         self,
@@ -635,24 +702,128 @@ class EnhancedRetrievalPipeline:
         results: List[Dict],
         filters: Dict
     ) -> List[Dict]:
-        """Apply metadata filters post-retrieval"""
-        # This is a simplified version - in production you'd filter at SQL level
+        """
+        Apply metadata filters post-retrieval
+        
+        Filters by:
+        - document_type: Filter by document type (pdf, doc, etc.)
+        - version: Filter by version (e.g., 'v2.8', 'v3.6')
+        - file_id: Filter by specific uploaded_file_id
+        - product_category: Filter by product category
+        
+        Args:
+            results: List of document result dictionaries
+            filters: Dictionary of filter criteria
+            
+        Returns:
+            Filtered list of results
+        """
+        if not filters or not results:
+            return results
+        
+        from ..models import DocumentFile, HelpPortalDocument, UploadedFile
+        
         filtered = []
+        
         for doc in results:
-            # Check filters against document metadata
-            # Adjust based on your metadata schema
             match = True
-            if 'version' in filters:
-                # Check if version matches (would need metadata access)
-                pass
-            if 'document_type' in filters:
-                # Check document type
-                pass
+            uploaded_file_id = doc.get('uploaded_file_id')
+            
+            # Filter by file_id
+            if 'file_id' in filters:
+                if uploaded_file_id != filters['file_id']:
+                    match = False
+            
+            # Filter by document_type
+            if match and 'document_type' in filters:
+                try:
+                    # Try to get DocumentFile linked to UploadedFile
+                    if uploaded_file_id:
+                        uploaded_file = UploadedFile.objects.filter(id=uploaded_file_id).first()
+                        if uploaded_file:
+                            # Check DocumentFile
+                            doc_file = DocumentFile.objects.filter(uploaded_file=uploaded_file).first()
+                            if doc_file:
+                                if doc_file.document_type != filters['document_type']:
+                                    match = False
+                            else:
+                                # Check HelpPortalDocument
+                                help_doc = HelpPortalDocument.objects.filter(uploaded_file=uploaded_file).first()
+                                if help_doc and help_doc.document_type:
+                                    if help_doc.document_type.lower() != filters['document_type'].lower():
+                                        match = False
+                                else:
+                                    # No metadata found, skip this filter
+                                    pass
+                except Exception as e:
+                    logger.debug(f"Error checking document_type filter: {e}")
+                    # Continue with other filters
+            
+            # Filter by version
+            if match and 'version' in filters:
+                try:
+                    if uploaded_file_id:
+                        uploaded_file = UploadedFile.objects.filter(id=uploaded_file_id).first()
+                        if uploaded_file:
+                            # Check HelpPortalDocument for version
+                            help_doc = HelpPortalDocument.objects.filter(uploaded_file=uploaded_file).first()
+                            if help_doc and help_doc.version:
+                                # Normalize version strings for comparison
+                                doc_version = help_doc.version.lower().strip()
+                                filter_version = filters['version'].lower().strip()
+                                
+                                # Remove 'v' prefix if present for comparison
+                                doc_version_clean = doc_version.lstrip('v')
+                                filter_version_clean = filter_version.lstrip('v')
+                                
+                                if doc_version_clean != filter_version_clean:
+                                    match = False
+                            else:
+                                # Check DocumentFile metadata
+                                doc_file = DocumentFile.objects.filter(uploaded_file=uploaded_file).first()
+                                if doc_file and doc_file.metadata:
+                                    metadata_version = doc_file.metadata.get('version', '').lower().strip()
+                                    if metadata_version:
+                                        metadata_version_clean = metadata_version.lstrip('v')
+                                        filter_version_clean = filters['version'].lower().strip().lstrip('v')
+                                        if metadata_version_clean != filter_version_clean:
+                                            match = False
+                except Exception as e:
+                    logger.debug(f"Error checking version filter: {e}")
+                    # Continue with other filters
+            
+            # Filter by product_category
+            if match and 'product_category' in filters:
+                try:
+                    if uploaded_file_id:
+                        uploaded_file = UploadedFile.objects.filter(id=uploaded_file_id).first()
+                        if uploaded_file:
+                            # Check HelpPortalDocument category
+                            help_doc = HelpPortalDocument.objects.filter(uploaded_file=uploaded_file).first()
+                            if help_doc:
+                                if help_doc.category != filters['product_category']:
+                                    match = False
+                            else:
+                                # Check DocumentFile metadata
+                                doc_file = DocumentFile.objects.filter(uploaded_file=uploaded_file).first()
+                                if doc_file and doc_file.metadata:
+                                    metadata_category = doc_file.metadata.get('product_category', '')
+                                    if metadata_category and metadata_category != filters['product_category']:
+                                        match = False
+                except Exception as e:
+                    logger.debug(f"Error checking product_category filter: {e}")
+                    # Continue with other filters
             
             if match:
                 filtered.append(doc)
         
-        return filtered if filtered else results  # Return all if filters too strict
+        # Return filtered results, or original results if filter too strict (to avoid empty results)
+        if filtered:
+            logger.info(f"Metadata filter applied: {len(results)} -> {len(filtered)} results")
+            return filtered
+        else:
+            logger.warning(f"Metadata filter too strict, returning original {len(results)} results")
+            return results
 
 
 # Global instance

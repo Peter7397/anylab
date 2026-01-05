@@ -345,6 +345,8 @@ class DocumentChunk(models.Model):
     document_file = models.ForeignKey(DocumentFile, on_delete=models.CASCADE, related_name='chunks', null=True, blank=True)
     content = models.TextField()
     embedding = VectorField(dimensions=1024, null=True, blank=True)  # BGE-M3 dimension - allow null for existing data
+    visual_embedding = VectorField(dimensions=512, null=True, blank=True)  # CLIP/vision model dimension - for image content
+    has_visual_content = models.BooleanField(default=False, help_text='Whether this chunk contains visual content (image)')
     page_number = models.IntegerField(default=1)
     chunk_index = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)  # Allow null for existing data

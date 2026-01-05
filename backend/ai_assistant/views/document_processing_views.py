@@ -7,6 +7,7 @@ video transcript extraction and image OCR processing.
 
 import logging
 import os
+import hashlib
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from rest_framework.decorators import api_view, permission_classes
@@ -153,6 +154,35 @@ def process_image(request):
             if not ocr_result or not ocr_result.text:
                 return error_response('Failed to extract text from image')
             
+            # Compute file hash for deduplication
+            file_hash = hashlib.sha256()
+            image_file.seek(0)
+            for chunk in image_file.chunks():
+                file_hash.update(chunk)
+            file_hash_str = file_hash.hexdigest()
+            image_file.seek(0)
+            
+            # Check for duplicates
+            existing_file = UploadedFile.objects.filter(file_hash=file_hash_str).first()
+            if existing_file:
+                logger.info(f"Image already exists: {existing_file.filename}")
+                return success_response("Image already processed", {
+                    'document_id': existing_file.id,
+                    'title': existing_file.filename,
+                    'already_exists': True
+                })
+            
+            # Create UploadedFile for RAG indexing
+            uploaded_file = UploadedFile.objects.create(
+                filename=os.path.basename(filename),
+                file_hash=file_hash_str,
+                file_size=image_file.size,
+                page_count=1,
+                intro=ocr_result.text[:200] if ocr_result.text else None,
+                uploaded_by=request.user,
+                processing_status='ready'  # Will be updated after indexing
+            )
+            
             # Save OCR result as DocumentFile
             doc_file = DocumentFile.objects.create(
                 title=title,
@@ -168,21 +198,65 @@ def process_image(request):
                     'processing_time': ocr_result.processing_time
                 },
                 uploaded_by=request.user,
-                file_size=image_file.size
+                file_size=image_file.size,
+                uploaded_file=uploaded_file  # Link to UploadedFile
             )
+            
+            # Index OCR text as DocumentChunk with embedding for RAG search
+            if ocr_result.text and ocr_result.text.strip():
+                try:
+                    from ..rag_service import EnhancedRAGService
+                    from ..utils.visual_embedding import get_visual_embedding_service
+                    
+                    # Generate text embedding for OCR text
+                    rag_service = EnhancedRAGService()
+                    text_embedding = rag_service.get_embedding_from_ollama(ocr_result.text)
+                    
+                    # Generate visual embedding for image
+                    visual_embedding_service = get_visual_embedding_service()
+                    visual_embedding = visual_embedding_service.get_embedding_from_image(file_path)
+                    
+                    # Create DocumentChunk with both text and visual embeddings
+                    DocumentChunk.objects.create(
+                        uploaded_file=uploaded_file,
+                        document_file=doc_file,
+                        content=ocr_result.text,
+                        embedding=text_embedding,
+                        visual_embedding=visual_embedding,
+                        has_visual_content=True,
+                        page_number=1,
+                        chunk_index=0
+                    )
+                    
+                    # Update processing status
+                    uploaded_file.processing_status = 'ready'
+                    uploaded_file.chunks_created = True
+                    uploaded_file.embeddings_created = True
+                    uploaded_file.chunk_count = 1
+                    uploaded_file.save()
+                    
+                    logger.info(f"Indexed OCR text from image {filename} as DocumentChunk with embedding")
+                except Exception as e:
+                    logger.error(f"Error indexing OCR text: {e}")
+                    # Don't fail the request, but log the error
+                    uploaded_file.processing_status = 'failed'
+                    uploaded_file.processing_error = f"Failed to index OCR text: {str(e)}"
+                    uploaded_file.save()
             
             result = {
                 'document_id': doc_file.id,
+                'uploaded_file_id': uploaded_file.id,
                 'title': doc_file.title,
                 'extracted_text': ocr_result.text,
                 'confidence': ocr_result.confidence,
                 'word_count': len(ocr_result.words),
                 'language': ocr_result.language,
-                'bounding_boxes': ocr_result.bounding_boxes
+                'bounding_boxes': ocr_result.bounding_boxes,
+                'indexed': uploaded_file.embeddings_created
             }
             
             BaseViewMixin.log_response(result, 'process_image')
-            return success_response("Image processed successfully", result)
+            return success_response("Image processed and indexed successfully", result)
             
         except Exception as e:
             logger.error(f"Error processing image: {e}")

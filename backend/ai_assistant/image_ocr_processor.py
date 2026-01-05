@@ -99,38 +99,51 @@ class ImageOCRProcessor:
         # Quality thresholds
         self.min_confidence = self.config.get('min_confidence', 0.5)
         self.min_text_length = self.config.get('min_text_length', 3)
+        self.high_confidence_threshold = self.config.get('high_confidence_threshold', 0.85)  # Early exit threshold
         
-        # Initialize components
-        self._initialize_components()
+        # Lazy initialization flags
+        self._easyocr_reader = None
+        self._trocr_processor = None
+        self._trocr_model_instance = None
+        self._tesseract_initialized = False
         
-        logger.info("Image OCR Processor initialized with configuration")
+        # Only initialize Tesseract immediately (lightweight check)
+        if self.tesseract_enabled:
+            try:
+                pytesseract.get_tesseract_version()
+                self._tesseract_initialized = True
+                logger.info("Tesseract available")
+            except Exception as e:
+                logger.warning(f"Tesseract not available: {e}")
+                self.tesseract_enabled = False
+        
+        logger.info("Image OCR Processor initialized with lazy loading")
     
-    def _initialize_components(self):
-        """Initialize processing components"""
-        try:
-            # Initialize EasyOCR
-            if self.easyocr_enabled:
-                self.easyocr_reader = easyocr.Reader(
+    def _get_easyocr_reader(self):
+        """Lazy initialization of EasyOCR"""
+        if self._easyocr_reader is None and self.easyocr_enabled:
+            try:
+                self._easyocr_reader = easyocr.Reader(
                     self.easyocr_languages,
                     gpu=self.easyocr_gpu
                 )
                 logger.info(f"EasyOCR initialized with languages: {self.easyocr_languages}")
-            
-            # Initialize TrOCR
-            if self.trocr_enabled:
-                self.trocr_processor = TrOCRProcessor.from_pretrained(self.trocr_model)
-                self.trocr_model_instance = VisionEncoderDecoderModel.from_pretrained(self.trocr_model)
+            except Exception as e:
+                logger.error(f"Error initializing EasyOCR: {e}")
+                self.easyocr_enabled = False
+        return self._easyocr_reader
+    
+    def _get_trocr_components(self):
+        """Lazy initialization of TrOCR"""
+        if self._trocr_processor is None and self.trocr_enabled:
+            try:
+                self._trocr_processor = TrOCRProcessor.from_pretrained(self.trocr_model)
+                self._trocr_model_instance = VisionEncoderDecoderModel.from_pretrained(self.trocr_model)
                 logger.info(f"TrOCR model '{self.trocr_model}' loaded")
-            
-            # Initialize Tesseract
-            if self.tesseract_enabled:
-                # Test Tesseract installation
-                pytesseract.get_tesseract_version()
-                logger.info("Tesseract initialized")
-            
-        except Exception as e:
-            logger.error(f"Error initializing components: {e}")
-            raise
+            except Exception as e:
+                logger.error(f"Error initializing TrOCR: {e}")
+                self.trocr_enabled = False
+        return self._trocr_processor, self._trocr_model_instance
     
     def process_image(self, image_path: str) -> ProcessedImage:
         """Process image and extract text using OCR"""
@@ -357,10 +370,14 @@ class ImageOCRProcessor:
             return 'en'
     
     def _extract_text(self, image: np.ndarray, language: str) -> OCRResult:
-        """Extract text using multiple OCR engines"""
+        """
+        Extract text using multiple OCR engines with early exit optimization
+        
+        Tries engines in order of preference and exits early if high confidence result found
+        """
         start_time = datetime.now()
         
-        # Try different OCR engines in order of preference
+        # Try different OCR engines in order of preference with early exit
         ocr_results = []
         
         # Try EasyOCR first (most accurate for many languages)
@@ -369,29 +386,46 @@ class ImageOCRProcessor:
                 easyocr_result = self._extract_with_easyocr(image, language)
                 if easyocr_result and easyocr_result.text.strip():
                     ocr_results.append(easyocr_result)
-                    logger.info("Text extracted with EasyOCR")
+                    logger.info(f"Text extracted with EasyOCR (confidence: {easyocr_result.confidence:.2f})")
+                    
+                    # Early exit if confidence is high enough
+                    if easyocr_result.confidence >= self.high_confidence_threshold:
+                        logger.info(f"Early exit: EasyOCR confidence {easyocr_result.confidence:.2f} >= {self.high_confidence_threshold}")
+                        processing_time = (datetime.now() - start_time).total_seconds()
+                        easyocr_result.processing_time = processing_time
+                        return easyocr_result
             except Exception as e:
                 logger.error(f"Error with EasyOCR: {e}")
         
-        # Try Tesseract
-        if self.tesseract_enabled:
+        # Try Tesseract (fast, good for printed text)
+        if self.tesseract_enabled and self._tesseract_initialized:
             try:
                 tesseract_result = self._extract_with_tesseract(image, language)
                 if tesseract_result and tesseract_result.text.strip():
                     ocr_results.append(tesseract_result)
-                    logger.info("Text extracted with Tesseract")
+                    logger.info(f"Text extracted with Tesseract (confidence: {tesseract_result.confidence:.2f})")
+                    
+                    # Early exit if confidence is high enough and we have text
+                    if tesseract_result.confidence >= self.high_confidence_threshold and len(tesseract_result.text.strip()) > self.min_text_length:
+                        logger.info(f"Early exit: Tesseract confidence {tesseract_result.confidence:.2f} >= {self.high_confidence_threshold}")
+                        processing_time = (datetime.now() - start_time).total_seconds()
+                        tesseract_result.processing_time = processing_time
+                        return tesseract_result
             except Exception as e:
                 logger.error(f"Error with Tesseract: {e}")
         
-        # Try TrOCR (for printed text)
-        if self.trocr_enabled:
-            try:
-                trocr_result = self._extract_with_trocr(image)
-                if trocr_result and trocr_result.text.strip():
-                    ocr_results.append(trocr_result)
-                    logger.info("Text extracted with TrOCR")
-            except Exception as e:
-                logger.error(f"Error with TrOCR: {e}")
+        # Try TrOCR only if previous results are not good enough (slower)
+        if self.trocr_enabled and ocr_results:
+            # Only try TrOCR if best result so far has low confidence
+            best_so_far = max(ocr_results, key=lambda x: x.confidence) if ocr_results else None
+            if best_so_far and best_so_far.confidence < self.high_confidence_threshold:
+                try:
+                    trocr_result = self._extract_with_trocr(image)
+                    if trocr_result and trocr_result.text.strip():
+                        ocr_results.append(trocr_result)
+                        logger.info(f"Text extracted with TrOCR (confidence: {trocr_result.confidence:.2f})")
+                except Exception as e:
+                    logger.error(f"Error with TrOCR: {e}")
         
         # Choose best result
         if ocr_results:
@@ -419,11 +453,16 @@ class ImageOCRProcessor:
     def _extract_with_easyocr(self, image: np.ndarray, language: str) -> OCRResult:
         """Extract text using EasyOCR"""
         try:
+            # Lazy initialization
+            reader = self._get_easyocr_reader()
+            if reader is None:
+                raise Exception("EasyOCR not available")
+            
             # Convert image to PIL Image
             pil_image = Image.fromarray(image)
             
             # Perform OCR
-            results = self.easyocr_reader.readtext(image)
+            results = reader.readtext(image)
             
             # Process results
             text_parts = []
@@ -554,15 +593,20 @@ class ImageOCRProcessor:
     def _extract_with_trocr(self, image: np.ndarray) -> OCRResult:
         """Extract text using TrOCR"""
         try:
+            # Lazy initialization
+            processor, model = self._get_trocr_components()
+            if processor is None or model is None:
+                raise Exception("TrOCR not available")
+            
             # Convert image to PIL Image
             pil_image = Image.fromarray(image)
             
             # Process image
-            pixel_values = self.trocr_processor(pil_image, return_tensors="pt").pixel_values
+            pixel_values = processor(pil_image, return_tensors="pt").pixel_values
             
             # Generate text
-            generated_ids = self.trocr_model_instance.generate(pixel_values)
-            generated_text = self.trocr_processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            generated_ids = model.generate(pixel_values)
+            generated_text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
             
             # TrOCR doesn't provide detailed word-level information
             words = [{'text': generated_text, 'confidence': 0.8, 'bbox': {'x': 0, 'y': 0, 'width': 0, 'height': 0}}]

@@ -79,24 +79,9 @@ class ImprovedRAGService:
                 logger.warning(f"Failed to use {model} for embedding: {e}")
                 continue
         
-        # If all models fail, use fallback
-        logger.warning("All embedding models failed, using fallback")
-        fallback_embedding = self._simple_embedding_fallback(text)
-        cache.set(cache_key, fallback_embedding, self.embedding_cache_ttl)
-        return fallback_embedding
-    
-    def _simple_embedding_fallback(self, text):
-        """Simple fallback embedding when Ollama embedding fails"""
-        # Create a simple 1024-dimensional embedding based on text hash
-        hash_obj = hashlib.md5(text.encode())
-        hash_bytes = hash_obj.digest()
-        
-        # Convert hash to 1024-dimensional vector (BGE-M3 dimensions)
-        embedding = []
-        for i in range(1024):
-            embedding.append((hash_bytes[i % 16] / 255.0) * 2 - 1)
-        
-        return embedding
+        # If all models fail, raise exception (no fallback - quality requirement)
+        logger.error("All embedding models failed - no fallback available")
+        raise Exception(f"Failed to get embedding from Ollama for text. All models failed.")
     
     def compute_file_hash(self, file_path):
         """Compute SHA256 hash of file for deduplication"""
