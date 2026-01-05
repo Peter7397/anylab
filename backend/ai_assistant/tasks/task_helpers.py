@@ -106,6 +106,81 @@ def update_file_status_in_job(job_id, filename, status_updates):
         logger.error(f"Failed to update file status in job {job_id} for {filename}: {e}", exc_info=True)
 
 
+def bulk_update_file_statuses_in_job(job_id, file_updates):
+    """
+    OPTIMIZATION: Batch update multiple file statuses in a single database operation
+    
+    Args:
+        job_id: UploadJob ID
+        file_updates: List of dicts with 'filename' and 'status_updates' keys
+                     Example: [{'filename': 'file1.pdf', 'status_updates': {'upload_status': 'uploaded'}}, ...]
+    
+    Returns:
+        Dict with 'updated_count' and 'failed_count'
+    """
+    from ..models import UploadJob
+    
+    if not file_updates:
+        return {'updated_count': 0, 'failed_count': 0}
+    
+    try:
+        with transaction.atomic():
+            job = UploadJob.objects.select_for_update().get(job_id=job_id)
+            source_files = job.source_files or []
+            
+            updated_count = 0
+            failed_count = 0
+            
+            # Process all updates in one pass
+            for update_info in file_updates:
+                filename = update_info.get('filename')
+                status_updates = update_info.get('status_updates', {})
+                
+                if not filename:
+                    failed_count += 1
+                    continue
+                
+                # Find and update the file entry
+                updated = False
+                for idx, file_info in enumerate(source_files):
+                    file_name = file_info.get('name', '')
+                    file_path = file_info.get('path', '')
+                    
+                    # Try multiple matching strategies
+                    if (file_name == filename or
+                        (file_path and filename in file_path) or
+                        (file_path and os.path.basename(file_path) == filename) or
+                        (file_name and filename in file_name)):
+                        file_info.update(status_updates)
+                        source_files[idx] = file_info
+                        updated = True
+                        updated_count += 1
+                        break
+                
+                if not updated:
+                    failed_count += 1
+                    logger.debug(f"Could not find file {filename} in job {job_id} for batch update")
+            
+            # Save all updates in a single database operation
+            if updated_count > 0:
+                job.source_files = list(source_files)
+                job.save(update_fields=['source_files'])
+                logger.debug(f"Bulk updated {updated_count} file(s) in job {job_id} in single operation")
+            
+            return {
+                'updated_count': updated_count,
+                'failed_count': failed_count,
+                'total': len(file_updates)
+            }
+            
+    except UploadJob.DoesNotExist:
+        logger.warning(f"UploadJob {job_id} not found for batch status update")
+        return {'updated_count': 0, 'failed_count': len(file_updates), 'total': len(file_updates)}
+    except Exception as e:
+        logger.error(f"Failed to batch update file statuses in job {job_id}: {e}", exc_info=True)
+        return {'updated_count': 0, 'failed_count': len(file_updates), 'total': len(file_updates)}
+
+
 def update_file_processing_status(uploaded_file_id, status, result=None, error=None):
     """
     Update processing status in UploadJob when file processing completes/fails

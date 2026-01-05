@@ -499,12 +499,14 @@ def _process_single_file_async(job_id: str, file_info: Dict[str, Any], index: in
             result['message'] = result.get('data', {}).get('message', 'Duplicate file - already exists')
         
         # Update job status directly (instead of returning for parent task to process)
+        # OPTIMIZATION: Combine multiple status updates into single database call when possible
         if result.get('success'):
             uploaded_file_id = result.get('uploaded_file_id')
             
             # Check if this was a duplicate
             if result.get('is_duplicate'):
                 logger.info(f'File {filename} is a duplicate, skipping processing')
+                # Single update call for duplicate
                 update_file_status_in_job(job_id, filename, {
                     'upload_status': 'skipped',
                     'uploaded_file_id': uploaded_file_id,
@@ -513,15 +515,6 @@ def _process_single_file_async(job_id: str, file_info: Dict[str, Any], index: in
                     'processing_status': 'skipped'
                 })
             else:
-                # Update per-file status in source_files
-                update_file_status_in_job(job_id, filename, {
-                    'upload_status': 'uploaded',
-                    'uploaded_file_id': uploaded_file_id,
-                    'uploaded_at': timezone.now().isoformat(),
-                    'upload_error': None,
-                    'processing_status': 'pending'
-                })
-                
                 # Queue processing task immediately (progressive processing)
                 if uploaded_file_id:
                     # Get queue routing from UploadQueueManager
@@ -541,16 +534,21 @@ def _process_single_file_async(job_id: str, file_info: Dict[str, Any], index: in
                     
                     # Check system resources before queuing
                     resources = upload_queue_manager.check_system_resources()
+                    
+                    # OPTIMIZATION: Combine upload and processing status updates into single call
+                    status_updates = {
+                        'upload_status': 'uploaded',
+                        'uploaded_file_id': uploaded_file_id,
+                        'uploaded_at': timezone.now().isoformat(),
+                        'upload_error': None,
+                    }
+                    
                     if resources['should_pause_low_priority'] and file_priority < 5:
                         logger.warning(f"High resource usage - deferring low-priority file {uploaded_file_id}")
-                        update_file_status_in_job(job_id, filename, {
-                            'processing_status': 'pending',
-                            'processing_error': 'Queued for processing when resources available'
-                        })
+                        status_updates['processing_status'] = 'pending'
+                        status_updates['processing_error'] = 'Queued for processing when resources available'
                     else:
-                        update_file_status_in_job(job_id, filename, {
-                            'processing_status': 'pending'
-                        })
+                        status_updates['processing_status'] = 'pending'
                         
                         # Route to appropriate queue with priority
                         # Use the function directly since it's in the same module
@@ -560,8 +558,19 @@ def _process_single_file_async(job_id: str, file_info: Dict[str, Any], index: in
                             priority=file_priority
                         )
                         logger.info(f"Queued processing task for file {uploaded_file_id} ({filename}) to queue: {target_queue} with priority: {file_priority}")
+                    
+                    # Single database update call instead of multiple
+                    update_file_status_in_job(job_id, filename, status_updates)
+                else:
+                    # No uploaded_file_id - just update upload status
+                    update_file_status_in_job(job_id, filename, {
+                        'upload_status': 'uploaded',
+                        'uploaded_at': timezone.now().isoformat(),
+                        'upload_error': None,
+                        'processing_status': 'pending'
+                    })
         else:
-            # Upload failed
+            # Upload failed - single update call
             error_msg = result.get('error', 'Unknown error')
             update_file_status_in_job(job_id, filename, {
                 'upload_status': 'failed',

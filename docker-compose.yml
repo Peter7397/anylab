@@ -254,7 +254,7 @@ services:
     restart: unless-stopped
     networks:
       - anylab_network
-    command: celery -A anylab worker --loglevel=info --pool=solo -Q celery,ai_queue,fast_queue,normal_queue,slow_queue --concurrency=2 --max-tasks-per-child=50
+    command: celery -A anylab worker --loglevel=info --pool=prefork -Q celery,ai_queue,fast_queue,normal_queue,slow_queue --concurrency=4 --max-tasks-per-child=50
 
   # Phase 1: Dedicated OCR Worker (lower concurrency for memory-intensive OCR)
   celery-worker-ocr:
@@ -290,7 +290,7 @@ services:
     restart: unless-stopped
     networks:
       - anylab_network
-    command: celery -A anylab worker --loglevel=info --pool=solo -Q ocr_queue --concurrency=1 --max-tasks-per-child=5
+    command: celery -A anylab worker --loglevel=info --pool=prefork -Q ocr_queue --concurrency=2 --max-tasks-per-child=5
 
   # Celery Beat (Scheduler)
   # Lightweight scheduler, minimal memory needed

@@ -15,6 +15,7 @@ from ai_assistant.views.upload_queue_views import (
     discover_webpage_files,
     queue_webpage_files,
     upload_file_content,
+    upload_files_batch,
 )
 
 urlpatterns = [
@@ -36,6 +37,7 @@ urlpatterns = [
     
     # File content upload (for jobs created with metadata only)
     path('queue/<str:job_id>/upload-file/', upload_file_content, name='upload_file_content'),
+    path('queue/<str:job_id>/upload-files/', upload_files_batch, name='upload_files_batch'),  # Batch upload (5-10 files)
     
     # Webpage discovery and queuing
     path('discover-webpage/', discover_webpage_files, name='discover_webpage_files'),

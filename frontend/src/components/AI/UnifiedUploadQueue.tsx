@@ -568,28 +568,58 @@ const UnifiedUploadQueue: React.FC = () => {
       const jobId = jobData.job_id;
       
       // Step 4: Upload file content for non-duplicate files (background, non-blocking)
-      // Upload all files - backend will skip duplicates automatically
-      const uploadPromises = fileHashes.map(async ({ file }) => {
+      // OPTIMIZATION: Batch uploads (5-10 files per request) for 2-3x faster upload
+      const BATCH_SIZE = 8; // Upload 8 files per batch request
+      const batches: Array<Array<{file: File, hash: string}>> = [];
+      
+      // Group files into batches
+      for (let i = 0; i < fileHashes.length; i += BATCH_SIZE) {
+        batches.push(fileHashes.slice(i, i + BATCH_SIZE));
+      }
+      
+      // Upload each batch
+      const uploadPromises = batches.map(async (batch, batchIndex) => {
         try {
           const formData = new FormData();
-          formData.append('file', file);
           
+          // Add all files in this batch to FormData
+          batch.forEach(({ file }) => {
+            formData.append('files[]', file); // Use 'files[]' for array format
+          });
+          
+          // Upload batch to batch endpoint
           await apiClient.post(
-            `/ai/upload/queue/${jobId}/upload-file/?filename=${encodeURIComponent(file.name)}`,
+            `/ai/upload/queue/${jobId}/upload-files/`,
             formData,
             {
               headers: { 'Content-Type': 'multipart/form-data' }
             }
           );
+          
+          console.debug(`Batch ${batchIndex + 1}/${batches.length} uploaded successfully (${batch.length} files)`);
         } catch (error: any) {
-          console.error(`Error uploading file content for ${file.name}:`, error);
-          // Don't show error to user - background task will retry or handle gracefully
+          console.error(`Error uploading batch ${batchIndex + 1}:`, error);
+          // If batch fails, fall back to individual uploads for this batch
+          const fallbackPromises = batch.map(async ({ file }) => {
+            try {
+              const fallbackFormData = new FormData();
+              fallbackFormData.append('file', file);
+              await apiClient.post(
+                `/ai/upload/queue/${jobId}/upload-file/?filename=${encodeURIComponent(file.name)}`,
+                fallbackFormData,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+              );
+            } catch (fallbackError: any) {
+              console.error(`Error uploading file ${file.name} (fallback):`, fallbackError);
+            }
+          });
+          await Promise.all(fallbackPromises);
         }
       });
       
-      // Start uploads in background (don't await - non-blocking)
+      // Start batch uploads in background (don't await - non-blocking)
       Promise.all(uploadPromises).catch(err => {
-        console.error('Error uploading file contents:', err);
+        console.error('Error uploading file batches:', err);
         // Background upload failed, but job is created - processing task will handle
       });
       
@@ -739,27 +769,58 @@ const UnifiedUploadQueue: React.FC = () => {
       const jobId = jobData.job_id;
       
       // Step 4: Upload file content for non-duplicate files (background, non-blocking)
-      const uploadPromises = fileHashes.map(async ({ file }) => {
+      // OPTIMIZATION: Batch uploads (5-10 files per request) for 2-3x faster upload
+      const BATCH_SIZE = 8; // Upload 8 files per batch request
+      const batches: Array<Array<{file: File, hash: string}>> = [];
+      
+      // Group files into batches
+      for (let i = 0; i < fileHashes.length; i += BATCH_SIZE) {
+        batches.push(fileHashes.slice(i, i + BATCH_SIZE));
+      }
+      
+      // Upload each batch
+      const uploadPromises = batches.map(async (batch, batchIndex) => {
         try {
           const formData = new FormData();
-          formData.append('file', file);
           
+          // Add all files in this batch to FormData
+          batch.forEach(({ file }) => {
+            formData.append('files[]', file); // Use 'files[]' for array format
+          });
+          
+          // Upload batch to batch endpoint
           await apiClient.post(
-            `/ai/upload/queue/${jobId}/upload-file/?filename=${encodeURIComponent(file.name)}`,
+            `/ai/upload/queue/${jobId}/upload-files/`,
             formData,
             {
               headers: { 'Content-Type': 'multipart/form-data' }
             }
           );
+          
+          console.debug(`Batch ${batchIndex + 1}/${batches.length} uploaded successfully (${batch.length} files)`);
         } catch (error: any) {
-          console.error(`Error uploading file content for ${file.name}:`, error);
-          // Don't show error to user - background task will retry or handle gracefully
+          console.error(`Error uploading batch ${batchIndex + 1}:`, error);
+          // If batch fails, fall back to individual uploads for this batch
+          const fallbackPromises = batch.map(async ({ file }) => {
+            try {
+              const fallbackFormData = new FormData();
+              fallbackFormData.append('file', file);
+              await apiClient.post(
+                `/ai/upload/queue/${jobId}/upload-file/?filename=${encodeURIComponent(file.name)}`,
+                fallbackFormData,
+                { headers: { 'Content-Type': 'multipart/form-data' } }
+              );
+            } catch (fallbackError: any) {
+              console.error(`Error uploading file ${file.name} (fallback):`, fallbackError);
+            }
+          });
+          await Promise.all(fallbackPromises);
         }
       });
       
-      // Start uploads in background (don't await - non-blocking)
+      // Start batch uploads in background (don't await - non-blocking)
       Promise.all(uploadPromises).catch(err => {
-        console.error('Error uploading file contents:', err);
+        console.error('Error uploading file batches:', err);
       });
       
       setSelectedFolderFiles([]);

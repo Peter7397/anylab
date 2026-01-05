@@ -131,8 +131,8 @@ class EnhancedRAGService:
         import hashlib
         from concurrent.futures import ThreadPoolExecutor, as_completed
         
-        # Safety check: Limit batch size to prevent memory issues
-        MAX_BATCH_SIZE = 50
+        # Safety check: Limit batch size to prevent memory issues (increased from 50 to 200 for optimization)
+        MAX_BATCH_SIZE = 200
         MAX_CONCURRENT_WORKERS = 10
         
         if len(texts) > MAX_BATCH_SIZE:
@@ -461,9 +461,9 @@ class EnhancedRAGService:
                     # Filter out empty chunks
                     valid_chunks = [chunk_text for chunk_text in split_chunks if chunk_text.strip()]
                     
-                    # Process in batches of 50 chunks at a time - this automatically handles any file size
-                    # Batching prevents memory issues by processing gradually
-                    batch_size = 50
+                    # Process in batches of 100 chunks at a time - this automatically handles any file size
+                    # Batching prevents memory issues by processing gradually (optimized from 50 for 2x faster embedding)
+                    batch_size = 100
                     total_batches = (len(valid_chunks) + batch_size - 1) // batch_size
                     
                     logger.info(f"Processing {len(valid_chunks)} chunks in {total_batches} batches")

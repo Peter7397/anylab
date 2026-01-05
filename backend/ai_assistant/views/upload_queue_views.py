@@ -642,6 +642,154 @@ def upload_file_content(request, job_id):
         return BaseViewMixin.handle_error(e, 'upload_file_content')
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def upload_files_batch(request, job_id):
+    """
+    Upload multiple file contents in a single request (OPTIMIZATION: Batch upload)
+    
+    POST Request:
+    - FormData with multiple 'files[]' fields containing file contents
+    - Each file will be matched by filename to the job's source_files
+    
+    This endpoint accepts 5-10 files per request for faster uploads.
+    """
+    try:
+        # Validate job_id
+        try:
+            uuid.UUID(str(job_id))
+        except (ValueError, AttributeError):
+            return bad_request_response(f'Invalid job ID format: {job_id}')
+        
+        # Get job
+        job = upload_queue_manager.get_job(job_id)
+        if not job:
+            return error_response(f"Job {job_id} not found", status_code=status.HTTP_404_NOT_FOUND)
+        
+        # Check permission
+        if not request.user.is_staff and job.created_by != request.user:
+            return error_response("Permission denied", status_code=status.HTTP_403_FORBIDDEN)
+        
+        # Get files from request (support both 'files[]' array and 'files' list)
+        uploaded_files = []
+        if 'files[]' in request.FILES:
+            uploaded_files = request.FILES.getlist('files[]')
+        elif 'files' in request.FILES:
+            uploaded_files = request.FILES.getlist('files')
+        else:
+            return bad_request_response('Files are required. Use "files[]" or "files" field in FormData.')
+        
+        if not uploaded_files:
+            return bad_request_response('At least one file is required')
+        
+        if len(uploaded_files) > 10:
+            return bad_request_response('Maximum 10 files per batch request')
+        
+        source_files = job.source_files or []
+        results = []
+        success_count = 0
+        error_count = 0
+        
+        # Process each file
+        for uploaded_file in uploaded_files:
+            filename = uploaded_file.name
+            
+            # Find the file in job's source_files
+            file_info = None
+            file_index = None
+            
+            for idx, f in enumerate(source_files):
+                if f.get('name') == filename or f.get('filename') == filename:
+                    file_info = f
+                    file_index = idx
+                    break
+            
+            if not file_info:
+                results.append({
+                    'filename': filename,
+                    'success': False,
+                    'error': f'File "{filename}" not found in job {job_id}'
+                })
+                error_count += 1
+                continue
+            
+            # Check if file is already a duplicate
+            if file_info.get('is_duplicate') or file_info.get('upload_status') == 'skipped':
+                logger.info(f'File {filename} is a duplicate, skipping file content upload')
+                results.append({
+                    'filename': filename,
+                    'success': True,
+                    'is_duplicate': True,
+                    'message': 'File is duplicate, no upload needed'
+                })
+                success_count += 1
+                continue
+            
+            # Save file to temp folder
+            try:
+                temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp')
+                os.makedirs(temp_dir, exist_ok=True)
+                
+                # Generate temp file path
+                temp_file_path = os.path.join(temp_dir, f"{job_id}_{file_index}_{filename}")
+                
+                # Save file content
+                if isinstance(uploaded_file, TemporaryUploadedFile):
+                    # Already a temp file, just copy
+                    import shutil
+                    shutil.copy(uploaded_file.temporary_file_path(), temp_file_path)
+                else:
+                    # InMemoryUploadedFile - read and write
+                    uploaded_file.seek(0)
+                    file_content = uploaded_file.read()
+                    with open(temp_file_path, 'wb') as temp_file:
+                        temp_file.write(file_content)
+                
+                # Update file info in job
+                file_info['path'] = temp_file_path
+                file_info['is_temp'] = True
+                file_info['upload_status'] = 'pending'  # Ready for processing
+                
+                results.append({
+                    'filename': filename,
+                    'success': True,
+                    'temp_path': temp_file_path,
+                    'file_index': file_index
+                })
+                success_count += 1
+                
+                logger.debug(f'File content uploaded for {filename} in job {job_id}, saved to {temp_file_path}')
+                
+            except Exception as e:
+                logger.error(f"Error saving file content for {filename}: {e}", exc_info=True)
+                results.append({
+                    'filename': filename,
+                    'success': False,
+                    'error': str(e)
+                })
+                error_count += 1
+        
+        # Update job in database with all file updates
+        job.source_files = source_files
+        job.save(update_fields=['source_files'])
+        
+        logger.info(f'Batch upload completed for job {job_id}: {success_count} successful, {error_count} failed out of {len(uploaded_files)} files')
+        
+        return success_response(
+            f"Batch upload completed: {success_count} successful, {error_count} failed",
+            {
+                'total_files': len(uploaded_files),
+                'successful': success_count,
+                'failed': error_count,
+                'results': results
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in batch file upload: {e}", exc_info=True)
+        return BaseViewMixin.handle_error(e, 'upload_files_batch')
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_job_detail(request, job_id):

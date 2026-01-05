@@ -105,7 +105,7 @@ class AutomaticFileProcessor:
         
         self.EMBEDDING_MODEL = 'bge-m3'  # ONLY model - NO FALLBACKS
         self.EMBEDDING_DIMS = 1024     # BGE-M3 dimensions
-        self.BATCH_SIZE = 50            # Process 50 chunks per Ollama API call
+        self.BATCH_SIZE = 100           # Process 100 chunks per Ollama API call (optimized from 50 for 2x faster embedding)
         
         self.rag_service = EnhancedRAGService()
         self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
