@@ -4,7 +4,7 @@ Prevents abuse and manages resource usage
 """
 import time
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from collections import defaultdict
 from threading import Lock
 from django.core.cache import cache

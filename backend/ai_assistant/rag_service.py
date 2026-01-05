@@ -808,12 +808,15 @@ class EnhancedRAGService:
             
             # Log performance metrics if enabled
             if self.enable_performance_monitoring:
+                embedding_time = metrics['stages'].get('embedding_generation') or 0
+                vector_time = metrics['stages'].get('vector_search') or 0
+                formatting_time = metrics['stages'].get('result_formatting') or 0
                 logger.info(
                     f"Search performance - Query: '{query[:30]}...' | "
                     f"Total: {total_time:.1f}ms | "
-                    f"Embedding: {metrics['stages'].get('embedding_generation', 0):.1f}ms | "
-                    f"Vector Search: {metrics['stages'].get('vector_search', 0):.1f}ms | "
-                    f"Formatting: {metrics['stages'].get('result_formatting', 0):.1f}ms | "
+                    f"Embedding: {embedding_time:.1f}ms | "
+                    f"Vector Search: {vector_time:.1f}ms | "
+                    f"Formatting: {formatting_time:.1f}ms | "
                     f"Results: {len(formatted_results)}"
                 )
                 # Store metrics for retrieval
@@ -960,7 +963,7 @@ class EnhancedRAGService:
                 break
             # Truncate long content to optimize performance
             content = doc['content'][:max_chars_per_doc] if len(doc['content']) > max_chars_per_doc else doc['content']
-            similarity = doc.get('similarity', 0)
+            similarity = doc.get('similarity') or 0
             doc_text = f"[{idx}] (Similarity: {similarity:.3f})\n{content}"
             if total_chars + len(doc_text) > max_total_chars:
                 # Trim this document to fit within limit
@@ -1073,6 +1076,9 @@ class EnhancedRAGService:
                 generation_start = time.time()
                 response = self.generate_response(query, relevant_docs, language=language)
                 pipeline_metrics['stages']['response_generation'] = (time.time() - generation_start) * 1000  # ms
+                # Ensure response is never None
+                if response is None:
+                    response = "I don't know." if 'zh' not in language.lower() else "我不知道。"
                 pipeline_metrics['response_length'] = len(response)
                 
                 result = {
@@ -1093,13 +1099,19 @@ class EnhancedRAGService:
             
             # Log performance metrics if enabled
             if self.enable_performance_monitoring:
+                search_time = pipeline_metrics['stages'].get('document_search') or 0
+                gen_time = pipeline_metrics['stages'].get('response_generation') or 0
+                response_len = len(response) if response else 0
+                # Ensure all values are numbers, not None
+                search_time = float(search_time) if search_time is not None else 0.0
+                gen_time = float(gen_time) if gen_time is not None else 0.0
                 logger.info(
                     f"RAG Pipeline Performance - Query: '{query[:30]}...' | "
                     f"Total: {total_time:.1f}ms | "
-                    f"Search: {pipeline_metrics['stages'].get('document_search', 0):.1f}ms | "
-                    f"Generation: {pipeline_metrics['stages'].get('response_generation', 0):.1f}ms | "
+                    f"Search: {search_time:.1f}ms | "
+                    f"Generation: {gen_time:.1f}ms | "
                     f"Documents: {len(relevant_docs)} | "
-                    f"Response: {len(response)} chars"
+                    f"Response: {response_len} chars"
                 )
                 # Store metrics
                 query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()

@@ -20,6 +20,7 @@ from ..rag_service import EnhancedRAGService
 from ..improved_rag_service import enhanced_rag_service
 from ..advanced_rag_service import advanced_rag_service
 from ..comprehensive_rag_service import comprehensive_rag_service
+from ..utils.ollama_monitor import get_ollama_monitor
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class RAGService(BaseService):
         super().__init__()
         # Dependency injection: Use provided service or default
         self.rag_service = rag_service_instance or EnhancedRAGService()
+        self.monitor = get_ollama_monitor()
     
     def chat_with_ollama(self, prompt: str, user, **kwargs) -> Dict[str, Any]:
         """Generate chat response using Ollama"""
@@ -131,40 +133,84 @@ class RAGService(BaseService):
             }
         }
         
+        start_time = time.time()
         try:
             logger.debug(f"Calling Ollama API: {api_url} with model: {model}")
             resp = requests.post(api_url, json=payload, timeout=timeout_seconds)
+            response_time_ms = (time.time() - start_time) * 1000
             resp.raise_for_status()
             
             response_data = resp.json()
             response_text = response_data.get("message", {}).get("content", "")
             
             if not response_text:
+                error_msg = "Empty response from Ollama API"
+                self.monitor.record_request(
+                    'chat', False, response_time_ms,
+                    error=error_msg
+                )
                 logger.error(f"Empty response from Ollama. Response: {response_data}")
-                raise ValueError("Empty response from Ollama API")
+                raise ValueError(error_msg)
+            
+            # Record successful request
+            self.monitor.record_request('chat', True, response_time_ms)
             
             return {
                 'response': response_text,
                 'model': model
             }
         except requests.exceptions.HTTPError as e:
-            if e.response.status_code == 404:
-                logger.error(f"Ollama API endpoint not found (404). URL: {api_url}, Model: {model}. Check if Ollama is running and the URL is correct.")
+            response_time_ms = (time.time() - start_time) * 1000
+            status_code = e.response.status_code if hasattr(e, 'response') else None
+            
+            if status_code == 404:
+                error_msg = f"Ollama API endpoint not found (404). URL: {api_url}, Model: {model}"
+                self.monitor.record_request(
+                    'chat', False, response_time_ms,
+                    status_code=404, error=error_msg
+                )
+                logger.error(f"{error_msg}. Check if Ollama is running and the URL is correct.")
                 raise ValueError(f"Ollama API endpoint not found. Please check if Ollama is running at {ollama_url} and the model '{model}' exists.")
             else:
-                logger.error(f"HTTP error from Ollama: {e.response.status_code} - {e.response.text}")
+                error_msg = f"HTTP error from Ollama: {status_code} - {e.response.text if hasattr(e, 'response') else str(e)}"
+                self.monitor.record_request(
+                    'chat', False, response_time_ms,
+                    status_code=status_code, error=error_msg
+                )
+                logger.error(error_msg)
                 raise
         except requests.exceptions.ConnectionError as e:
-            logger.error(f"Cannot connect to Ollama at {ollama_url}. Make sure Ollama is running.")
-            raise ValueError(f"Cannot connect to Ollama at {ollama_url}. Please ensure Ollama is running.")
+            response_time_ms = (time.time() - start_time) * 1000
+            error_msg = f"Cannot connect to Ollama at {ollama_url}"
+            self.monitor.record_request(
+                'chat', False, response_time_ms,
+                error=error_msg
+            )
+            logger.error(f"{error_msg}. Make sure Ollama is running.")
+            raise ValueError(f"{error_msg}. Please ensure Ollama is running.")
+        except requests.exceptions.Timeout as e:
+            response_time_ms = (time.time() - start_time) * 1000
+            error_msg = f"Ollama request timeout after {timeout_seconds}s"
+            self.monitor.record_request(
+                'chat', False, response_time_ms,
+                error=error_msg
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         except Exception as e:
-            logger.error(f"Error calling Ollama API: {e}")
+            response_time_ms = (time.time() - start_time) * 1000
+            error_msg = f"Error calling Ollama API: {str(e)}"
+            self.monitor.record_request(
+                'chat', False, response_time_ms,
+                error=error_msg
+            )
+            logger.error(error_msg)
             raise
     
     def rag_search(self, query: str, user, search_mode: str = 'comprehensive', 
                   top_k: int = None, **kwargs) -> Dict[str, Any]:
         """Perform RAG search with performance monitoring and rate limiting"""
-        from .utils.rate_limiter import get_rate_limiter
+        from ..utils.rate_limiter import get_rate_limiter
         
         start_time = time.time()
         rate_limiter = get_rate_limiter()
@@ -319,7 +365,7 @@ class RAGService(BaseService):
             file_path = fs.path(filename)
             
             # Calculate file hash for deduplication
-            file_hash = hashlib.md5(file.read()).hexdigest()
+            file_hash = hashlib.sha256(file.read()).hexdigest()
             file.seek(0)  # Reset file pointer
             
             # Check for duplicates
@@ -430,10 +476,10 @@ class RAGService(BaseService):
             
             log_upload(f"File read: {len(file_content)} bytes")
             
-            # Step 2: Calculate hash
+            # Step 2: Calculate hash (SHA-256 for proper duplicate detection)
             log_upload(f"Calculating hash...")
-            file_hash = hashlib.md5(file_content).hexdigest()
-            log_upload(f"Hash: {file_hash[:8]}...")
+            file_hash = hashlib.sha256(file_content).hexdigest()
+            log_upload(f"Hash (SHA-256): {file_hash[:16]}...")
             
             # Step 3: Check for duplicates - Enhanced duplicate detection
             # First check by hash (most reliable)
