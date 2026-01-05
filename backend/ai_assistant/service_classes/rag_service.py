@@ -102,7 +102,7 @@ class RAGService(BaseService):
             logger.error("Ollama model is not set! Please configure OLLAMA_MODEL in settings or via System Settings.")
             raise ValueError("Ollama model is not configured. Please set a model in System Settings.")
         
-        ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         timeout_seconds = getattr(settings, 'OLLAMA_REQUEST_TIMEOUT', 120)
         
         # Make API request
@@ -315,134 +315,379 @@ class RAGService(BaseService):
             return self.error_response('Failed to upload and process PDF')
     
     def upload_document_enhanced(self, file, user, **kwargs) -> Dict[str, Any]:
-        """Upload and process document file"""
+        """
+        SIMPLIFIED DOCKER-FIRST UPLOAD - COMPLETE REPLACEMENT
+        
+        This method has been completely rewritten with a simplified, Docker-first approach.
+        Uses Django's storage API exclusively for reliable file saving in Docker.
+        """
+        import sys
+        import os
+        import hashlib
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        from django.conf import settings
+        
+        def log_upload(message, level='INFO'):
+            """Force log to stdout for Docker visibility"""
+            msg = f"[UPLOAD] {message}"
+            print(msg, file=sys.stdout)
+            sys.stdout.flush()
+            if level == 'ERROR':
+                logger.error(message)
+            elif level == 'WARNING':
+                logger.warning(message)
+            else:
+                logger.info(message)
+        
         try:
-            self.log_operation('upload_document_enhanced', {
-                'file_name': file.name,
-                'file_size': file.size
-            })
+            log_upload(f"=== UPLOAD START: {file.name} ({file.size} bytes) ===")
             
-            # Calculate file hash first for deduplication
-            # Read file content into memory to calculate hash
+            # Step 1: Read file content
+            log_upload(f"Reading file content...")
+            if hasattr(file, 'seek'):
+                file.seek(0)
+            
             file_content = file.read()
-            file_hash = hashlib.md5(file_content).hexdigest()
+            if not file_content or len(file_content) == 0:
+                error_msg = "File content is empty"
+                log_upload(f"ERROR: {error_msg}", 'ERROR')
+                raise ValueError(error_msg)
             
-            # Check for duplicates BEFORE saving file
+            # Clean null bytes from text-based file content early
+            # This prevents "string literal cannot contain NUL" errors during processing
+            # CRITICAL: Only clean actual text files, NEVER modify binary files (PDFs, images, etc.)
+            if isinstance(file_content, bytes):
+                # Check file extension to determine if it's binary
+                # Binary file extensions that should NEVER be modified
+                binary_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp', 
+                                   '.zip', '.rar', '.7z', '.tar', '.gz', '.docx', '.xlsx', '.pptx',
+                                   '.doc', '.xls', '.ppt', '.odt', '.ods', '.odp'}
+                
+                # Get file extension from filename
+                file_ext = None
+                if hasattr(file, 'name'):
+                    from pathlib import Path
+                    file_ext = Path(file.name).suffix.lower()
+                
+                # Only process if it's NOT a known binary file type
+                if file_ext not in binary_extensions:
+                    # Check if file appears to be text-based
+                    # Only clean text files, preserve binary files
+                    try:
+                        # Try to decode as UTF-8 to check if it's text
+                        text_content = file_content.decode('utf-8', errors='ignore')
+                        # Additional check: if file has high ratio of null bytes, it's likely binary
+                        null_ratio = file_content.count(b'\x00') / len(file_content) if len(file_content) > 0 else 0
+                        # If it decodes successfully, has null bytes, but low null ratio (< 1%), clean them
+                        if b'\x00' in file_content and null_ratio < 0.01:
+                            log_upload(f"Cleaning null bytes from text file...")
+                            cleaned_text = text_content.replace('\x00', '').replace('\0', '')
+                            # Remove other problematic control characters (keep \n, \r, \t)
+                            cleaned_text = ''.join(char for char in cleaned_text if ord(char) >= 32 or char in ['\n', '\r', '\t'])
+                            file_content = cleaned_text.encode('utf-8')
+                            log_upload(f"Cleaned null bytes from file content")
+                        elif null_ratio >= 0.01:
+                            # High null byte ratio indicates binary file - don't modify
+                            log_upload(f"File has high null byte ratio ({null_ratio:.2%}), treating as binary - preserving original")
+                    except (UnicodeDecodeError, AttributeError):
+                        # Binary file - don't modify
+                        # Null bytes in binary files are normal and should be preserved
+                        pass
+                else:
+                    # Known binary file type - NEVER modify, preserve original
+                    log_upload(f"Binary file type ({file_ext}) detected - preserving original content without modification")
+            
+            log_upload(f"File read: {len(file_content)} bytes")
+            
+            # Step 2: Calculate hash
+            log_upload(f"Calculating hash...")
+            file_hash = hashlib.md5(file_content).hexdigest()
+            log_upload(f"Hash: {file_hash[:8]}...")
+            
+            # Step 3: Check for duplicates - Enhanced duplicate detection
+            # First check by hash (most reliable)
             existing_file = UploadedFile.objects.filter(file_hash=file_hash).first()
             if existing_file:
-                # Verify the physical file exists; if missing, restore it and requeue processing
-                try:
-                    existing_path = existing_file.filename
-                    if not existing_path.startswith('uploads/'):
-                        existing_path = os.path.join('uploads', existing_path)
-                    full_existing_path = os.path.join(settings.MEDIA_ROOT, existing_path)
-                except Exception:
-                    full_existing_path = None
-
-                if not full_existing_path or not os.path.exists(full_existing_path):
-                    # Save current file content to disk under a safe filename
-                    uploads_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
-                    os.makedirs(uploads_dir, exist_ok=True)
-
-                    from django.core.files.storage import default_storage
-                    original_filename = getattr(file, 'name', 'uploaded_file')
-                    safe_filename = default_storage.get_valid_name(original_filename)
-                    restore_path = os.path.join(uploads_dir, safe_filename)
-                    base_name, ext = os.path.splitext(safe_filename)
-                    counter = 1
-                    while os.path.exists(restore_path):
-                        safe_filename = f"{base_name}_{counter}{ext}"
-                        restore_path = os.path.join(uploads_dir, safe_filename)
-                        counter += 1
-
-                    with open(restore_path, 'wb') as f:
-                        f.write(file_content)
-
-                    # Update DB record to point to restored file
-                    existing_file.filename = os.path.join('uploads', safe_filename)
-                    try:
-                        existing_file.file_size = os.path.getsize(restore_path)
-                    except Exception:
-                        pass
-                    existing_file.processing_status = 'pending'
-                    existing_file.processing_error = ''
-                    existing_file.save(update_fields=['filename', 'file_size', 'processing_status', 'processing_error'])
-
-                    # Manually enqueue processing since post_save(created=False) won't trigger the signal
-                    try:
-                        from ai_assistant.tasks import process_file_automatically
-                        process_file_automatically.delay(existing_file.id)
-                    except Exception:
-                        logger.warning("Could not enqueue processing task for restored file", exc_info=True)
-
-                    return self.success_response("File restored and scheduled for processing", {
-                        'uploaded_file_id': existing_file.id,
-                        'filename': existing_file.filename,
-                        'message': 'File was missing on disk and has been restored. Processing scheduled.'
-                    })
-
-                # Physical file exists; return existing record
-                return self.success_response("File already exists", {
-                    'uploaded_file_id': existing_file.id,
-                    'filename': existing_file.filename,
-                    'message': 'This file has already been uploaded'
-                })
+                log_upload(f"Duplicate found by hash: ID={existing_file.id}, Status={existing_file.processing_status}")
+                
+                # Allow re-upload if existing file is corrupted or failed (no chunks/embeddings)
+                from ai_assistant.models import DocumentChunk
+                has_chunks = DocumentChunk.objects.filter(uploaded_file=existing_file).exists()
+                
+                # If file is corrupted/failed and has no chunks, allow re-upload by deleting old record
+                if existing_file.processing_status in ['corrupted', 'failed', 'no_text_available'] and not has_chunks:
+                    file_id = existing_file.id
+                    log_upload(f"Existing file is {existing_file.processing_status} with no chunks - allowing re-upload by deleting old record")
+                    # Delete the corrupted/failed record to allow fresh upload
+                    existing_file.delete()
+                    log_upload(f"Deleted corrupted/failed file record (ID: {file_id}) to allow re-upload")
+                    existing_file = None  # Clear reference to continue with upload
+                # Verify file exists on disk using storage API
+                elif default_storage.exists(existing_file.filename):
+                    log_upload(f"Duplicate file exists on disk, returning existing record")
+                    status_msg = existing_file.processing_status
+                    if status_msg == 'ready':
+                        status_msg = 'processed and ready'
+                    elif status_msg == 'processing':
+                        status_msg = 'currently being processed'
+                    elif status_msg == 'pending':
+                        status_msg = 'pending processing'
+                    else:
+                        status_msg = f'status: {status_msg}'
+                    
+                    return self.success_response(
+                        f"Same file already exists (ID: {existing_file.id}, {status_msg})",
+                        {
+                            'uploaded_file_id': existing_file.id,
+                            'filename': existing_file.filename,
+                            'message': f'This file has already been uploaded. File ID: {existing_file.id}, Status: {existing_file.processing_status}. Skipping duplicate upload.',
+                            'is_duplicate': True,
+                            'existing_status': existing_file.processing_status
+                        }
+                    )
+                else:
+                    log_upload(f"Duplicate record exists but file missing on disk - cleaning up orphaned record")
+                    # OPTION A: Automatically delete the orphaned record and allow re-upload
+                    # This prevents the "File record exists but physical file is missing" error
+                    file_id = existing_file.id
+                    filename = existing_file.filename
+                    status = existing_file.processing_status
+                    
+                    # Count related records for logging
+                    from ai_assistant.models import DocumentChunk, DocumentFile
+                    chunks_count = DocumentChunk.objects.filter(uploaded_file=existing_file).count()
+                    doc_files_count = DocumentFile.objects.filter(uploaded_file=existing_file).count()
+                    
+                    log_upload(f"Deleting orphaned record (ID: {file_id}): {chunks_count} chunks, {doc_files_count} document files")
+                    
+                    # Delete related records first
+                    DocumentChunk.objects.filter(uploaded_file=existing_file).delete()
+                    DocumentFile.objects.filter(uploaded_file=existing_file).delete()
+                    
+                    # Delete the orphaned UploadedFile record
+                    existing_file.delete()
+                    
+                    log_upload(f"Deleted orphaned record (ID: {file_id}), allowing fresh upload")
+                    existing_file = None  # Clear reference to continue with upload
             
-            # Save file to media/uploads directory so Celery can access it
-            uploads_dir = os.path.join(settings.MEDIA_ROOT, 'uploads')
-            os.makedirs(uploads_dir, exist_ok=True)  # Create directory if it doesn't exist
-            
-            # Save file content directly to ensure it's written
-            # FileSystemStorage might have issues with file pointer after read()
-            from django.core.files.base import ContentFile
-            from django.core.files.storage import default_storage
-            
-            # Generate unique filename if needed
+            # Also check by filename (normalize _1, _2 suffixes) to catch re-uploads of same file
+            # This helps when the same file is uploaded again but hash differs due to corruption
             original_filename = file.name
             safe_filename = default_storage.get_valid_name(original_filename)
-            file_path = os.path.join(uploads_dir, safe_filename)
+            base_name, ext = os.path.splitext(safe_filename)
             
-            # Handle filename conflicts by adding suffix
+            # Check for existing files with same base name (ignoring _1, _2 suffixes)
+            # Look for files that are already processed and working
+            existing_by_name = UploadedFile.objects.filter(
+                filename__startswith=f'uploads/{base_name}',
+                filename__endswith=ext
+            ).exclude(processing_status__in=['corrupted', 'failed']).order_by('-uploaded_at').first()
+            
+            if existing_by_name:
+                # Check if existing file is significantly larger (likely complete)
+                if existing_by_name.file_size > len(file_content) * 0.8:  # Existing is at least 80% of new file size
+                    log_upload(f"Found existing working file by name: ID={existing_by_name.id}, size={existing_by_name.file_size}")
+                    # Verify it exists and is working
+                    if default_storage.exists(existing_by_name.filename):
+                        status_msg = existing_by_name.processing_status
+                        if status_msg == 'ready':
+                            status_msg = 'processed and ready'
+                        elif status_msg == 'processing':
+                            status_msg = 'currently being processed'
+                        elif status_msg == 'pending':
+                            status_msg = 'pending processing'
+                        else:
+                            status_msg = f'status: {status_msg}'
+                        
+                        log_upload(f"Reusing existing working file instead of potentially corrupted upload")
+                        return self.success_response(
+                            f"Same file already exists (ID: {existing_by_name.id}, {status_msg})",
+                            {
+                                'uploaded_file_id': existing_by_name.id,
+                                'filename': existing_by_name.filename,
+                                'message': f'A working version of this file already exists. File ID: {existing_by_name.id}, Status: {existing_by_name.processing_status}. Skipping duplicate upload.',
+                                'is_duplicate': True,
+                                'existing_status': existing_by_name.processing_status
+                            }
+                        )
+                    else:
+                        # File missing but record exists - clean up orphaned record
+                        log_upload(f"Found existing file by name but file missing on disk - cleaning up orphaned record")
+                        from ai_assistant.models import DocumentChunk, DocumentFile
+                        file_id = existing_by_name.id
+                        chunks_count = DocumentChunk.objects.filter(uploaded_file=existing_by_name).count()
+                        doc_files_count = DocumentFile.objects.filter(uploaded_file=existing_by_name).count()
+                        
+                        log_upload(f"Deleting orphaned record (ID: {file_id}): {chunks_count} chunks, {doc_files_count} document files")
+                        DocumentChunk.objects.filter(uploaded_file=existing_by_name).delete()
+                        DocumentFile.objects.filter(uploaded_file=existing_by_name).delete()
+                        existing_by_name.delete()
+                        log_upload(f"Deleted orphaned record (ID: {file_id}), allowing fresh upload")
+            
+            # Step 4: Save file using Django storage
+            log_upload(f"Saving file to storage...")
+            log_upload(f"MEDIA_ROOT: {settings.MEDIA_ROOT}")
+            
+            # Generate safe filename
+            original_filename = file.name
+            safe_filename = default_storage.get_valid_name(original_filename)
+            relative_path = f'uploads/{safe_filename}'
+            
+            # Handle filename conflicts
             counter = 1
             base_name, ext = os.path.splitext(safe_filename)
-            while os.path.exists(file_path):
+            while default_storage.exists(relative_path):
                 safe_filename = f"{base_name}_{counter}{ext}"
-                file_path = os.path.join(uploads_dir, safe_filename)
+                relative_path = f'uploads/{safe_filename}'
                 counter += 1
+                log_upload(f"Filename conflict, trying: {relative_path}")
             
-            # Write file content directly
-            with open(file_path, 'wb') as f:
-                f.write(file_content)
+            log_upload(f"Saving to: {relative_path}")
             
-            relative_path = os.path.join('uploads', safe_filename)
+            # Track what we've created so we can clean up on failure
+            saved_path = None
+            uploaded_file = None
             
-            # Create UploadedFile record FIRST (before processing)
-            # This will trigger the signal that queues Celery processing
-            file_size = os.path.getsize(file_path)
-            
-            # Store the relative file path in filename so Celery can find it
-            uploaded_file = UploadedFile.objects.create(
-                filename=relative_path,  # Store relative path: 'uploads/filename.ext'
-                file_hash=file_hash,
-                file_size=file_size,
-                uploaded_by=user,
-                processing_status='pending'  # Start as pending, Celery will process
-            )
-            
-            # Signal will automatically trigger process_file_automatically.delay()
-            # Celery will process the file from media/uploads/ directory
-            # File will stay there until processing is complete
-            
-            result = {
-                'uploaded_file_id': uploaded_file.id,
-                'filename': uploaded_file.filename,
-                'file_size': uploaded_file.file_size,
-                'status': 'pending',
-                'message': 'File uploaded successfully. Processing will begin automatically.'
-            }
-            
-            return self.success_response("Document uploaded successfully", result)
+            try:
+                # Store original file size for validation
+                original_file_size = len(file_content)
+                log_upload(f"Original file size: {original_file_size:,} bytes")
+                
+                # Save file - this is the critical step
+                saved_path = default_storage.save(relative_path, ContentFile(file_content))
+                log_upload(f"File saved: {saved_path}")
+                
+                # Quick verification
+                if not default_storage.exists(saved_path):
+                    error_msg = f"File save failed: {saved_path}"
+                    log_upload(f"ERROR: {error_msg}", 'ERROR')
+                    raise Exception(error_msg)
+                
+                file_size = default_storage.size(saved_path)
+                log_upload(f"Saved file size: {file_size:,} bytes")
+                
+                # CRITICAL: Verify file size matches original (file integrity check)
+                if file_size != original_file_size:
+                    error_msg = (
+                        f"File size mismatch detected! "
+                        f"Original: {original_file_size:,} bytes, "
+                        f"Saved: {file_size:,} bytes, "
+                        f"Difference: {abs(file_size - original_file_size):,} bytes. "
+                        f"File may have been corrupted during upload. Upload aborted."
+                    )
+                    log_upload(f"ERROR: {error_msg}", 'ERROR')
+                    # Clean up the corrupted file
+                    try:
+                        default_storage.delete(saved_path)
+                        log_upload(f"Deleted corrupted file: {saved_path}")
+                    except Exception as cleanup_error:
+                        log_upload(f"Warning: Failed to delete corrupted file: {cleanup_error}", 'WARNING')
+                    raise Exception(error_msg)
+                
+                log_upload(f"✓ File size verified: {file_size:,} bytes (matches original)")
+                
+                # Step 5: Create DB record ONLY if file save succeeded
+                # Use get_or_create to handle race conditions where duplicate might be created between check and create
+                log_upload(f"Creating database record...")
+                uploaded_file, created = UploadedFile.objects.get_or_create(
+                    file_hash=file_hash,
+                    defaults={
+                        'filename': saved_path,  # Store relative path
+                        'file_size': file_size,
+                        'uploaded_by': user,
+                        'processing_status': 'pending'
+                    }
+                )
+                
+                if not created:
+                    # Record already exists (race condition or duplicate check missed it)
+                    log_upload(f"Database record already exists (ID: {uploaded_file.id}), updating filename if needed")
+                    # Update filename if it's different (in case file was saved with different path)
+                    if uploaded_file.filename != saved_path and default_storage.exists(saved_path):
+                        # Only update if new file exists and old one doesn't
+                        if not default_storage.exists(uploaded_file.filename):
+                            uploaded_file.filename = saved_path
+                            uploaded_file.save(update_fields=['filename'])
+                            log_upload(f"Updated filename to: {saved_path}")
+                    # Return existing record - but clean up the file we just saved since it's a duplicate
+                    if saved_path and default_storage.exists(saved_path):
+                        try:
+                            default_storage.delete(saved_path)
+                            log_upload(f"Cleaned up duplicate file: {saved_path}")
+                        except Exception as cleanup_error:
+                            log_upload(f"Warning: Could not delete duplicate file {saved_path}: {cleanup_error}", 'WARNING')
+                    
+                    return self.success_response(
+                        f"File already exists (ID: {uploaded_file.id})",
+                        {
+                            'uploaded_file_id': uploaded_file.id,
+                            'filename': uploaded_file.filename,
+                            'message': f'File already exists in database. File ID: {uploaded_file.id}, Status: {uploaded_file.processing_status}.',
+                            'is_duplicate': True,
+                            'existing_status': uploaded_file.processing_status
+                        }
+                    )
+                
+                log_upload(f"Database record created: ID={uploaded_file.id}")
+                
+                # Step 6: Final verification - if this fails, we need to clean up both file and DB record
+                if not default_storage.exists(saved_path):
+                    error_msg = f"File disappeared after DB creation: {saved_path}"
+                    log_upload(f"ERROR: {error_msg}", 'ERROR')
+                    # Clean up: Delete DB record (which frees the hash) and file
+                    if uploaded_file:
+                        uploaded_file.delete()
+                        log_upload(f"Cleaned up DB record (ID: {uploaded_file.id}) to free hash value")
+                    if saved_path and default_storage.exists(saved_path):
+                        try:
+                            default_storage.delete(saved_path)
+                            log_upload(f"Cleaned up file: {saved_path}")
+                        except Exception as cleanup_error:
+                            log_upload(f"Warning: Could not delete file {saved_path}: {cleanup_error}", 'WARNING')
+                    raise Exception(error_msg)
+                
+                log_upload(f"=== UPLOAD SUCCESS: ID={uploaded_file.id} ===")
+                
+                result = {
+                    'uploaded_file_id': uploaded_file.id,
+                    'filename': uploaded_file.filename,
+                    'file_size': uploaded_file.file_size,
+                    'status': 'pending',
+                    'message': 'File uploaded successfully. Processing will begin automatically.'
+                }
+                
+                return self.success_response("Document uploaded successfully", result)
+                
+            except Exception as inner_e:
+                # Clean up on any error: Delete file and DB record if they were created
+                error_msg = f"Upload failed: {str(inner_e)}"
+                log_upload(f"ERROR: {error_msg}", 'ERROR')
+                
+                # Clean up DB record if it was created (this frees the hash value)
+                if uploaded_file:
+                    try:
+                        uploaded_file.delete()
+                        log_upload(f"Cleaned up DB record (ID: {uploaded_file.id}) to free hash value")
+                    except Exception as cleanup_error:
+                        log_upload(f"Warning: Could not delete DB record {uploaded_file.id}: {cleanup_error}", 'WARNING')
+                
+                # Clean up physical file if it was saved
+                if saved_path and default_storage.exists(saved_path):
+                    try:
+                        default_storage.delete(saved_path)
+                        log_upload(f"Cleaned up file: {saved_path}")
+                    except Exception as cleanup_error:
+                        log_upload(f"Warning: Could not delete file {saved_path}: {cleanup_error}", 'WARNING')
+                
+                # Re-raise the exception to be caught by outer handler
+                raise
             
         except Exception as e:
+            error_msg = f"Upload failed: {str(e)}"
+            log_upload(f"ERROR: {error_msg}", 'ERROR')
+            import traceback
+            log_upload(f"Traceback:\n{traceback.format_exc()}", 'ERROR')
+            logger.error(error_msg, exc_info=True)
             self.log_error('upload_document_enhanced', e)
-            return self.error_response('Failed to upload and process document')
+            return self.error_response(f'Failed to upload document: {str(e)}')

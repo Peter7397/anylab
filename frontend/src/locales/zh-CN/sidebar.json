@@ -3,16 +3,13 @@
   "dashboard": "仪表板",
   "knowledgeLibrary": "知识库",
   "libraryManager": "库管理器",
+  "uploadQueue": "上传队列",
   "productManuals": "产品手册",
   "technicalSpecs": "技术规格",
   "communitySolutions": "社区解决方案",
   "documentViewer": "文档查看器",
   "aiAssistant": "AI助手",
-<<<<<<< Updated upstream
-  "freeAiChat": "免费AI聊天",
-=======
-  "freeAiChat": "AI聊天",
->>>>>>> Stashed changes
+"freeAiChat": "AI聊天",
   "basicRag": "基础RAG",
   "advancedRag": "高级RAG",
   "comprehensiveRag": "综合RAG",

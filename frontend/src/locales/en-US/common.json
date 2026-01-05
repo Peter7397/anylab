@@ -159,11 +159,7 @@
       "aiAssistant": {
         "title": "AI Assistant",
         "description": "Chat with your documentation using advanced RAG technology. Get instant, traceable answers from your knowledge base.",
-<<<<<<< Updated upstream
-        "items": ["Free AI Chat", "4 RAG Search Modes", "Graph RAG Support", "Bilingual Support (EN/CN)", "Configurable Models"]
-=======
-        "items": ["AI Chat", "4 RAG Search Modes", "Graph RAG Support", "Bilingual Support (EN/CN)", "Configurable Models"]
->>>>>>> Stashed changes
+"items": ["AI Chat", "4 RAG Search Modes", "Graph RAG Support", "Bilingual Support (EN/CN)", "Configurable Models"]
       },
       "documentProcessing": {
         "title": "Document Processing",
@@ -208,11 +204,7 @@
     },
     "tech": {
       "ollama": "Ollama LLM",
-<<<<<<< Updated upstream
-      "ollamaDesc": "Qwen 2.5-7B Model",
-=======
-      "ollamaDesc": "AI Language Model",
->>>>>>> Stashed changes
+"ollamaDesc": "AI Language Model",
       "pgvector": "pgvector",
       "pgvectorDesc": "Vector Database",
       "hybridSearch": "Hybrid Search",

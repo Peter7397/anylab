@@ -48,7 +48,7 @@ class WebsiteProcessor:
     
     def __init__(self):
         self.rag_service = automatic_file_processor.rag_service
-        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         
         # HTML parsing configuration
         self.html_config = HTMLParsingConfig(

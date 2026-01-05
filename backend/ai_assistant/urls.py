@@ -8,6 +8,7 @@ from django.urls import path, include
 from ai_assistant.views.processing_health import processing_health
 from ai_assistant.views.rag_views import chat_with_ollama
 from ai_assistant.views.chat_history_views import ChatHistoryListView, ChatMessageCreateView
+from ai_assistant.views.health_views import health_check, health_detailed, health_processors
 
 urlpatterns = [
     # Unified Chat History endpoints (explicit paths to avoid include order issues)
@@ -21,6 +22,9 @@ urlpatterns = [
     
     # Document Management endpoints
     path('documents/', include('ai_assistant.urls.document_urls')),
+    
+    # Upload Queue endpoints
+    path('upload/', include('ai_assistant.urls.upload_queue_urls')),
     
     # Content Management endpoints
     path('content/', include('ai_assistant.urls.content_urls')),
@@ -60,4 +64,15 @@ urlpatterns = [
 
     # Processing health/metrics
     path('processing/health/', processing_health, name='processing-health'),
+    
+    # Metrics dashboard endpoints
+    path('metrics/', include('ai_assistant.urls.metrics_urls')),
+    
+    # Health check endpoints
+    path('health/', health_check, name='health-check'),
+    path('health/detailed/', health_detailed, name='health-detailed'),
+    path('health/processors/', health_processors, name='health-processors'),
+    
+    # Debug endpoints (for troubleshooting)
+    path('debug/', include('ai_assistant.urls.debug_urls')),
 ]

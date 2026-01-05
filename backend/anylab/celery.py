@@ -1,5 +1,6 @@
 import os
 from celery import Celery
+from kombu import Queue
 from django.conf import settings
 from celery.schedules import crontab
 
@@ -24,6 +25,16 @@ app.conf.update(
         'maintenance.tasks.*': {'queue': 'maintenance_queue'},
         'users.tasks.*': {'queue': 'default'},
     },
+    
+    # Configure multiple queues for file size-based routing
+    task_queues=(
+        Queue('celery', routing_key='celery'),  # Default queue
+        Queue('ai_queue', routing_key='ai'),  # AI tasks queue
+        Queue('fast_queue', routing_key='fast'),  # Small files (<1MB)
+        Queue('normal_queue', routing_key='normal'),  # Medium files (1-10MB)
+        Queue('slow_queue', routing_key='slow'),  # Large files (>10MB)
+        Queue('ocr_queue', routing_key='ocr'),  # Files requiring OCR
+    ),
     
     # Task serialization
     task_serializer='json',
@@ -72,6 +83,22 @@ app.conf.update(
         'process-pending-uploads': {
             'task': 'ai_assistant.tasks.process_pending_files',
             'schedule': 60.0,  # Every 60 seconds requeue stale pending uploads
+        },
+        'monitor-upload-queue-resources': {
+            'task': 'ai_assistant.tasks.monitor_queue_resources',
+            'schedule': 60.0,  # Every 60 seconds monitor system resources and pause/resume jobs
+        },
+        'cleanup-stuck-jobs': {
+            'task': 'ai_assistant.tasks.cleanup_stuck_jobs',
+            'schedule': 300.0,  # Every 5 minutes clean up stuck/abandoned jobs
+        },
+        'monitor-stuck-jobs': {
+            'task': 'ai_assistant.tasks.monitor_stuck_jobs',
+            'schedule': 180.0,  # Every 3 minutes monitor and alert on stuck jobs
+        },
+        'persist-redis-jobs-to-database': {
+            'task': 'ai_assistant.tasks.persist_jobs_to_database',
+            'schedule': 10.0,  # Every 10 seconds persist Redis jobs to PostgreSQL
         },
     },
 )

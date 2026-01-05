@@ -25,16 +25,89 @@ from ..automatic_file_processor import automatic_file_processor
 logger = logging.getLogger(__name__)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_folders(request):
+    """
+    List folders/directories at a given path
+    
+    Returns list of folders and files for browsing
+    """
+    try:
+        from ..views.base_views import success_response, error_response
+        
+        path = request.query_params.get('path', '/')
+        
+        # Security: Validate path to prevent directory traversal
+        if '..' in path or path.startswith('~'):
+            return error_response('Invalid path', status.HTTP_400_BAD_REQUEST)
+        
+        # Normalize path
+        if not os.path.isabs(path):
+            # If relative path, make it absolute from a safe base
+            base_path = os.path.expanduser('~') if os.path.exists(os.path.expanduser('~')) else '/'
+            path = os.path.join(base_path, path)
+        
+        path = os.path.normpath(path)
+        
+        if not os.path.exists(path):
+            return error_response(f'Path does not exist: {path}', status.HTTP_404_NOT_FOUND)
+        
+        if not os.path.isdir(path):
+            return error_response(f'Path is not a directory: {path}', status.HTTP_400_BAD_REQUEST)
+        
+        # List directories and files
+        items = []
+        try:
+            for item in os.listdir(path):
+                item_path = os.path.join(path, item)
+                try:
+                    is_dir = os.path.isdir(item_path)
+                    stat_info = os.stat(item_path)
+                    items.append({
+                        'name': item,
+                        'path': item_path,
+                        'is_directory': is_dir,
+                        'size': stat_info.st_size if not is_dir else None,
+                        'modified': stat_info.st_mtime,
+                    })
+                except (OSError, PermissionError):
+                    # Skip items we can't access
+                    continue
+            
+            # Sort: directories first, then by name
+            items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
+            
+        except PermissionError:
+            return error_response(f'Permission denied: {path}', status.HTTP_403_FORBIDDEN)
+        
+        return success_response('Folders listed', {
+            'current_path': path,
+            'parent_path': os.path.dirname(path) if path != '/' else None,
+            'items': items
+        })
+        
+    except Exception as e:
+        logger.error(f"Error listing folders: {e}", exc_info=True)
+        return Response(
+            {'error': f'Failed to list folders: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def scan_folder(request):
     """
     Scan a folder and discover supported files
     
+    NEW: Creates UploadJob with job_type='folder' instead of immediate processing
     QUALITY FOCUS: Scan recursively, find all supported file types
     """
     try:
         folder_path = request.data.get('folder_path', '')
+        priority = 5  # Default priority, no longer user-configurable
+        auto_upload = request.data.get('auto_upload', True)  # Create job automatically
         
         if not folder_path:
             return Response(
@@ -73,19 +146,50 @@ def scan_folder(request):
                     total_size += file_size
                     
                     discovered_files.append({
-                        'filename': filename,
+                        'name': filename,
                         'file_path': file_path,
-                        'file_size': file_size,
+                        'path': file_path,  # Alias for compatibility
+                        'size': file_size,
+                        'file_size': file_size,  # Alias
                         'file_extension': file_ext,
                         'relative_path': os.path.relpath(file_path, folder_path)
                     })
+        
+        # If auto_upload is True, create UploadJob and queue processing
+        job_id = None
+        if auto_upload and discovered_files:
+            from ..service_classes.upload_queue_manager import upload_queue_manager
+            from ..tasks import process_upload_job
+            
+            # Create job
+            job = upload_queue_manager.add_job(
+                job_type='folder',
+                source_path=folder_path,
+                source_files=discovered_files,
+                priority=priority,
+                metadata={
+                    'folder_path': folder_path,
+                    'total_size': total_size,
+                    'scan_type': 'recursive'
+                },
+                user=request.user
+            )
+            
+            job_id = str(job.job_id)
+            
+            # Queue processing
+            process_upload_job.delay(job_id)
+            
+            logger.info(f"Created folder upload job {job_id} with {len(discovered_files)} files")
         
         return Response({
             'success': True,
             'folder_path': folder_path,
             'file_count': len(discovered_files),
             'total_size': total_size,
-            'files': discovered_files
+            'files': discovered_files,
+            'job_id': job_id,  # Return job_id if auto_upload is True
+            'auto_upload': auto_upload
         })
         
     except Exception as e:

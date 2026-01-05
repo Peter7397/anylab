@@ -7,145 +7,25 @@ including responsive design, content adaptation, and user customization.
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple, Union
-from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from django.utils import timezone as django_timezone
 from django.core.cache import cache
 from django.conf import settings
 
+# Import from refactored modules
+from .dynamic_layouts import (
+    LayoutType,
+    ContentType,
+    ResponsiveBreakpoint,
+    LayoutOrientation,
+    LayoutBreakpoint,
+    ContentBlock,
+    LayoutSection,
+    DynamicLayout,
+    UserLayoutPreference,
+)
+
 logger = logging.getLogger(__name__)
-
-
-class LayoutType(Enum):
-    """Layout type enumeration"""
-    GRID = "grid"
-    LIST = "list"
-    CARD = "card"
-    TABLE = "table"
-    TIMELINE = "timeline"
-    DASHBOARD = "dashboard"
-    GALLERY = "gallery"
-    MAGAZINE = "magazine"
-    SIDEBAR = "sidebar"
-    FULLSCREEN = "fullscreen"
-
-
-class ContentType(Enum):
-    """Content type enumeration"""
-    TEXT = "text"
-    IMAGE = "image"
-    VIDEO = "video"
-    AUDIO = "audio"
-    DOCUMENT = "document"
-    LINK = "link"
-    EMBED = "embed"
-    WIDGET = "widget"
-    CHART = "chart"
-    FORM = "form"
-    NAVIGATION = "navigation"
-    SEARCH = "search"
-    FILTER = "filter"
-    PAGINATION = "pagination"
-
-
-class ResponsiveBreakpoint(Enum):
-    """Responsive breakpoint enumeration"""
-    MOBILE = "mobile"  # < 768px
-    TABLET = "tablet"  # 768px - 1024px
-    DESKTOP = "desktop"  # > 1024px
-    LARGE_DESKTOP = "large_desktop"  # > 1440px
-
-
-class LayoutOrientation(Enum):
-    """Layout orientation enumeration"""
-    HORIZONTAL = "horizontal"
-    VERTICAL = "vertical"
-    MIXED = "mixed"
-
-
-@dataclass
-class LayoutBreakpoint:
-    """Layout breakpoint configuration"""
-    breakpoint: ResponsiveBreakpoint
-    columns: int
-    gap: str
-    padding: str
-    margin: str
-    font_size: str
-    line_height: str
-    max_width: Optional[str] = None
-    min_width: Optional[str] = None
-
-
-@dataclass
-class ContentBlock:
-    """Content block structure"""
-    id: str
-    type: ContentType
-    title: str
-    content: Any
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    style: Dict[str, Any] = field(default_factory=dict)
-    responsive: Dict[ResponsiveBreakpoint, Dict[str, Any]] = field(default_factory=dict)
-    order: int = 0
-    is_visible: bool = True
-    is_draggable: bool = True
-    is_resizable: bool = False
-    permissions: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=lambda: django_timezone.now())
-    updated_at: datetime = field(default_factory=lambda: django_timezone.now())
-
-
-@dataclass
-class LayoutSection:
-    """Layout section structure"""
-    id: str
-    title: str
-    type: LayoutType
-    orientation: LayoutOrientation
-    blocks: List[ContentBlock]
-    style: Dict[str, Any] = field(default_factory=dict)
-    responsive: Dict[ResponsiveBreakpoint, Dict[str, Any]] = field(default_factory=dict)
-    order: int = 0
-    is_visible: bool = True
-    is_collapsible: bool = False
-    is_collapsed: bool = False
-    permissions: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=lambda: django_timezone.now())
-    updated_at: datetime = field(default_factory=lambda: django_timezone.now())
-
-
-@dataclass
-class DynamicLayout:
-    """Dynamic layout structure"""
-    id: str
-    name: str
-    description: str
-    type: LayoutType
-    sections: List[LayoutSection]
-    breakpoints: Dict[ResponsiveBreakpoint, LayoutBreakpoint] = field(default_factory=dict)
-    global_style: Dict[str, Any] = field(default_factory=dict)
-    theme: str = "default"
-    is_responsive: bool = True
-    is_customizable: bool = True
-    is_exportable: bool = True
-    permissions: List[str] = field(default_factory=list)
-    created_at: datetime = field(default_factory=lambda: django_timezone.now())
-    updated_at: datetime = field(default_factory=lambda: django_timezone.now())
-
-
-@dataclass
-class UserLayoutPreference:
-    """User layout preference structure"""
-    user_id: str
-    layout_id: str
-    customizations: Dict[str, Any] = field(default_factory=dict)
-    saved_layouts: List[str] = field(default_factory=list)
-    favorite_layouts: List[str] = field(default_factory=list)
-    last_used: datetime = field(default_factory=lambda: django_timezone.now())
-    created_at: datetime = field(default_factory=lambda: django_timezone.now())
-    updated_at: datetime = field(default_factory=lambda: django_timezone.now())
 
 
 class DynamicContentLayoutManager:

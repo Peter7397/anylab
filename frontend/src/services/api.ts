@@ -8,7 +8,7 @@ const getApiBaseUrl = () => {
   // Always detect based on current hostname to match the network interface
   const hostname = window.location.hostname;
   const protocol = window.location.protocol;
-  const port = '8001';  // CHANGED: 8000 -> 8001 to avoid conflict with 7English
+  const port = '8000';  // Backend port (Docker exposes on 8000)
   
   // Helper function to check if hostname is an IP address
   const isIPAddress = (host: string): boolean => {
@@ -165,12 +165,8 @@ class ApiClient {
     }
 
     // Add Accept-Language header based on user's language preference
-<<<<<<< Updated upstream
-    const language = localStorage.getItem('anylab_language') || 'en-US';
-=======
-    // Default to Chinese (zh-CN) if no language is set
+// Default to Chinese (zh-CN) if no language is set
     const language = localStorage.getItem('anylab_language') || 'zh-CN';
->>>>>>> Stashed changes
     headers['Accept-Language'] = language;
 
     return headers;
@@ -467,6 +463,42 @@ class ApiClient {
   async healthCheck(): Promise<any> {
     const response = await fetch(`${this.baseURL}/health/`);
     return response.json();
+  }
+
+  // Enhanced Health Checks
+  async getDetailedHealthCheck(): Promise<any> {
+    const response = await this.request('/ai/health/detailed/');
+    return response.data;
+  }
+
+  async getProcessorHealth(): Promise<any> {
+    const response = await this.request('/ai/health/processors/');
+    return response.data;
+  }
+
+  // Metrics Dashboard API
+  async getProcessingMetrics(hours: number = 24, includeSystem: boolean = true): Promise<any> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('hours', hours.toString());
+    queryParams.append('include_system', includeSystem.toString());
+    const response = await this.request(`/ai/metrics/processing/?${queryParams.toString()}`);
+    return response.data;
+  }
+
+  async getProcessingTimeline(hours: number = 24, interval: number = 1): Promise<any> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('hours', hours.toString());
+    queryParams.append('interval', interval.toString());
+    const response = await this.request(`/ai/metrics/processing/timeline/?${queryParams.toString()}`);
+    return response.data;
+  }
+
+  async getErrorSummary(hours: number = 24, limit: number = 20): Promise<any> {
+    const queryParams = new URLSearchParams();
+    queryParams.append('hours', hours.toString());
+    queryParams.append('limit', limit.toString());
+    const response = await this.request(`/ai/metrics/errors/?${queryParams.toString()}`);
+    return response.data;
   }
 
   // Users API
@@ -1265,6 +1297,13 @@ class ApiClient {
     return response.data;
   }
 
+  async deleteUploadedFile(fileId: number): Promise<any> {
+    const response = await this.request(`/ai/documents/files/${fileId}/delete/`, {
+      method: 'DELETE',
+    });
+    return response.data;
+  }
+
   async uploadDocument(
     file: File, 
     title: string, 
@@ -1296,6 +1335,37 @@ class ApiClient {
     // Use the post method which handles FormData and authentication properly
     // This ensures token refresh logic is applied and errors are handled consistently
     const response = await this.post('/ai/documents/upload/', formData);
+    return response.data;
+  }
+
+  // Webpage discovery and queuing
+  async discoverWebpageFiles(config: {
+    url: string;
+    max_depth?: number;
+    same_domain_only?: boolean;
+    file_type_filters?: string[];
+    max_file_size_mb?: number;
+  }): Promise<any> {
+    const response = await this.request('/ai/upload/discover-webpage/', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    });
+    return response.data;
+  }
+
+  async queueWebpageFiles(files: any[], source: string): Promise<any> {
+    const response = await this.request('/ai/upload/queue-webpage-files/', {
+      method: 'POST',
+      body: JSON.stringify({ files, source }),
+    });
+    return response.data;
+  }
+
+  // Queue statistics and processing health
+  async getQueueStats(): Promise<any> {
+    const response = await this.request('/ai/upload/queue/stats/', {
+      method: 'GET',
+    });
     return response.data;
   }
 
@@ -1365,6 +1435,13 @@ class ApiClient {
   }
 
   // NEW: Bulk Import API Methods
+  async listFolders(path: string = '/'): Promise<any> {
+    const response = await this.request(`/ai/process/bulk/list-folders/?path=${encodeURIComponent(path)}`, {
+      method: 'GET',
+    });
+    return response.data;
+  }
+
   async scanFolder(folderPath: string): Promise<any> {
     const response = await this.request('/ai/process/bulk/scan-folder/', {
       method: 'POST',
@@ -1424,7 +1501,7 @@ class ApiClient {
     return response.data;
   }
 
-  async updateSystemSettings(settings: { rag?: { model?: string } }): Promise<any> {
+  async updateSystemSettings(settings: { rag?: { model?: string }; file_upload?: { enable_ocr_for_scanned_files?: boolean } }): Promise<any> {
     const response = await this.request('/ai/admin/settings/update/', {
       method: 'PUT',
       body: JSON.stringify(settings)

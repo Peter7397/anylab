@@ -331,8 +331,15 @@ const RagSearch: React.FC = () => {
         page: page
       });
       setIsLoadingDocument(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load document:', error);
+      // Show user-friendly error message
+      const errorMessage = error?.message || error?.error || 'Failed to load document';
+      if (errorMessage.includes('not found') || errorMessage.includes('File not found')) {
+        alert(`Document not found: The file may have been deleted or is no longer available.`);
+      } else {
+        alert(`Failed to load document: ${errorMessage}`);
+      }
       setIsLoadingDocument(false);
     }
   };
@@ -615,24 +622,15 @@ const RagSearch: React.FC = () => {
 
         {/* Right Panel - Document Viewer */}
         {viewerDocument && (
-          <div className="w-1/2 flex flex-col bg-white border-l border-gray-200">
-            {/* Document Viewer Header */}
-            <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <FileText className="h-5 w-5 text-gray-600" />
-                <h3 className="text-sm font-medium text-gray-900 truncate">{viewerDocument.title}</h3>
-                {viewerDocument.page && (
-                  <span className="text-xs text-gray-500">(Page {viewerDocument.page})</span>
-                )}
-              </div>
-              <button
-                onClick={closeDocumentViewer}
-                className="p-1 hover:bg-gray-200 rounded transition-colors"
-                title="Close document viewer"
-              >
-                <X className="h-5 w-5 text-gray-600" />
-              </button>
-            </div>
+          <div className="w-1/2 flex flex-col bg-white border-l border-gray-200 relative">
+            {/* Close button - positioned absolutely in top-right corner */}
+            <button
+              onClick={closeDocumentViewer}
+              className="absolute top-2 right-2 z-[200] p-2 bg-white hover:bg-gray-100 rounded shadow-md border border-gray-200 transition-colors"
+              title="Close document viewer"
+            >
+              <X className="h-5 w-5 text-gray-600" />
+            </button>
             
             {/* Document Viewer Content */}
             <div className="flex-1 overflow-hidden">

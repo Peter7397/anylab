@@ -232,3 +232,5 @@ models/
 # Test files
 test_*.py
 *_test.py
+migration-package/*.sql
+*.sql

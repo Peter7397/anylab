@@ -1,0 +1,55 @@
+# Mac M4 (ARM64) specific overrides
+# CPU-only Ollama, smaller model for faster development
+
+services:
+  # Ollama Service - CPU-only for Mac M4
+  # CRITICAL: Ollama needs significant memory for models (BGE-M3 can be 500MB-1GB+)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: anylab_ollama
+    platform: linux/arm64
+    ports:
+      - "11435:11434"  # Use 11435 to avoid conflict with host Ollama
+    volumes:
+      - ollama_models_mac:/root/.ollama
+    environment:
+      - OLLAMA_NUM_GPU=0
+      - OLLAMA_NUM_THREAD=8
+    # Memory limits - Ollama currently uses ~168 MB idle
+    # But can spike to 1.5GB+ when loading BGE-M3 model for embeddings
+    # CRITICAL: Model loading requires significant memory
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'        # Limit to 2 CPU cores
+          memory: 2G         # Hard limit (12x current usage, allows model loading + concurrent requests)
+        reservations:
+          memory: 512M       # Minimum guaranteed memory for model operations
+    restart: unless-stopped
+    networks:
+      - anylab_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend - Mac specific environment
+  backend:
+    platform: linux/arm64
+    environment:
+      - PLATFORM=mac
+      - ARCHITECTURE=arm64
+      - OLLAMA_API_URL=http://ollama:11434  # Internal port, external is 11435
+      - OLLAMA_MODEL=qwen2.5:1.5b
+      - OLLAMA_NUM_GPU=0
+
+  # Frontend - Mac specific
+  frontend:
+    platform: linux/arm64
+
+volumes:
+  ollama_models_mac:
+    driver: local
+

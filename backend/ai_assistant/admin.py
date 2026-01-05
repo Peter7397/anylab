@@ -1,6 +1,6 @@
 from django.contrib import admin
-from .models import PDFDocument, UploadedFile, DocumentChunk, DocumentFile, WebLink, KnowledgeShare, QueryHistory, HelpPortalDocument, WebsiteSource
-from .tasks import process_file_automatically
+from .models import PDFDocument, UploadedFile, DocumentChunk, DocumentFile, WebLink, KnowledgeShare, QueryHistory, HelpPortalDocument, WebsiteSource, UploadJob
+from .tasks import process_file_automatically, process_upload_job
 
 
 @admin.register(PDFDocument)
@@ -87,6 +87,84 @@ class HelpPortalDocumentAdmin(admin.ModelAdmin):
     list_filter = ('status', 'category', 'discovered_at')
     search_fields = ('filename', 'document_type', 'version')
     readonly_fields = ('file_hash', 'discovered_at', 'processed_at')
+
+
+@admin.register(UploadJob)
+class UploadJobAdmin(admin.ModelAdmin):
+    list_display = ('job_id', 'job_type', 'status', 'priority', 'total_items', 'completed_items', 'failed_items', 'paused', 'created_at', 'created_by')
+    list_filter = ('job_type', 'status', 'priority', 'paused', 'created_at')
+    search_fields = ('job_id', 'source_path', 'created_by__username')
+    readonly_fields = ('job_id', 'created_at', 'started_at', 'completed_at', 'get_progress_percentage')
+    ordering = ('-priority', '-created_at')
+    
+    fieldsets = (
+        ('Job Information', {
+            'fields': ('job_id', 'job_type', 'source_path', 'status', 'priority')
+        }),
+        ('Progress', {
+            'fields': ('total_items', 'completed_items', 'failed_items', 'get_progress_percentage', 'last_processed_file_index')
+        }),
+        ('Control', {
+            'fields': ('paused', 'cancelled')
+        }),
+        ('Metadata', {
+            'fields': ('metadata', 'error_message', 'file_errors')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'started_at', 'completed_at', 'created_by')
+        }),
+    )
+    
+    actions = ['retry_job', 'pause_jobs', 'resume_jobs']
+    
+    def get_progress_percentage(self, obj):
+        return f"{obj.get_progress_percentage()}%"
+    get_progress_percentage.short_description = 'Progress'
+    
+    def retry_job(self, request, queryset):
+        """Retry selected jobs"""
+        count = 0
+        for job in queryset:
+            if job.status in ['failed', 'cancelled']:
+                job.status = 'queued'
+                job.paused = False
+                job.cancelled = False
+                job.completed_items = 0
+                job.failed_items = 0
+                job.last_processed_file_index = 0
+                job.error_message = None
+                job.save()
+                process_upload_job.delay(str(job.job_id))
+                count += 1
+        self.message_user(request, f"Re-queued {count} job(s)")
+    retry_job.short_description = "Retry selected jobs"
+    
+    def pause_jobs(self, request, queryset):
+        """Pause selected jobs"""
+        count = 0
+        for job in queryset:
+            if job.status in ['queued', 'uploading', 'processing']:
+                job.paused = True
+                if job.status in ['uploading', 'processing']:
+                    job.status = 'paused'
+                job.save()
+                count += 1
+        self.message_user(request, f"Paused {count} job(s)")
+    pause_jobs.short_description = "Pause selected jobs"
+    
+    def resume_jobs(self, request, queryset):
+        """Resume selected jobs"""
+        count = 0
+        for job in queryset:
+            if job.paused:
+                job.paused = False
+                if job.status == 'paused':
+                    job.status = 'queued'
+                job.save()
+                process_upload_job.delay(str(job.job_id))
+                count += 1
+        self.message_user(request, f"Resumed {count} job(s)")
+    resume_jobs.short_description = "Resume selected jobs"
 
 
 @admin.register(WebsiteSource)

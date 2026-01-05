@@ -23,11 +23,12 @@ if [ -f .env ]; then
   export $(grep -v '^#' .env | xargs -0 bash -c 'printf "%s\n" "$@"' -- 2>/dev/null || true)
 fi
 
-# HARDCODED for Hybrid Setup (Docker services on localhost)
+# Local Development Configuration
 # =========================================================
-# These defaults work for hybrid architecture:
+# These defaults work for local development when connecting to Docker services:
 # - Docker Redis accessible via localhost:6379
 # - Docker PostgreSQL accessible via localhost:5433
+# For production Docker deployment, these are set via environment variables
 # =========================================================
 export CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://localhost:6379/0}
 export CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://localhost:6379/0}

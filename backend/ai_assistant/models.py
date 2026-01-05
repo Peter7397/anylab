@@ -24,6 +24,8 @@ class UploadedFile(models.Model):
         ('embedding', 'Creating Embeddings'),
         ('ready', 'Ready for Search'),
         ('failed', 'Processing Failed'),
+        ('no_text_available', 'No Text Available'),
+        ('corrupted', 'File Corrupted'),
     ]
     
     processing_status = models.CharField(
@@ -151,7 +153,7 @@ class DocumentFile(models.Model):
         return self.title
     
     def get_processing_status(self):
-        """Get processing status from linked UploadedFile"""
+        """Get processing status from linked UploadedFile or HelpPortalDocument"""
         if self.uploaded_file:
             return {
                 'status': self.uploaded_file.processing_status,
@@ -165,6 +167,40 @@ class DocumentFile(models.Model):
                 'is_truncated': self.uploaded_file.is_truncated,
                 'processing_coverage': self.uploaded_file.processing_coverage,
             }
+        
+        # Check if this DocumentFile is linked to a HelpPortalDocument
+        if self.metadata and isinstance(self.metadata, dict):
+            hpd_id = self.metadata.get('help_portal_document_id')
+            if hpd_id:
+                try:
+                    from .models import HelpPortalDocument
+                    hpd = HelpPortalDocument.objects.get(id=hpd_id)
+                    # Map HelpPortalDocument status to processing_status
+                    status_map = {
+                        'completed': 'ready',
+                        'processing': 'embedding',
+                        'pending': 'pending',
+                        'failed': 'failed',
+                        'skipped': 'pending'
+                    }
+                    processing_status = status_map.get(hpd.status, 'unknown')
+                    chunk_count = hpd.chunk_count or self.metadata.get('chunk_count', 0)
+                    
+                    return {
+                        'status': processing_status,
+                        'metadata_extracted': True,  # HelpPortalDocument has metadata
+                        'chunks_created': chunk_count > 0,
+                        'embeddings_created': chunk_count > 0,  # If chunks exist, embeddings exist
+                        'chunk_count': chunk_count,
+                        'embedding_count': chunk_count,  # Assume 1:1 for HelpPortalDocument
+                        'is_ready': hpd.status == 'completed' and chunk_count > 0,
+                        'processing_error': hpd.error_message if hpd.status == 'failed' else None,
+                        'is_truncated': False,
+                        'processing_coverage': 1.0 if hpd.status == 'completed' else 0.0,
+                    }
+                except HelpPortalDocument.DoesNotExist:
+                    pass
+        
         return {
             'status': 'unknown',
             'metadata_extracted': False,
@@ -180,6 +216,128 @@ class DocumentFile(models.Model):
 
     class Meta:
         ordering = ['-uploaded_at']
+
+
+class UploadJob(models.Model):
+    """Unified upload job for all upload types (file, folder, webpage)"""
+    
+    JOB_TYPE_CHOICES = [
+        ('file', 'File Upload'),
+        ('folder', 'Folder Scan'),
+        ('webpage', 'Webpage Download'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('queued', 'Queued'),
+        ('uploading', 'Uploading'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+    ]
+    
+    # Note: 'paused' is handled via paused boolean flag
+    # Note: 'failed' is indicated by failed_items > 0 with status 'completed'
+    # Note: 'cancelled' is handled via cancelled boolean flag
+    
+    # Job identification
+    job_id = models.UUIDField(default=uuid.uuid4, unique=True, db_index=True)
+    job_type = models.CharField(max_length=10, choices=JOB_TYPE_CHOICES, db_index=True)
+    
+    # Source information
+    source_path = models.CharField(max_length=1000, help_text="File path, folder path, or URL")
+    source_files = models.JSONField(default=list, help_text="List of files to process")
+    
+    # Status tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='queued', db_index=True)
+    priority = models.IntegerField(default=5, help_text="Priority 1-10, higher = more important", db_index=True)
+    
+    # Progress tracking
+    total_items = models.IntegerField(default=0)
+    completed_items = models.IntegerField(default=0)
+    failed_items = models.IntegerField(default=0)
+    last_processed_file_index = models.IntegerField(default=0, help_text="Checkpoint for resume")
+    
+    # Control flags
+    paused = models.BooleanField(default=False, db_index=True)
+    cancelled = models.BooleanField(default=False)
+    
+    # Metadata
+    metadata = models.JSONField(default=dict, blank=True, help_text="User-provided metadata")
+    error_message = models.TextField(blank=True, null=True, help_text="Job-level error message")
+    file_errors = models.JSONField(default=dict, blank=True, help_text="Per-file error tracking")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # User tracking
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='upload_jobs')
+    
+    def __str__(self):
+        return f"{self.job_type} - {self.status} - {self.job_id}"
+    
+    def get_progress_percentage(self):
+        """
+        Calculate progress percentage with two phases:
+        - Upload phase: 0-50% (based on files uploaded)
+        - If still processing: stay at 50% (all files uploaded but processing)
+        - Complete phase: 50-100% (only when files become ready)
+        """
+        if self.total_items == 0:
+            return 0
+        
+        source_files = self.source_files or []
+        if not source_files:
+            # Fallback to simple calculation if no source_files
+            return int((self.completed_items + self.failed_items) / self.total_items * 100)
+        
+        # Count files by state
+        uploaded_count = sum(1 for f in source_files if 
+            f.get('upload_status') == 'uploaded' or f.get('uploaded_file_id'))
+        processing_count = sum(1 for f in source_files if 
+            f.get('processing_status') in ['processing', 'chunking', 'embedding', 'metadata_extracting'])
+        ready_count = sum(1 for f in source_files if 
+            f.get('processing_status') == 'ready')
+        skipped_count = sum(1 for f in source_files if 
+            f.get('upload_status') == 'skipped' or f.get('processing_status') == 'skipped')
+        failed_count = sum(1 for f in source_files if 
+            f.get('upload_status') == 'failed' or f.get('processing_status') == 'failed')
+        
+        # Upload progress: 0-50% (50% when all files uploaded)
+        upload_progress = (uploaded_count + skipped_count + failed_count) / self.total_items * 50
+        
+        # If all files are uploaded but still processing: stay at 50%
+        all_uploaded = (uploaded_count + skipped_count + failed_count) == self.total_items
+        if all_uploaded and processing_count > 0:
+            # All uploaded, but still processing - stay at 50%
+            return 50
+        else:
+            # Calculate based on ready files: 50-100%
+            completed_count = ready_count + skipped_count + failed_count
+            if completed_count == self.total_items:
+                # All files completed - 100%
+                return 100
+            elif ready_count > 0:
+                # Some files ready: 50% + (ready/total * 50%)
+                ready_progress = ready_count / self.total_items * 50
+                return int(50 + ready_progress)
+            else:
+                # Still uploading or no files ready yet
+                return int(upload_progress)
+    
+    def is_active(self):
+        """Check if job is currently active"""
+        return self.status in ['queued', 'uploading', 'processing'] and not self.paused and not self.cancelled
+    
+    class Meta:
+        ordering = ['-priority', 'created_at']
+        indexes = [
+            models.Index(fields=['status', 'priority', 'created_at']),
+            models.Index(fields=['job_type', 'status']),
+            models.Index(fields=['paused', 'status']),
+            models.Index(fields=['created_by', 'created_at']),
+        ]
+
 
 class DocumentChunk(models.Model):
     """Document chunks with vector embeddings for RAG"""

@@ -236,9 +236,16 @@ class PDFDocumentSerializer(serializers.ModelSerializer):
                            'uploaded_date', 'file_url']
     
     def get_file_size_mb(self, obj):
-        if obj.file_size:
-            return f"{obj.file_size / (1024*1024):.2f} MB"
-        return "0 MB"
+        """Format file size in appropriate units (KB for small files, MB for larger)"""
+        if obj.file_size and obj.file_size > 0:
+            # Show KB for files < 1MB, MB for larger files
+            if obj.file_size < 1024 * 1024:  # Less than 1MB
+                size_kb = obj.file_size / 1024
+                return f"{size_kb:.2f} KB"
+            else:
+                size_mb = obj.file_size / (1024 * 1024)
+                return f"{size_mb:.2f} MB"
+        return "0 KB"
     
     def get_uploaded_date(self, obj):
         return obj.uploaded_at.strftime("%Y-%m-%d %H:%M:%S") if obj.uploaded_at else ""
@@ -269,9 +276,16 @@ class DocumentFileSerializer(serializers.ModelSerializer):
                            'uploaded_date', 'file_url']
     
     def get_file_size_mb(self, obj):
-        if obj.file_size:
-            return f"{obj.file_size / (1024*1024):.2f} MB"
-        return "0 MB"
+        """Format file size in appropriate units (KB for small files, MB for larger)"""
+        if obj.file_size and obj.file_size > 0:
+            # Show KB for files < 1MB, MB for larger files
+            if obj.file_size < 1024 * 1024:  # Less than 1MB
+                size_kb = obj.file_size / 1024
+                return f"{size_kb:.2f} KB"
+            else:
+                size_mb = obj.file_size / (1024 * 1024)
+                return f"{size_mb:.2f} MB"
+        return "0 KB"
     
     def get_uploaded_date(self, obj):
         return obj.uploaded_at.strftime("%Y-%m-%d %H:%M:%S") if obj.uploaded_at else ""

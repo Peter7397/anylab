@@ -7,24 +7,49 @@ import { useAuth } from '../../context/AuthContext';
 
 const Layout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [aiMode, setAiMode] = useState<AIMode>('performance');
   const location = useLocation();
   const navigate = useNavigate();
   const { error: authError } = useAuth();
+
+  // Detect mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+      // On mobile, sidebar should be closed by default
+      if (window.innerWidth < 768) {
+        setSidebarCollapsed(true);
+      }
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Close mobile sidebar when route changes
+  useEffect(() => {
+    if (isMobile) {
+      setMobileSidebarOpen(false);
+    }
+  }, [location.pathname, isMobile]);
 
   // Check authentication and load AI mode on component mount
   // Forum routes can be accessed without authentication (public viewing)
   useEffect(() => {
     const token = localStorage.getItem('anylab_token');
     
-    // Forum routes are public - don't require authentication
-    // Public forum routes: /forum and /forum/post/:id (viewing posts)
+    // Public routes that don't require authentication
+    // Public routes: / (homepage), /forum and /forum/post/:id (viewing posts)
     // Authenticated forum routes: /forum/new and /forum/post/:id/edit (editing)
-    const isPublicForumRoute = location.pathname === '/forum' || 
-                                /^\/forum\/post\/\d+$/.test(location.pathname);
+    const isPublicRoute = location.pathname === '/' ||
+                          location.pathname === '/forum' || 
+                          /^\/forum\/post\/\d+$/.test(location.pathname);
     
-    // All non-public-forum routes inside Layout require authentication
-    if (!isPublicForumRoute && !token) {
+    // All non-public routes inside Layout require authentication
+    if (!isPublicRoute && !token) {
       console.log('No auth token found, redirecting to login');
       navigate('/login', { replace: true });
       return;
@@ -110,10 +135,21 @@ const Layout: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Mobile backdrop overlay */}
+      {isMobile && mobileSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <Sidebar 
         collapsed={sidebarCollapsed} 
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} 
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileOpen={mobileSidebarOpen}
+        isMobile={isMobile}
+        onMobileClose={() => setMobileSidebarOpen(false)}
       />
 
       {/* Main Content */}
@@ -123,17 +159,19 @@ const Layout: React.FC = () => {
           aiMode={aiMode}
           onAIModeChange={handleAIModeChange}
           onQuickAction={handleQuickAction}
+          onMobileMenuToggle={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+          isMobile={isMobile}
         />
 
         {/* Breadcrumbs */}
-        <div className="bg-white border-b border-gray-200 px-6 py-3">
-          <nav className="flex" aria-label="Breadcrumb">
-            <ol className="flex items-center space-x-2">
+        <div className="bg-white border-b border-gray-200 px-3 sm:px-6 py-2 sm:py-3">
+          <nav className="flex overflow-x-auto" aria-label="Breadcrumb">
+            <ol className="flex items-center space-x-1 sm:space-x-2 min-w-max">
               {breadcrumbs.map((breadcrumb, index) => (
                 <li key={breadcrumb.href} className="flex items-center">
                   {index > 0 && (
                     <svg
-                      className="flex-shrink-0 h-4 w-4 text-gray-400 mx-2"
+                      className="flex-shrink-0 h-3 w-3 sm:h-4 sm:w-4 text-gray-400 mx-1 sm:mx-2"
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -144,7 +182,7 @@ const Layout: React.FC = () => {
                       />
                     </svg>
                   )}
-                  <span className={`text-sm ${
+                  <span className={`text-xs sm:text-sm whitespace-nowrap ${
                     index === breadcrumbs.length - 1
                       ? 'text-gray-900 font-medium'
                       : 'text-gray-500 hover:text-gray-700'
@@ -178,7 +216,7 @@ const Layout: React.FC = () => {
         )}
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto p-6">
+        <main className="flex-1 overflow-auto p-3 sm:p-6">
           <Outlet />
         </main>
       </div>

@@ -1,0 +1,53 @@
+# Windows x86_64 with NVIDIA A1000 GPU specific overrides
+# GPU-enabled Ollama, full model for production
+
+services:
+  # Ollama Service - GPU-enabled for Windows A1000
+  ollama:
+    image: ollama/ollama:latest
+    container_name: anylab_ollama
+    platform: linux/amd64
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models_windows:/root/.ollama
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - OLLAMA_NUM_GPU=1
+      - OLLAMA_NUM_PARALLEL=1
+    restart: unless-stopped
+    networks:
+      - anylab_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend - Windows specific environment
+  backend:
+    platform: linux/amd64
+    environment:
+      - PLATFORM=windows
+      - ARCHITECTURE=amd64
+      - OLLAMA_API_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5:7b
+      - OLLAMA_NUM_GPU=1
+
+  # Frontend - Windows specific
+  frontend:
+    platform: linux/amd64
+
+volumes:
+  ollama_models_windows:
+    driver: local
+

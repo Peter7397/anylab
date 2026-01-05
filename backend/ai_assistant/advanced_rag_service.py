@@ -105,13 +105,21 @@ class AdvancedRAGService(ImprovedRAGService):
                 hybrid_results = vector_results[:top_k * 2]
                 logger.info("Using vector-only search")
             
-            # Step 4: Advanced Reranking
-            if self.use_reranking and len(hybrid_results) > 1:
+            # Step 4: Advanced Reranking (skip for simple queries to improve speed)
+            # Simple queries: short, specific, or definitional queries don't benefit from reranking
+            should_rerank = (
+                self.use_reranking and 
+                len(hybrid_results) > 1 and
+                self._should_use_reranking(query, query_type)
+            )
+            
+            if should_rerank:
                 reranked_results = advanced_reranker.advanced_rerank(query, hybrid_results)
                 logger.info(f"Advanced reranking: {len(reranked_results)} results")
             else:
                 reranked_results = hybrid_results
-                logger.info("Skipping reranking")
+                skip_reason = "disabled" if not self.use_reranking else "simple query"
+                logger.info(f"Skipping reranking ({skip_reason})")
             
             # Step 5: Final selection
             final_results = reranked_results[:top_k]
@@ -194,7 +202,9 @@ class AdvancedRAGService(ImprovedRAGService):
     def ollama_generate_advanced(self, prompt: str, query_type: str = 'general', model: str = None, language='en-US') -> str:
         """Generate response with query-type specific parameters and language support"""
         if model is None:
-            model = self.model_name
+            # Always fetch the current model dynamically instead of using cached self.model_name
+            from .utils.model_settings import get_ollama_model
+            model = get_ollama_model()
         
         # Validate model is set
         if not model:
@@ -247,15 +257,6 @@ class AdvancedRAGService(ImprovedRAGService):
         
         params = type_params.get(query_type, type_params['general'])
         
-<<<<<<< Updated upstream
-        # Select system prompt based on language
-        if 'zh' in language.lower():
-            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
-                                  '你是一个专业的助手。请仅使用提供的上下文回答问题，保持简洁准确。')
-        else:
-            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
-                                  'You are a helpful assistant. Use only the following context to answer the question. Be concise and accurate.')
-=======
         # Select system prompt based on language with explicit language instruction
         if 'zh' in language.lower():
             system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
@@ -267,7 +268,6 @@ class AdvancedRAGService(ImprovedRAGService):
                                   'You are a helpful assistant. You MUST answer all questions in English. '
                                   'Use only the following context to answer the question. Be concise and accurate. '
                                   'Do not respond in Chinese, only in English.')
->>>>>>> Stashed changes
         
         try:
             api_url = f"{self.ollama_url}/api/chat"
@@ -443,6 +443,40 @@ class AdvancedRAGService(ImprovedRAGService):
         except Exception as e:
             logger.error(f"Error getting search analytics: {e}")
             return {"error": str(e)}
+    
+    def _should_use_reranking(self, query: str, query_type: str) -> bool:
+        """
+        Determine if reranking should be used for this query.
+        Skip reranking for simple queries to improve speed.
+        
+        Simple queries that don't benefit from reranking:
+        - Very short queries (< 3 words)
+        - Definitional queries ("what is X")
+        - Specific technical queries with exact terms
+        - Queries with exact phrases (quoted strings)
+        """
+        query_lower = query.lower().strip()
+        word_count = len(query_lower.split())
+        
+        # Skip reranking for very short queries (likely simple, direct questions)
+        if word_count < 3:
+            return False
+        
+        # Skip reranking for definitional queries (usually have clear single answer)
+        if query_type == 'definitional':
+            return False
+        
+        # Skip reranking for queries with exact phrases (quoted strings)
+        if '"' in query:
+            return False
+        
+        # Skip reranking for very specific technical queries
+        technical_exact_terms = ['version', 'ip', 'url', 'api', 'id', 'uuid', 'hash', 'error code']
+        if any(term in query_lower for term in technical_exact_terms):
+            return False
+        
+        # Use reranking for complex queries that need nuanced ranking
+        return True
 
 # Global advanced RAG service instance
 advanced_rag_service = AdvancedRAGService()

@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Upload, 
   FileText, 
@@ -22,10 +23,12 @@ import {
   FolderOpen,
   Filter,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  ExternalLink
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../../services/api';
+import FileSelectionModal from './FileSelectionModal';
 
 // Debug: Ensure this component is using updated code
 console.log('DocumentManager component loaded with updated imports v2.0 with Auto-Extract button');
@@ -64,8 +67,15 @@ interface DocumentManagerProps {
   defaultDocType?: string;
 }
 
-const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defaultDocType = 'all' }) => {
+export interface DocumentManagerRef {
+  handleExtractMetadata: () => Promise<void>;
+  openUploadModal: () => void;
+}
+
+const DocumentManager = React.forwardRef<DocumentManagerRef, DocumentManagerProps>(
+  ({ onOpenInViewer, defaultDocType = 'all' }, ref) => {
   const { t } = useTranslation('ai');
+  const navigate = useNavigate();
   const [documents, setDocuments] = useState<DocumentFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchParams, setSearchParams] = useState<DocumentSearchParams>({
@@ -89,7 +99,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     sort_order: 'desc'
   });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  // NEW: Individual metadata per file
+  // Individual metadata per file
   const [fileMetadata, setFileMetadata] = useState<Array<{
     file: File;
     title: string;
@@ -107,29 +117,11 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     version: '',
     content_type: ''
   });
-  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showFileSelectionModal, setShowFileSelectionModal] = useState(false);
   
-  // NEW: Background upload state
-  const [uploadQueue, setUploadQueue] = useState<Array<{
-    id: string;
-    file: File;
-    metadata: {
-      title: string;
-      description: string;
-      document_type: string;
-      product_category: string;
-      content_type: string;
-      version: string;
-    };
-    status: 'queued' | 'uploading' | 'processing' | 'completed' | 'failed';
-    progress: number;
-    error?: string;
-    documentId?: number;
-  }>>([]);
-  const [showUploadProgress, setShowUploadProgress] = useState(false);
+  // Simplified upload state - just track if uploading
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadBatchSize] = useState(5); // Upload 5 files at a time
-  // NEW: State for "Apply to All" dropdowns
+  // State for "Apply to All" dropdowns
   const [applyProductKey, setApplyProductKey] = useState(0);
   const [applyContentTypeKey, setApplyContentTypeKey] = useState(0);
   const [selectedDocument, setSelectedDocument] = useState<DocumentFile | null>(null);
@@ -143,37 +135,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     version: ''
   });
   const [extracting, setExtracting] = useState(false);
-  
-  // NEW: Bulk import state
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false); // Disabled by default - no constant refreshing
+  const [useUploadQueue, setUseUploadQueue] = useState(true);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
-  const [bulkFiles, setBulkFiles] = useState<{ path: string; filename: string; size: number }[]>([]);
-  const [bulkProcessing, setBulkProcessing] = useState(false);
-  const [bulkResults, setBulkResults] = useState<any>(null);
-  const [selectedFolder, setSelectedFolder] = useState('');
-  const [uploadSource, setUploadSource] = useState<'server' | 'browser'>('browser');
-  // NEW: Bulk import metadata (for browser folder selection)
-  const [bulkFileMetadata, setBulkFileMetadata] = useState<Array<{
-    file: File;
-    title: string;
-    description: string;
-    document_type: string;
-    product_category: string;
-    content_type: string;
-    version: string;
-  }>>([]);
-  // NEW: State for bulk import "Apply to All" dropdowns
-  const [bulkApplyProductKey, setBulkApplyProductKey] = useState(0);
-  const [bulkApplyContentTypeKey, setBulkApplyContentTypeKey] = useState(0);
-  
-  // NEW: File type filtering state
-  const [enabledFileTypes, setEnabledFileTypes] = useState<Set<string>>(new Set(['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx', 'ppt', 'pptx', 'html', 'mhtml']));
-  const [filteredOutFiles, setFilteredOutFiles] = useState<File[]>([]);
-  
-  // NEW: Progress tracking state
-  const [importStatus, setImportStatus] = useState<any>(null);
-  const [progressInterval, setProgressInterval] = useState<NodeJS.Timeout | null>(null);
-  const [jobMonitoring, setJobMonitoring] = useState(false);
-  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [uploadSource, setUploadSource] = useState<'browser' | 'server'>('browser');
 
   // Document type configurations
   const documentTypes = [
@@ -184,6 +149,22 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     { value: 'txt', label: 'Text Document', icon: FileCode, extensions: ['.txt', '.rtf'] },
     { value: 'SSB_KPR', label: 'SSB/KPR File', icon: FileText, extensions: ['.mhtml', '.html'] },
   ];
+
+  // Initialize enabled file types after documentTypes is defined
+  const [enabledFileTypes, setEnabledFileTypes] = useState<Set<string>>(new Set(documentTypes.map(t => t.value)));
+  const [selectedFolder, setSelectedFolder] = useState('');
+  const [bulkFiles, setBulkFiles] = useState<any[]>([]);
+  const [bulkFileMetadata, setBulkFileMetadata] = useState<any[]>([]);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [filteredOutFiles, setFilteredOutFiles] = useState<any[]>([]);
+  const [jobMonitoring, setJobMonitoring] = useState(false);
+  const [importStatus, setImportStatus] = useState<any>(null);
+  const [bulkApplyProductKey, setBulkApplyProductKey] = useState(0);
+  const [bulkApplyContentTypeKey, setBulkApplyContentTypeKey] = useState(0);
+  const [bulkResults, setBulkResults] = useState<any>(null);
+  const [progressInterval, setProgressInterval] = useState<NodeJS.Timeout | null>(null);
+  const [showUploadProgress, setShowUploadProgress] = useState(false);
+  const [uploadQueue, setUploadQueue] = useState<any[]>([]);
 
   // Product categories
   const productCategories = [
@@ -316,20 +297,40 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     );
   };
 
-  // NEW: Auto-poll documents list while any are processing
+  // Auto-poll documents list while any are processing (only when enabled)
+  // Use ref to access latest documents without causing effect re-runs
+  const documentsRef = useRef(documents);
+  useEffect(() => {
+    documentsRef.current = documents;
+  }, [documents]);
+
   useEffect(() => {
     if (!autoRefreshEnabled) return;
-    const hasActive = documents.some(d => {
+    
+    // Check if there are any active processing documents using ref (always current)
+    const hasActive = documentsRef.current.some(d => {
       const ps: any = (d as any).processing_status;
       const sVal: string | undefined = typeof ps === 'string' ? ps : ps?.status;
       return sVal && sVal !== 'ready' && sVal !== 'failed';
     });
+    
     if (!hasActive) return;
+    
+    // Only refresh every 5 seconds (reduced frequency) and only when there are active documents
     const interval = setInterval(() => {
-      loadDocuments();
-    }, 3000);
+      // Check current documents state for active processing (using ref for latest data)
+      const stillHasActive = documentsRef.current.some(d => {
+        const ps: any = (d as any).processing_status;
+        const sVal: string | undefined = typeof ps === 'string' ? ps : ps?.status;
+        return sVal && sVal !== 'ready' && sVal !== 'failed';
+      });
+      if (stillHasActive) {
+        loadDocuments();
+      }
+    }, 5000); // Increased to 5 seconds to reduce refresh frequency
+    
     return () => clearInterval(interval);
-  }, [documents, autoRefreshEnabled]);
+  }, [autoRefreshEnabled]); // Only re-run when autoRefreshEnabled changes, not when documents change
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || []);
@@ -422,18 +423,16 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     return true;
   };
 
-  // NEW: Background upload with batching
+  // Simplified upload - always uses unified queue
   const handleUpload = async () => {
-    // Handle both new metadata-based uploads and legacy single-file uploads
     if (fileMetadata.length === 0 && selectedFiles.length === 0) {
       setError(t('pleaseSelectAtLeastOneFile'));
       return;
     }
 
-    // If files selected but no metadata initialized (legacy single file mode)
+    // Initialize metadata if needed
     let metadataToUse: typeof fileMetadata = fileMetadata;
     if (fileMetadata.length === 0 && selectedFiles.length > 0) {
-      // Initialize metadata from form
       metadataToUse = selectedFiles.map(file => {
         const extension = '.' + file.name.split('.').pop()?.toLowerCase();
         const selectedType = documentTypes.find(t => 
@@ -453,7 +452,6 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       setFileMetadata(metadataToUse);
     }
 
-    // Use the correct metadata (either from state or just initialized)
     const finalMetadata = fileMetadata.length > 0 ? fileMetadata : metadataToUse;
     
     if (!finalMetadata || finalMetadata.length === 0) {
@@ -461,133 +459,65 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       return;
     }
     
-    // Validate each file's metadata (only title is required, product/content type will be auto-detected)
+    // Validate metadata
     for (const meta of finalMetadata) {
       if (!meta.title.trim()) {
         setError(t('titleRequiredForFile', { filename: meta.file.name }));
         return;
       }
-      // Product category and content type are optional - backend will auto-detect if not provided
     }
 
     setError(null);
-    
-    // Create upload queue
-    const queue = finalMetadata.map((meta, index) => ({
-      id: `upload-${Date.now()}-${index}`,
-      file: meta.file,
-      metadata: {
-        title: meta.title,
-        description: meta.description,
-        document_type: meta.document_type,
-        product_category: meta.product_category,
-        content_type: meta.content_type,
-        version: meta.version
-      },
-      status: 'queued' as const,
-      progress: 0
-    }));
-
-    setUploadQueue(queue);
-    setShowUploadProgress(true);
     setIsUploading(true);
-    setShowUploadModal(false); // Close modal immediately - background upload
     
-    // Start uploading in batches
-    uploadFilesInBatches(queue);
-  };
-
-  // NEW: Upload files in batches to prevent system hang
-  const uploadFilesInBatches = async (queue: typeof uploadQueue) => {
-    const batches: typeof queue[] = [];
-    
-    // Split queue into batches
-    for (let i = 0; i < queue.length; i += uploadBatchSize) {
-      batches.push(queue.slice(i, i + uploadBatchSize));
-    }
-
-    // Process batches sequentially
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex];
+    try {
+      // Create job using unified upload queue
+      const formData = new FormData();
+      formData.append('job_type', 'file');
+      formData.append('source', 'document_manager_upload');
+      formData.append('priority', '5');
       
-      // Upload all files in current batch concurrently
-      const batchPromises = batch.map(async (item) => {
-        // Update status to uploading
-        setUploadQueue(prev => prev.map(q => 
-          q.id === item.id ? { ...q, status: 'uploading', progress: 10 } : q
-        ));
-
-        try {
-          const result = await apiClient.uploadDocument(
-            item.file,
-            item.metadata.title,
-            item.metadata.description,
-            item.metadata.document_type,
-            item.metadata.product_category,
-            item.metadata.content_type,
-            item.metadata.version
-          );
-
-          // Update status to processing (backend will process via Celery)
-          setUploadQueue(prev => prev.map(q => 
-            q.id === item.id ? { 
-              ...q, 
-              status: 'processing', 
-              progress: 50,
-              documentId: result.document_id || result.uploaded_file_id
-            } : q
-          ));
-
-          // Wait a bit then mark as completed (processing continues in background)
-          setTimeout(() => {
-            setUploadQueue(prev => prev.map(q => 
-              q.id === item.id ? { ...q, status: 'completed', progress: 100 } : q
-            ));
-          }, 1000);
-
-          return { success: true, item };
-        } catch (err: any) {
-          console.error('Upload error for file:', item.file.name, err);
-          setUploadQueue(prev => prev.map(q => 
-            q.id === item.id ? { 
-              ...q, 
-              status: 'failed', 
-              progress: 0,
-              error: err.message || 'Upload failed'
-            } : q
-          ));
-          return { success: false, item, error: err };
-        }
+      // Add all files
+      finalMetadata.forEach((meta) => {
+        formData.append('files', meta.file);
       });
-
-      // Wait for current batch to complete before starting next
-      await Promise.all(batchPromises);
       
-      // Small delay between batches to prevent overwhelming the system
-      if (batchIndex < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-
-    // All uploads complete
-    setIsUploading(false);
-    setSuccess(`Upload queue completed! ${queue.filter(q => q.status === 'completed').length} successful, ${queue.filter(q => q.status === 'failed').length} failed.`);
-    
-    // Reload documents after a short delay
-    setTimeout(() => {
-      loadDocuments();
-    }, 2000);
-
-    // Auto-hide progress panel after 5 seconds if all completed
-    setTimeout(() => {
-      setUploadQueue(prev => {
-        const allDone = prev.every(q => q.status === 'completed' || q.status === 'failed');
-        if (allDone) {
-          // Keep panel visible but allow user to close it
-        }
-        return prev;
+      // Add metadata as JSON
+      formData.append('metadata', JSON.stringify({
+        files: finalMetadata.map(meta => ({
+          name: meta.file.name,
+          title: meta.title,
+          description: meta.description,
+          document_type: meta.document_type,
+          product_category: meta.product_category,
+          content_type: meta.content_type,
+          version: meta.version
+        }))
+      }));
+      
+      const response = await apiClient.post('/ai/upload/queue/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-    }, 5000);
+      
+      const job = (response as any).data?.data || (response as any).data;
+      setSuccess(
+        `Files queued successfully! Job ID: ${job.job_id?.substring(0, 8)}... ` +
+        `Files will be processed in the background. You can continue adding more files.`
+      );
+      setShowFileSelectionModal(false);
+      setSelectedFiles([]);
+      setFileMetadata([]);
+      
+      // Reload documents after a delay (files will appear after processing)
+      setTimeout(() => {
+        loadDocuments();
+      }, 3000);
+    } catch (err: any) {
+      console.error('Upload error:', err);
+      setError(err.response?.data?.message || err.message || 'Upload failed');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSearch = async () => {
@@ -829,348 +759,130 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
     }
   };
 
-  // NEW: Handle folder selection from browser with file type filtering
-  const handleFolderSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const allFiles = Array.from(event.target.files || []);
-    if (allFiles.length === 0) return;
+  // Expose methods via ref for parent component
+  useImperativeHandle(ref, () => ({
+    handleExtractMetadata,
+    openUploadModal: () => setShowFileSelectionModal(true),
+  }));
 
-    // NEW: File count and size limits for bulk import
-    const MAX_FILES = 50;
-    const MAX_TOTAL_SIZE_MB = 500;
-    
-    if (allFiles.length > MAX_FILES) {
-      setError(`Too many files selected. Maximum ${MAX_FILES} files allowed.`);
-      return;
-    }
-
-    const totalSizeMB = allFiles.reduce((sum, file) => sum + file.size, 0) / (1024 * 1024);
-    if (totalSizeMB > MAX_TOTAL_SIZE_MB) {
-      setError(`Total file size too large (${totalSizeMB.toFixed(2)} MB). Maximum ${MAX_TOTAL_SIZE_MB} MB allowed.`);
-      return;
-    }
-
-    // Filter files based on enabled types
-    const validFiles: File[] = [];
-    const filteredOut: File[] = [];
-    
-    allFiles.forEach((file: File) => {
-      const extension = file.name.split('.').pop()?.toLowerCase() || '';
-      
-      // Check if this file type is enabled
-      let isAllowed = false;
-      for (const docType of documentTypes) {
-        if (enabledFileTypes.has(docType.value)) {
-          // Check if this file matches any enabled type's extensions
-          const matches = docType.extensions.some(ext => extension === ext.replace('.', ''));
-          if (matches) {
-            isAllowed = true;
-            break;
-          }
-        }
-      }
-      
-      // Also check for .mhtml, .rtf, .md directly
-      if (['mhtml', 'html', 'htm', 'rtf', 'md'].includes(extension) && enabledFileTypes.has('mhtml')) {
-        isAllowed = true;
-      }
-      
-      if (isAllowed) {
-        validFiles.push(file);
-      } else {
-        filteredOut.push(file);
-      }
-    });
-    
-    // Store valid files
-    setSelectedFiles(validFiles);
-    setFilteredOutFiles(filteredOut);
-    
-    // NEW: Initialize metadata for bulk import files
-    const metadata = validFiles.map(file => {
-      const extension = '.' + file.name.split('.').pop()?.toLowerCase();
-      const selectedType = documentTypes.find(t => 
-        t.extensions.includes(extension)
-      ) || documentTypes[0];
-      
-      const baseTitle = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
-      
-      // Auto-detect product category from filename
-      let product_category = '';
-      const filename = file.name.toLowerCase();
-      if (filename.includes('openlab')) product_category = 'openlab_cds';
-      else if (filename.includes('masshunter')) product_category = 'masshunter_workstation';
-      
-      return {
-        file,
-        title: baseTitle,
-        description: `Bulk imported: ${file.name}`,
-        document_type: selectedType.value,
-        product_category: product_category,
-        content_type: '',
-        version: ''
-      };
-    });
-    
-    setBulkFileMetadata(metadata);
-    
-    // Convert to bulkFiles format for display
-    const folderFiles = validFiles.map((file: File) => ({
-      path: (file as any).webkitRelativePath || file.name,
-      filename: file.name,
-      size: file.size
-    }));
-    
-    setBulkFiles(folderFiles);
-    
-    // Show appropriate message
-    if (filteredOut.length > 0) {
-      setError(
-        t('filesFilteredOut', { 
-          filtered: filteredOut.length, 
-          ready: validFiles.length 
-        })
-      );
-    } else {
-      setSuccess(t('selectedFilesFromFolder', { count: validFiles.length }));
-    }
-  };
-
-  // NEW: Bulk import functions
+  // Handle folder scan
   const handleScanFolder = async () => {
-    if (!selectedFolder) {
+    if (!selectedFolder.trim()) {
       setError(t('pleaseEnterFolderPath'));
       return;
     }
 
+    setBulkProcessing(true);
+    setError(null);
     try {
-      setBulkProcessing(true);
-      setError(null);
-
-      const result = await apiClient.scanFolder(selectedFolder);
+      const response = await apiClient.post('/ai/process/bulk/scan-folder/', {
+        folder_path: selectedFolder,
+        auto_upload: false,
+        priority: 5
+      });
       
-      if (result.success && result.files) {
-        setBulkFiles(result.files);
-        setSuccess(t('foundFilesInFolder', { count: result.files.length }));
+      const data = (response as any).data;
+      if (data?.success && data?.files) {
+        setBulkFiles(data.files);
+        setSuccess(t('foundFilesInFolder', { count: data.files.length }));
       } else {
         setError(t('noFilesFoundInFolder'));
       }
     } catch (err: any) {
-      setError(err.message || t('failedToScanFolder'));
+      setError(err.response?.data?.error || err.message || t('failedToScanFolder'));
     } finally {
       setBulkProcessing(false);
     }
   };
 
-  // NEW: Handle bulk import from browser folder with metadata table and batching
-  const handleBulkImportFromBrowser = async () => {
-    if (bulkFileMetadata.length === 0 && selectedFiles.length === 0) {
-      setError(t('pleaseSelectFolderFirst'));
-      return;
-    }
-
-    // Use metadata if available, otherwise initialize from files
-    let metadataToUse = bulkFileMetadata;
-    if (bulkFileMetadata.length === 0 && selectedFiles.length > 0) {
-      metadataToUse = selectedFiles.map(file => {
-        const extension = '.' + file.name.split('.').pop()?.toLowerCase();
-        const selectedType = documentTypes.find(t => 
-          t.extensions.includes(extension)
-        ) || documentTypes[0];
-        
-        const baseTitle = file.name.replace(/\.[^/.]+$/, '');
-        let product_category = '';
-        const filename = file.name.toLowerCase();
-        if (filename.includes('openlab')) product_category = 'openlab_cds';
-        else if (filename.includes('masshunter')) product_category = 'masshunter_workstation';
-        
-        return {
-          file,
-          title: baseTitle,
-          description: `Bulk imported: ${file.name}`,
-          document_type: selectedType.value,
-          product_category: product_category,
-          content_type: '',
-          version: ''
-        };
-      });
-      setBulkFileMetadata(metadataToUse);
-    }
-
-    // Validate metadata (only title is required)
-    for (const meta of metadataToUse) {
-      if (!meta.title.trim()) {
-        setError(`Title is required for file: ${meta.file.name}`);
-        return;
-      }
-    }
-
-    setError(null);
-    
-    // Create upload queue (same as regular upload)
-    const queue = metadataToUse.map((meta, index) => ({
-      id: `bulk-upload-${Date.now()}-${index}`,
-      file: meta.file,
-      metadata: {
-        title: meta.title,
-        description: meta.description,
-        document_type: meta.document_type,
-        product_category: meta.product_category,
-        content_type: meta.content_type,
-        version: meta.version
-      },
-      status: 'queued' as const,
-      progress: 0
-    }));
-
-    setUploadQueue(queue);
-    setShowUploadProgress(true);
-    setIsUploading(true);
-    setBulkProcessing(true);
-    setShowBulkUploadModal(false); // Close modal immediately - background upload
-    
-    // Start uploading in batches (reuse the same function)
-    uploadFilesInBatches(queue);
-    
-    // Reset bulk import specific state after upload starts
-    setTimeout(() => {
-      setBulkProcessing(false);
-      setJobMonitoring(false);
-    }, 100);
-  };
-
+  // Handle bulk import from server
   const handleBulkImport = async () => {
     if (bulkFiles.length === 0) {
-      setError(t('pleaseScanFolderFirst'));
+      setError(t('pleaseSelectFilesToImport'));
       return;
     }
 
+    setBulkProcessing(true);
+    setError(null);
     try {
-      setBulkProcessing(true);
-      setJobMonitoring(true);
-      setError(null);
-
-      const filesToImport = bulkFiles.map(file => ({
-        file_path: file.path,
-        filename: file.filename
+      const filesToImport = bulkFiles.map(f => ({
+        file_path: f.file_path || f.path,
+        filename: f.name || f.filename
       }));
 
-      const result = await apiClient.bulkImportFiles(filesToImport);
+      const response = await apiClient.bulkImportFiles(filesToImport);
+      const result = response as any;
       
-      setBulkResults(result.results);
-      
-      // Start polling for status
-      startStatusPolling();
-      
-      setSuccess(
-        t('bulkImportInitiated', { total: result.results.total })
-      );
-      
-      // Don't close modal yet - keep monitoring progress
-      
+      if (result.success) {
+        setSuccess(t('bulkImportSuccess', { count: result.successful || 0 }));
+        setBulkFiles([]);
+        setSelectedFolder('');
+        loadDocuments();
+      } else {
+        setError(result.error || t('bulkImportFailed'));
+      }
     } catch (err: any) {
-      setError(err.message || t('failedToImportFiles'));
+      setError(err.response?.data?.error || err.message || t('bulkImportFailed'));
+    } finally {
       setBulkProcessing(false);
-      setJobMonitoring(false);
     }
   };
 
-  // NEW: Start polling for import status
-  const startStatusPolling = () => {
-    if (progressInterval) {
-      clearInterval(progressInterval);
+  // Handle bulk import from browser
+  const handleBulkImportFromBrowser = async () => {
+    if (bulkFileMetadata.length === 0 && selectedFiles.length === 0) {
+      setError(t('pleaseSelectFilesToImport'));
+      return;
     }
 
-    const interval = setInterval(async () => {
-      try {
-        const status = await apiClient.getBulkImportStatus();
-        setImportStatus(status);
+    setBulkProcessing(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('job_type', 'file');
+      formData.append('source', 'file_upload');
+      formData.append('priority', '5');
 
-        // Check if all files are done processing
-        const { pending, metadata_extracting, chunking, embedding } = status.statistics;
-        
-        if (pending === 0 && metadata_extracting === 0 && chunking === 0 && embedding === 0) {
-          // All done!
-          clearInterval(interval);
-          setJobMonitoring(false);
-          setBulkProcessing(false);
-          
-          const ready = status.statistics.ready || 0;
-          const failed = status.statistics.failed || 0;
-          
-          setSuccess(
-            t('importCompleted', { ready, failed })
-          );
-          
-          // Show detailed results
-          setBulkResults({
-            successful: ready,
-            failed: failed,
-            skipped: 0
-          });
-          
-          loadDocuments();
+      // Use metadata if available, otherwise use selected files
+      const filesToUpload = bulkFileMetadata.length > 0 
+        ? bulkFileMetadata.map(m => m.file)
+        : selectedFiles;
+
+      filesToUpload.forEach((file, index) => {
+        formData.append('files', file);
+        if (bulkFileMetadata[index]) {
+          const meta = bulkFileMetadata[index];
+          formData.append(`metadata_${index}`, JSON.stringify({
+            title: meta.title,
+            description: meta.description,
+            document_type: meta.document_type,
+            product_category: meta.product_category,
+            content_type: meta.content_type,
+            version: meta.version
+          }));
         }
-      } catch (err: any) {
-        console.error('Failed to fetch status:', err);
-      }
-    }, 2000); // Poll every 2 seconds
+      });
 
-    setProgressInterval(interval);
+      const response = await apiClient.post('/ai/upload/queue/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      setSuccess(t('filesQueuedSuccessfully'));
+      setShowBulkUploadModal(false);
+      setSelectedFiles([]);
+      setBulkFileMetadata([]);
+      loadDocuments();
+    } catch (err: any) {
+      setError(err.response?.data?.error || err.message || t('uploadFailed'));
+    } finally {
+      setBulkProcessing(false);
+    }
   };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
-    };
-  }, [progressInterval]);
 
   console.log('Rendering DocumentManager with extract button visible. extracting state:', extracting);
 
   return (
     <div className="p-6 bg-white rounded-lg shadow-sm">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">{t('documentManager')}</h2>
-          <p className="text-gray-600">{t('documentManagerDescription')}</p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setAutoRefreshEnabled(v => !v)}
-            className={`px-3 py-2 rounded-lg border transition-colors ${autoRefreshEnabled ? 'border-green-300 text-green-700 bg-green-50 hover:bg-green-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-            title={t('toggleAutoRefresh')}
-          >
-            {autoRefreshEnabled ? t('autoRefreshOn') : t('autoRefreshOff')}
-          </button>
-          <button
-            onClick={handleExtractMetadata}
-            disabled={extracting}
-            className="bg-lime-600 hover:bg-lime-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title={t('autoExtractMetadataTitle')}
-          >
-            <Wand2 size={20} />
-            {extracting ? t('extracting') : t('autoExtractMetadata')}
-          </button>
-          <button
-            onClick={() => setShowBulkUploadModal(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            title={t('bulkImportFromFolder')}
-          >
-            <FolderInput size={20} />
-            {t('bulkImport')}
-          </button>
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-          >
-            <Upload size={20} />
-            {t('uploadDocument')}
-          </button>
-        </div>
-      </div>
 
       {/* Search Bar */}
       <div className="mb-6 p-4 bg-gray-50 rounded-lg">
@@ -1485,7 +1197,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                           <HardDrive size={16} />
                           <span>{formatFileSize(doc.file_size_mb)}</span>
                         </div>
-                        {doc.page_count && (
+                        {doc.page_count !== undefined && doc.page_count !== null && doc.page_count > 0 && (
                           <div className="flex items-center gap-1">
                             <FileText size={16} />
                             <span>{doc.page_count} {t('pages')}</span>
@@ -1569,15 +1281,27 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         )}
       </div>
 
-      {/* Upload Modal */}
-      {showUploadModal && (
+      {/* File Selection Modal */}
+      <FileSelectionModal
+        isOpen={showFileSelectionModal}
+        onClose={() => setShowFileSelectionModal(false)}
+        onQueued={() => {
+          setSuccess(t('filesQueuedSuccessfully') || 'Files queued successfully! Check Upload Queue for status.');
+          if (autoRefreshEnabled) {
+            setTimeout(() => loadDocuments(), 2000);
+          }
+        }}
+      />
+
+      {/* Old Upload Modal - REMOVED: Replaced by FileSelectionModal */}
+      {false && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">{t('uploadDocument')}{fileMetadata.length > 1 ? ` (${fileMetadata.length} ${t('files')})` : ''}</h3>
               <button
                 onClick={() => {
-                  setShowUploadModal(false);
+                  setShowFileSelectionModal(false);
                   setSelectedFiles([]);
                   setFileMetadata([]);
                 }}
@@ -1839,7 +1563,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
               <div className="flex gap-3 pt-4 border-t">
                 <button
                   onClick={() => {
-                    setShowUploadModal(false);
+                    setShowFileSelectionModal(false);
                     setSelectedFiles([]);
                     setFileMetadata([]);
                   }}
@@ -1854,6 +1578,24 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                 >
                   {isUploading ? t('uploading') : t('uploadFiles', { count: fileMetadata.length })}
                 </button>
+              </div>
+              
+              {/* Option to use unified upload queue */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useUploadQueue}
+                    onChange={(e) => setUseUploadQueue(e.target.checked)}
+                    className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                  <span>Use unified upload queue (recommended for multiple files - provides better progress tracking and control)</span>
+                </label>
+                {useUploadQueue && (
+                  <p className="text-xs text-gray-500 mt-1 ml-6">
+                    Files will be processed through the upload queue. Check the Upload Queue page to monitor progress.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1967,8 +1709,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
         </div>
       )}
 
-      {/* NEW: Bulk Upload Modal */}
-      {showBulkUploadModal && (
+      {/* Bulk Upload Modal - REMOVED: Use UnifiedUploadQueue instead */}
+      {false && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
@@ -2027,10 +1769,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                               newSet.add(docType.value);
                             }
                             setEnabledFileTypes(newSet);
-                            // Re-filter files if already selected
-                            if (selectedFiles.length > 0) {
-                              handleFolderSelect({ target: { files: selectedFiles } } as any);
-                            }
+                              // Re-filter files if already selected
+                              if (selectedFiles.length > 0) {
+                                handleFileSelect({ target: { files: selectedFiles } } as any);
+                              }
                           }}
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
                             isEnabled
@@ -2055,7 +1797,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                         }
                         setEnabledFileTypes(newSet);
                         if (selectedFiles.length > 0) {
-                          handleFolderSelect({ target: { files: selectedFiles } } as any);
+                          handleFileSelect({ target: { files: selectedFiles } } as any);
                         }
                       }}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ${
@@ -2084,7 +1826,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
                     type="file"
                     {...({ webkitdirectory: '' } as any)}
                     multiple
-                    onChange={handleFolderSelect}
+                    onChange={handleFileSelect}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                   />
                   <p className="text-xs text-gray-500 mt-1">
@@ -2648,6 +2390,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ onOpenInViewer, defau
       )}
     </div>
   );
-};
+});
+
+DocumentManager.displayName = 'DocumentManager';
 
 export default DocumentManager;

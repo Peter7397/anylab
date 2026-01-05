@@ -9,7 +9,8 @@ import {
   User, 
   Settings, 
   LogOut,
-  ChevronDown
+  ChevronDown,
+  Menu
 } from 'lucide-react';
 import { AIMode } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -19,9 +20,11 @@ interface TopBarProps {
   aiMode: AIMode;
   onAIModeChange: (mode: AIMode) => void;
   onQuickAction: (action: string) => void;
+  onMobileMenuToggle?: () => void;
+  isMobile?: boolean;
 }
 
-const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }) => {
+const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction, onMobileMenuToggle, isMobile = false }) => {
   const { t } = useTranslation('common');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showAIModeMenu, setShowAIModeMenu] = useState(false);
@@ -82,38 +85,50 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
   ];
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 sm:py-4">
       <div className="flex items-center justify-between">
+        {/* Mobile Menu Button */}
+        {isMobile && onMobileMenuToggle && (
+          <button
+            onClick={onMobileMenuToggle}
+            className="p-2 rounded-md hover:bg-gray-100 text-gray-700 transition-colors lg:hidden mr-2"
+            aria-label="Toggle menu"
+          >
+            <Menu size={24} />
+          </button>
+        )}
+
         {/* Quick Action Buttons */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-1 sm:space-x-3 flex-1 overflow-x-auto">
           {quickActions.map((action) => {
             const Icon = action.icon;
             return (
               <button
                 key={action.nameKey}
                 onClick={() => onQuickAction(action.action)}
-                className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+                className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
               >
-                <Icon size={16} />
-                <span>{t(action.nameKey)}</span>
+                <Icon size={14} className="sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">{t(action.nameKey)}</span>
               </button>
             );
           })}
         </div>
 
         {/* Persistent AI Assistant Button */}
-        <div className="flex items-center">
+        <div className="flex items-center ml-2">
           <button
             onClick={() => navigate('/ai/chat')}
-            className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+            className="px-2 sm:px-4 py-2 bg-primary-600 text-white text-xs sm:text-sm font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors whitespace-nowrap"
             title={t('openAiAssistant')}
           >
-            {t('aiAssistant')}
+            <span className="hidden sm:inline">{t('aiAssistant')}</span>
+            <Sparkles size={16} className="sm:hidden" />
           </button>
         </div>
 
         {/* Language Switcher, AI Mode Toggle and User Menu */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-1 sm:space-x-4 ml-2">
           {/* Language Switcher */}
           <LanguageSwitcher />
           
@@ -121,11 +136,11 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
           <div className="relative">
             <button
               onClick={() => setShowAIModeMenu(!showAIModeMenu)}
-              className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+              className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
               title={t('aiModeSwitchDescription')}
             >
-              <Sparkles size={16} />
-              <span>
+              <Sparkles size={14} className="sm:w-4 sm:h-4" />
+              <span className="hidden md:inline">
                 {t('aiMode')}: {aiMode === 'performance' ? t('performanceMode') : t('lightweightMode')}
                 {(() => {
                   const storedModel = localStorage.getItem('ollama_model');
@@ -135,11 +150,11 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
                   return null;
                 })()}
               </span>
-              <ChevronDown size={16} />
+              <ChevronDown size={14} className="sm:w-4 sm:h-4" />
             </button>
 
             {showAIModeMenu && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+              <div className="absolute right-0 mt-2 w-72 sm:w-80 bg-white rounded-md shadow-lg border border-gray-200 z-50">
                 <div className="p-4">
                   <h3 className="text-sm font-medium text-gray-900 mb-1">{t('aiModeSelection')}</h3>
                   <p className="text-xs text-gray-500 mb-3">{t('chooseBetweenPerformanceAndLightweight')}</p>
@@ -184,11 +199,11 @@ const TopBar: React.FC<TopBarProps> = ({ aiMode, onAIModeChange, onQuickAction }
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
+              className="flex items-center space-x-1 sm:space-x-2 px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors"
             >
-              <User size={16} />
-              <span>{displayName}</span>
-              <ChevronDown size={16} />
+              <User size={14} className="sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline max-w-[100px] truncate">{displayName}</span>
+              <ChevronDown size={14} className="sm:w-4 sm:h-4" />
             </button>
 
             {showUserMenu && (

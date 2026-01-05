@@ -278,19 +278,6 @@ class GraphRAGService(ComprehensiveRAGService):
         
         return prompt
     
-<<<<<<< Updated upstream
-    def query_with_graph_rag(self, query: str, top_k: int = 10, user=None) -> Dict[str, Any]:
-        """
-        Complete Graph RAG pipeline
-        
-        Combines vector search + graph traversal for enhanced retrieval and response
-        Now includes semantic entity matching information
-        """
-        try:
-            # Create cache key
-            query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
-            cache_key = f"graph_rag_{query_hash}_{top_k}"
-=======
     def query_with_graph_rag(self, query: str, top_k: int = 10, user=None, language='en-US') -> Dict[str, Any]:
         """
         Complete Graph RAG pipeline with language support
@@ -302,7 +289,6 @@ class GraphRAGService(ComprehensiveRAGService):
             # Create cache key (include language)
             query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
             cache_key = f"graph_rag_{query_hash}_{top_k}_{language}"
->>>>>>> Stashed changes
             
             # Check cache
             cached_result = cache.get(cache_key)
@@ -325,15 +311,11 @@ class GraphRAGService(ComprehensiveRAGService):
             })
             
             if not relevant_docs:
-<<<<<<< Updated upstream
-                response = "I don't have enough information in my knowledge base to provide an answer."
-=======
                 # Language-aware "no results" message
                 if 'zh' in language.lower():
                     response = "我的知识库中没有足够的信息来回答您的问题。"
                 else:
                     response = "I don't have enough information in my knowledge base to provide an answer."
->>>>>>> Stashed changes
                 result = {
                     "response": response,
                     "sources": [],
@@ -353,13 +335,8 @@ class GraphRAGService(ComprehensiveRAGService):
                 # Generate enhanced prompt
                 enhanced_prompt = self.generate_graph_enhanced_prompt(query, relevant_docs)
                 
-<<<<<<< Updated upstream
-                # Generate response using comprehensive RAG
-                response = self.generate_comprehensive_response(query, relevant_docs)
-=======
                 # Generate response using comprehensive RAG with language support
                 response = self.generate_comprehensive_response(query, relevant_docs, language=language)
->>>>>>> Stashed changes
                 
                 # Calculate statistics
                 graph_enhanced_count = sum(1 for doc in relevant_docs if doc.get('graph_boost'))

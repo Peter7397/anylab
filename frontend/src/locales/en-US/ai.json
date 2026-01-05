@@ -36,17 +36,10 @@
   "troubleshooting": "Troubleshooting",
   "analyzeLogs": "Analyze Logs",
   "uploadLogs": "Upload Logs",
-<<<<<<< Updated upstream
-  "freeAiChat": "Free AI Chat",
-  "openConversation": "Open conversation with Qwen 7B for brainstorming and general questions",
-  "aiIsThinking": "AI is thinking...",
-  "generatingResponse": "Generating response with Qwen 7B model",
-=======
-  "freeAiChat": "AI Chat",
+"freeAiChat": "AI Chat",
   "openConversation": "Open conversation for brainstorming and general questions",
   "aiIsThinking": "AI is thinking...",
   "generatingResponse": "Generating response with AI model",
->>>>>>> Stashed changes
   "references": "References",
   "downloadFailed": "Download failed. Please try again.",
   "view": "View",
@@ -58,13 +51,8 @@
   "response": "Response",
   "model": "Model",
   "queries": "Queries",
-<<<<<<< Updated upstream
-  "startFreeAiChat": "Start Free AI Chat",
-  "askAnything": "Ask anything for open, GPT‑like conversation with Qwen 7B.",
-=======
-  "startFreeAiChat": "Start AI Chat",
+"startFreeAiChat": "Start AI Chat",
   "askAnything": "Ask anything for open, GPT-like conversation.",
->>>>>>> Stashed changes
   "askIn": "Ask in...",
   "askInPlaceholder": "Ask in…",
   "copyFormattedText": "Copy formatted text",
@@ -72,13 +60,8 @@
   "refresh": "Refresh",
   "noChatHistory": "No chat history",
   "conversationsWillAppear": "Your conversations will appear here.",
-<<<<<<< Updated upstream
-  "askAnythingPlaceholder": "Ask anything (Free AI Chat)...",
-  "freeAiChatDescription": "Free AI Chat provides open conversation without document search. For document-based answers, try Basic, Advanced, or Comprehensive RAG.",
-=======
-  "askAnythingPlaceholder": "Ask anything (AI Chat)...",
+"askAnythingPlaceholder": "Ask anything (AI Chat)...",
   "freeAiChatDescription": "AI Chat provides open conversation without document search. For document-based answers, try Basic, Advanced, or Comprehensive RAG.",
->>>>>>> Stashed changes
   "mostRelevantReference": "Most Relevant Reference",
   "chunk": "Chunk",
   "document": "Document",
@@ -209,7 +192,7 @@
   "bulkImportInitiated": "Bulk import initiated! Processing {{total}} files...",
   "failedToImportFiles": "Failed to import files",
   "importCompleted": "Import completed! Ready: {{ready}}, Failed: {{failed}}",
-  "documentManager": "Document Manager",
+  "documentManager": "Library Manager",
   "documentManagerDescription": "Upload, view, and manage your documents (PDF, Word, Excel, PowerPoint, Text)",
   "toggleAutoRefresh": "Toggle automatic refresh while processing",
   "autoRefreshOn": "Auto-Refresh: On",

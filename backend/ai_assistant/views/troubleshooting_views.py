@@ -35,7 +35,7 @@ def analyze_logs(request):
 
         # Call Ollama to analyze the log file
         # Use consistent settings keys across the codebase
-        ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         from ai_assistant.utils.model_settings import get_ollama_model
         model = get_ollama_model()
         request_timeout = getattr(settings, 'OLLAMA_REQUEST_TIMEOUT', 120)

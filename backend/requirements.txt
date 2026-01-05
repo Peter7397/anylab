@@ -1,7 +1,7 @@
 # Django and REST Framework
 Django==5.2.4
 djangorestframework==3.16.0
-django-cors-headers==4.7.0
+django-cors-headers==4.6.0
 djangorestframework-simplejwt==5.3.0
 django-filter==24.1
 
@@ -20,6 +20,7 @@ requests==2.31.0
 
 # Image Processing
 Pillow==10.4.0
+pytesseract==0.3.13
 
 # Document Processing
 PyMuPDF==1.23.26

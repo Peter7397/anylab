@@ -3,13 +3,15 @@ import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { useTranslation } from 'react-i18next';
-<<<<<<< Updated upstream
-import { Download, FileText, FileSearch, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
-=======
 import { Download, FileText, FileSearch, ZoomIn, ZoomOut, RotateCcw, PanelRightClose, PanelRightOpen } from 'lucide-react';
->>>>>>> Stashed changes
-// Use worker from public/ to avoid dynamic import issues
-GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+// Configure PDF.js worker - use dynamic path based on current origin
+// This ensures it works in both development (localhost) and production (anylab.dpdns.org)
+if (typeof window !== 'undefined') {
+  // Use relative path from current origin to avoid CORS issues
+  const workerPath = `${window.location.origin}/pdf.worker.min.mjs`;
+  GlobalWorkerOptions.workerSrc = workerPath;
+}
 
 type DocType = 'pdf' | 'docx' | 'txt' | 'xls' | 'xlsx' | 'ppt' | 'pptx' | 'html';
 
@@ -48,6 +50,7 @@ function multiplyTransforms(m1: number[], m2: number[]): number[] {
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, initialPage, initialQuery }) => {
   const { t } = useTranslation('ai');
   const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
@@ -67,6 +70,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
   const [searchPanelWidth, setSearchPanelWidth] = useState(320); // Default 320px (w-80)
   const [showSearchPanel, setShowSearchPanel] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageInputValue, setPageInputValue] = useState<string>('');
+  const [showPageInput, setShowPageInput] = useState(false);
 
   // Render PDF pages with performance optimizations
   useEffect(() => {
@@ -190,11 +196,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         setLoading(true);
         
         // Convert relative URL to absolute URL if needed
+        // Use the same port detection logic as api.ts to ensure consistency
         let absoluteUrl = url;
         if (url.startsWith('/')) {
           const hostname = window.location.hostname;
           const protocol = window.location.protocol;
-          const port = '8001';
+          const port = '8000';  // Backend port (Docker exposes on 8000)
           
           // Helper function to check if hostname is an IP address
           const isIPAddress = (host: string): boolean => {
@@ -206,34 +213,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           if (hostname === 'localhost' || hostname === '127.0.0.1') {
             absoluteUrl = `${protocol}//localhost:${port}${url}`;
           } else if (!isIPAddress(hostname)) {
-<<<<<<< Updated upstream
-            // Domain name - use same domain (Nginx will proxy)
+            // Domain name detected - use same domain (Nginx reverse proxy will route to backend)
             absoluteUrl = `${protocol}//${hostname}${url}`;
           } else {
             // IP address - use same hostname with port
-            absoluteUrl = `${protocol}//${hostname}:${port}${url}`;
-          }
-          
-          console.log('PDF Viewer - URL conversion:', { original: url, absolute: absoluteUrl });
-        }
-        
-        const headers: Record<string, string> = {};
-        const token = localStorage.getItem(process.env.REACT_APP_JWT_STORAGE_KEY || 'anylab_token');
-        if (token) headers.Authorization = `Bearer ${token}`;
-        
-        console.log('PDF Viewer - Fetching from:', absoluteUrl);
-        const res = await fetch(absoluteUrl, { headers });
-        
-        console.log('PDF Viewer - Response status:', res.status, res.statusText);
-        const contentType = res.headers.get('content-type') || '';
-        console.log('PDF Viewer - Content-Type:', contentType);
-        
-        // Check if response is OK
-        if (!res.ok) {
-          // Clone response to read error message without consuming body
-=======
-            absoluteUrl = `${protocol}//${hostname}${url}`;
-          } else {
             absoluteUrl = `${protocol}//${hostname}:${port}${url}`;
           }
         }
@@ -264,40 +247,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
             setAuthError(true);
             throw new Error('Authentication failed. Please log in again.');
           }
-          
->>>>>>> Stashed changes
           const clonedRes = res.clone();
           const errorContentType = clonedRes.headers.get('content-type');
           if (errorContentType && errorContentType.includes('application/json')) {
             const errorData = await clonedRes.json();
-<<<<<<< Updated upstream
-            console.error('PDF Viewer - Error response:', errorData);
-            throw new Error(errorData.error || errorData.message || `HTTP ${res.status}: ${res.statusText}`);
+throw new Error(errorData.error || errorData.message || errorData.detail || `HTTP ${res.status}: ${res.statusText}`);
           } else {
             const text = await clonedRes.text();
-            console.error('PDF Viewer - Error response (non-JSON):', text.substring(0, 500));
-=======
-            throw new Error(errorData.error || errorData.message || errorData.detail || `HTTP ${res.status}: ${res.statusText}`);
-          } else {
-            const text = await clonedRes.text();
->>>>>>> Stashed changes
             throw new Error(`HTTP ${res.status}: ${res.statusText}. ${text.substring(0, 200)}`);
           }
         }
         
-<<<<<<< Updated upstream
-        // Check content type to ensure it's a PDF
-        if (!contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
-          // Might be an error response, clone to read without consuming
-          const clonedRes = res.clone();
-          const text = await clonedRes.text();
-          console.error('PDF Viewer - Non-PDF content received:', text.substring(0, 500));
-=======
-        // Check content type
+// Check content type
         if (!contentType.includes('application/pdf') && !contentType.includes('application/octet-stream')) {
           const clonedRes = res.clone();
           const text = await clonedRes.text();
->>>>>>> Stashed changes
           try {
             const errorData = JSON.parse(text);
             throw new Error(errorData.error || errorData.message || 'Server returned non-PDF content');
@@ -309,37 +273,18 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         const buf = await res.arrayBuffer();
         if (cancelled) return;
         
-<<<<<<< Updated upstream
-        // Validate PDF structure - check for PDF header
-        const uint8Array = new Uint8Array(buf);
-        const pdfHeader = String.fromCharCode(...uint8Array.slice(0, 4));
-        console.log('PDF Viewer - PDF header check:', pdfHeader, 'Buffer size:', buf.byteLength);
-        
-        if (pdfHeader !== '%PDF') {
-          // Show first 100 bytes for debugging
-          const preview = Array.from(uint8Array.slice(0, 100))
-            .map(b => String.fromCharCode(b))
-            .join('')
-            .replace(/[^\x20-\x7E]/g, '.');
-          console.error('PDF Viewer - Invalid PDF header. First 100 bytes:', preview);
-=======
-        // Quick PDF header validation
+// Quick PDF header validation
         const uint8Array = new Uint8Array(buf);
         const headerBytes = Array.from(uint8Array.slice(0, 4));
         const pdfHeader = String.fromCharCode(...headerBytes);
         
         if (pdfHeader !== '%PDF') {
->>>>>>> Stashed changes
           throw new Error(`Invalid PDF structure: File does not start with PDF header. Found: "${pdfHeader}"`);
         }
 
         if (containerRef.current) containerRef.current.innerHTML = '';
 
-<<<<<<< Updated upstream
-        console.log('PDF Viewer - Loading PDF document...');
-=======
-        // Load PDF document
->>>>>>> Stashed changes
+// Load PDF document
         const pdf = await getDocument({ data: buf }).promise;
         console.log('PDF Viewer - PDF loaded successfully. Pages:', pdf.numPages);
         if (cancelled) return;
@@ -394,9 +339,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
         setLoading(false);
         setLoadingProgress({ current: 0, total: 0 });
         
-        // Scroll to initial page if specified
-        if (initialPage && pageRefs.current[initialPage]) {
-          pageRefs.current[initialPage]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Scroll to initial page if specified (scroll the container, not the page element)
+        if (initialPage && pageRefs.current[initialPage] && scrollContainerRef.current) {
+          const pageElement = pageRefs.current[initialPage];
+          const container = scrollContainerRef.current;
+          const pageTop = pageElement.offsetTop;
+          container.scrollTo({ top: pageTop, behavior: 'smooth' });
+          setCurrentPage(initialPage);
         }
         
         // Perform initial search if query provided
@@ -404,17 +353,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           findInPdf(initialQuery).catch(() => {});
         }
       } catch (e: any) {
-<<<<<<< Updated upstream
-        console.error('PDF loading error:', e);
-=======
-        // Only log actual errors, not cancellation
+// Only log actual errors, not cancellation
         if (e?.name !== 'AbortError' && !cancelled) {
           console.error('PDF loading error:', e);
         }
         
         if (cancelled) return;
-        
->>>>>>> Stashed changes
         let errorMessage = t('failedToLoadPdf');
         
         if (e?.message) {
@@ -448,6 +392,82 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
       findInPdf(searchQuery);
     }
   }, [currentScale, searchQuery, docType]);
+
+  // Track current page based on scroll position
+  useEffect(() => {
+    if (docType !== 'pdf' || !scrollContainerRef.current || numPages === 0) return;
+
+    const container = scrollContainerRef.current;
+    
+    const updateCurrentPage = () => {
+      if (!container) return;
+      
+      const scrollTop = container.scrollTop;
+      const containerHeight = container.clientHeight;
+      const viewportCenter = scrollTop + containerHeight / 2;
+      
+      // Find which page is currently in the center of the viewport
+      let currentPageNum = 1;
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const pageElement = pageRefs.current[pageNum];
+        if (pageElement) {
+          const pageTop = pageElement.offsetTop;
+          const pageHeight = pageElement.offsetHeight;
+          const pageBottom = pageTop + pageHeight;
+          
+          if (viewportCenter >= pageTop && viewportCenter <= pageBottom) {
+            currentPageNum = pageNum;
+            break;
+          }
+          // If we've scrolled past this page, update current page
+          if (viewportCenter > pageTop) {
+            currentPageNum = pageNum;
+          }
+        }
+      }
+      
+      setCurrentPage(currentPageNum);
+    };
+
+    container.addEventListener('scroll', updateCurrentPage);
+    // Also update on initial load and when pages are rendered
+    updateCurrentPage();
+    
+    // Update when scale changes (pages might resize)
+    const interval = setInterval(updateCurrentPage, 100);
+    
+    return () => {
+      container.removeEventListener('scroll', updateCurrentPage);
+      clearInterval(interval);
+    };
+  }, [docType, numPages, currentScale]);
+
+  // Jump to specific page
+  const goToPage = (pageNum: number) => {
+    if (pageNum < 1 || pageNum > numPages || !scrollContainerRef.current) return;
+    
+    const pageElement = pageRefs.current[pageNum];
+    if (pageElement) {
+      const container = scrollContainerRef.current;
+      const pageTop = pageElement.offsetTop;
+      container.scrollTo({ top: pageTop, behavior: 'smooth' });
+      setCurrentPage(pageNum);
+    }
+    setShowPageInput(false);
+    setPageInputValue('');
+  };
+
+  // Handle page input submission
+  const handlePageInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNum = parseInt(pageInputValue);
+    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= numPages) {
+      goToPage(pageNum);
+    } else {
+      setPageInputValue('');
+      setShowPageInput(false);
+    }
+  };
 
   // Performance optimization: Debounce search to avoid excessive API calls
   useEffect(() => {
@@ -641,12 +661,15 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
       setCurrentMatchIndex(0);
       setSearching(false);
       
-      // Auto-scroll to first result if found
-      if (found.length > 0) {
+      // Auto-scroll to first result if found (scroll the container, not the page element)
+      if (found.length > 0 && scrollContainerRef.current) {
         const firstPage = found[0].pageNumber;
         const pageElement = pageRefs.current[firstPage];
         if (pageElement) {
-          pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const container = scrollContainerRef.current;
+          const pageTop = pageElement.offsetTop;
+          const containerHeight = container.clientHeight;
+          container.scrollTo({ top: pageTop - (containerHeight / 2), behavior: 'smooth' });
         }
       }
     } catch (error) {
@@ -892,7 +915,15 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
               {hits.map((h, i) => (
                 <button
                   key={`${h.pageNumber}-${i}`}
-                  onClick={() => pageRefs.current[h.pageNumber]?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                  onClick={() => {
+                    const pageElement = pageRefs.current[h.pageNumber];
+                    if (pageElement && scrollContainerRef.current) {
+                      const container = scrollContainerRef.current;
+                      const pageTop = pageElement.offsetTop;
+                      const containerHeight = container.clientHeight;
+                      container.scrollTo({ top: pageTop - (containerHeight / 2), behavior: 'smooth' });
+                    }
+                  }}
                   className="block text-left w-full p-3 border rounded hover:bg-primary-50 hover:border-primary-200 transition-colors"
                 >
                   <div className="text-xs text-primary-600 font-medium mb-1">{t('page')} {h.pageNumber}</div>
@@ -910,9 +941,28 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
   }, [hits, searchQuery, docType, showSearchPanel, searchPanelWidth, isResizing, searching, totalMatches, currentMatchIndex, debugMode, t]);
 
   return (
-    <div className="flex h-[calc(100vh-220px)] border rounded overflow-hidden">
-      <div className="flex-1 flex flex-col">
-        <div className="px-4 py-2 border-b font-semibold">{title}</div>
+    <>
+      <style>{`
+        .pdf-scroll-container::-webkit-scrollbar {
+          width: 12px;
+        }
+        .pdf-scroll-container::-webkit-scrollbar-track {
+          background: #f7fafc;
+        }
+        .pdf-scroll-container::-webkit-scrollbar-thumb {
+          background: #cbd5e0;
+          border-radius: 6px;
+        }
+        .pdf-scroll-container::-webkit-scrollbar-thumb:hover {
+          background: #a0aec0;
+        }
+      `}</style>
+      <div className="flex h-full border rounded overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        {/* Title only shown for non-PDF documents - PDFs have toolbar instead */}
+        {(!error && docType !== 'pdf') && (
+          <div className="px-4 py-2 border-b font-semibold flex-shrink-0">{title}</div>
+        )}
         {loading && (
           <div className="p-6 text-gray-600">
             <div className="flex items-center space-x-2 mb-4">
@@ -972,17 +1022,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
           </div>
         )}
         {!error && docType === 'pdf' && (
-          <>
-<<<<<<< Updated upstream
-            <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-50">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">{t('zoom')}:</span>
-=======
-            {/* Fixed Toolbar - Always visible at top */}
-            <div className="px-2 sm:px-4 py-2 border-b bg-white shadow-sm flex items-center justify-between flex-shrink-0 sticky top-0 z-50 overflow-x-auto">
-              <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-                <ZoomOut className="h-4 w-4 text-gray-500 hidden sm:block" />
->>>>>>> Stashed changes
+          <div className="flex-1 flex flex-col min-h-0 relative">
+            {/* Floating Toolbar - Absolutely positioned at bottom, always visible */}
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg border border-gray-200 z-[9999] px-3 py-2">
+              <div className="flex items-center space-x-1 sm:space-x-2">
                 <button
                   onClick={() => setCurrentScale(Math.max(0.5, currentScale - 0.1))}
                   className="px-2 sm:px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors flex-shrink-0"
@@ -1012,12 +1055,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                   className="px-2 sm:px-3 py-1.5 text-sm bg-primary-600 text-white border border-primary-600 rounded hover:bg-primary-700 transition-colors flex-shrink-0 whitespace-nowrap"
                   title="Fit to Width"
                 >
-<<<<<<< Updated upstream
-                  {t('fit')}
-=======
                   <span className="hidden sm:inline">{t('fit')}</span>
                   <span className="sm:hidden">Fit</span>
->>>>>>> Stashed changes
                 </button>
                 <div className="h-6 w-px bg-gray-300 mx-1 sm:mx-2 flex-shrink-0"></div>
                 <button
@@ -1025,36 +1064,74 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                   className="px-2 sm:px-3 py-1.5 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors flex items-center space-x-1 flex-shrink-0"
                   title={showSearchPanel ? "Hide Search Panel" : "Show Search Panel"}
                 >
-<<<<<<< Updated upstream
-                  {t('debug')}
-                </button>
-                <button
-                  onClick={() => findInPdf('test')}
-                  className="px-2 py-1 text-sm bg-green-500 text-white border border-green-500 rounded hover:bg-green-600"
-                >
-                  {t('test')}
-                </button>
-                <button
-                  onClick={testTextExtraction}
-                  className="px-2 py-1 text-sm bg-lime-500 text-white border border-purple-500 rounded hover:bg-lime-600"
-                >
-                  {t('extract')}
-                </button>
-              </div>
-              <div className="text-sm text-gray-600">
-                {t('page')} {numPages > 0 ? `1 ${t('of')} ${numPages}` : ''}
-=======
                   {showSearchPanel ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
                   <span className="hidden lg:inline ml-1">{showSearchPanel ? t('hideSearch') : t('showSearch')}</span>
                 </button>
-              </div>
-              <div className="text-xs sm:text-sm text-gray-600 flex-shrink-0 ml-2">
-                {numPages > 0 && `${t('page')} 1-${numPages}`}
->>>>>>> Stashed changes
+                {numPages > 0 && (
+                  <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0 ml-2">
+                    {showPageInput ? (
+                      <form onSubmit={handlePageInputSubmit} className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          min="1"
+                          max={numPages}
+                          value={pageInputValue}
+                          onChange={(e) => setPageInputValue(e.target.value)}
+                          onBlur={() => {
+                            if (!pageInputValue) setShowPageInput(false);
+                          }}
+                          autoFocus
+                          className="w-12 sm:w-16 px-2 py-1 text-xs sm:text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          placeholder={currentPage.toString()}
+                        />
+                        <span className="text-xs sm:text-sm text-gray-600">/ {numPages}</span>
+                        <button
+                          type="submit"
+                          className="px-2 py-1 text-xs sm:text-sm bg-primary-600 text-white rounded hover:bg-primary-700"
+                          title="Go to page"
+                        >
+                          Go
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowPageInput(false);
+                            setPageInputValue('');
+                          }}
+                          className="px-2 py-1 text-xs sm:text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                          title="Cancel"
+                        >
+                          ×
+                        </button>
+                      </form>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setShowPageInput(true);
+                          setPageInputValue(currentPage.toString());
+                        }}
+                        className="px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors flex items-center space-x-1"
+                        title="Click to jump to a page"
+                      >
+                        <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
+                        <span className="text-gray-700">
+                          {t('page')} {currentPage} / {numPages}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-            {/* PDF Content Area - Scrollable */}
-            <div className="flex-1 overflow-auto bg-gray-100 relative">
+            {/* PDF Content Area - Scrollable (no padding needed since toolbar is floating) */}
+            <div 
+              ref={scrollContainerRef} 
+              className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-100 relative min-h-0 pdf-scroll-container"
+              style={{ 
+                scrollbarWidth: 'thin', // Firefox
+                scrollbarColor: '#cbd5e0 #f7fafc' // Firefox: thumb track
+              }}
+            >
               <div 
                 ref={containerRef} 
                 className="p-4 w-full origin-top-center" 
@@ -1065,7 +1142,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
                 }} 
               />
             </div>
-          </>
+          </div>
         )}
         {!error && docType === 'docx' && (
           <DocxRenderer url={url} />
@@ -1085,6 +1162,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ title, url, docType, in
       </div>
       {rightPanel}
     </div>
+    </>
   );
 };
 

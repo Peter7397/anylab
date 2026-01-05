@@ -15,6 +15,11 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Enable pgvector extension before creating vector fields
+        migrations.RunSQL(
+            "CREATE EXTENSION IF NOT EXISTS vector;",
+            reverse_sql="DROP EXTENSION IF EXISTS vector;",
+        ),
         migrations.CreateModel(
             name='Document',
             fields=[

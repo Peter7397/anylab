@@ -23,9 +23,16 @@ class PDFDocumentSerializer(serializers.ModelSerializer):
                            'uploaded_date', 'file_url']
     
     def get_file_size_mb(self, obj):
-        if obj.file_size:
-            return f"{obj.file_size / (1024*1024):.2f} MB"
-        return "0 MB"
+        """Format file size in appropriate units (KB for small files, MB for larger)"""
+        if obj.file_size and obj.file_size > 0:
+            # Show KB for files < 1MB, MB for larger files
+            if obj.file_size < 1024 * 1024:  # Less than 1MB
+                size_kb = obj.file_size / 1024
+                return f"{size_kb:.2f} KB"
+            else:
+                size_mb = obj.file_size / (1024 * 1024)
+                return f"{size_mb:.2f} MB"
+        return "0 KB"
     
     def get_uploaded_date(self, obj):
         return obj.uploaded_at.strftime("%Y-%m-%d %H:%M:%S") if obj.uploaded_at else ""
@@ -127,9 +134,16 @@ class DocumentSerializer(serializers.ModelSerializer):
                            'uploaded_date', 'file_url', 'metadata', 'source_url', 'processing_status', 'uploaded_file_id']
     
     def get_file_size_mb(self, obj):
-        if obj.file_size:
-            return f"{obj.file_size / (1024*1024):.2f} MB"
-        return "0 MB"
+        """Format file size in appropriate units (KB for small files, MB for larger)"""
+        if obj.file_size and obj.file_size > 0:
+            # Show KB for files < 1MB, MB for larger files
+            if obj.file_size < 1024 * 1024:  # Less than 1MB
+                size_kb = obj.file_size / 1024
+                return f"{size_kb:.2f} KB"
+            else:
+                size_mb = obj.file_size / (1024 * 1024)
+                return f"{size_mb:.2f} MB"
+        return "0 KB"
     
     def get_uploaded_date(self, obj):
         return obj.uploaded_at.strftime("%Y-%m-%d %H:%M:%S") if obj.uploaded_at else ""
@@ -141,25 +155,32 @@ class DocumentSerializer(serializers.ModelSerializer):
         
         # For SSB_KPR documents (MHTML), use the HTML view endpoint
         if obj.document_type == 'SSB_KPR':
-            return request.build_absolute_uri(f'/api/ai/documents/{obj.id}/html/')
+            # Return relative URL so DocumentViewer can fix the port
+            return f'/api/ai/documents/{obj.id}/html/'
         
         # Check if DocumentFile has a file field (legacy documents)
         if obj.file and hasattr(obj.file, 'url'):
-            return request.build_absolute_uri(obj.file.url)
+            # Return relative URL so DocumentViewer can fix the port
+            file_url = obj.file.url
+            if file_url.startswith('/'):
+                return file_url
+            return request.build_absolute_uri(file_url)
         
-        # For uploaded documents, file is stored via UploadedFile
-        # The file is in media/uploads/filename.ext
+        # For uploaded documents, use the authenticated PDF view endpoint
+        # Return relative URL so DocumentViewer can fix the port (8000)
         if hasattr(obj, 'uploaded_file') and obj.uploaded_file:
-            # Generate URL from UploadedFile.filename
-            # uploaded_file.filename is stored as 'uploads/filename.ext'
-            media_url = request.build_absolute_uri(f'/media/{obj.uploaded_file.filename}')
-            return media_url
+            # Use the PDF view endpoint which handles authentication
+            # Return relative URL - DocumentViewer will convert to absolute with correct port
+            return f'/api/ai/documents/pdf/{obj.uploaded_file.id}/view/'
         
         return None
     
     def get_processing_status(self, obj):
-        """Get processing status from linked UploadedFile"""
-        return obj.get_processing_status()
+        """Get processing status from linked UploadedFile or HelpPortalDocument"""
+        status_dict = obj.get_processing_status()
+        # Return the status string for frontend compatibility
+        # Frontend expects a string like 'ready', 'pending', 'failed', etc.
+        return status_dict.get('status', 'unknown')
 
     def get_uploaded_file_id(self, obj):
         return obj.uploaded_file.id if getattr(obj, 'uploaded_file', None) else None
@@ -195,9 +216,16 @@ class HelpPortalDocumentSerializer(serializers.ModelSerializer):
         ]
     
     def get_file_size_mb(self, obj):
-        if obj.file_size:
-            return f"{obj.file_size / (1024*1024):.2f} MB"
-        return "0 MB"
+        """Format file size in appropriate units (KB for small files, MB for larger)"""
+        if obj.file_size and obj.file_size > 0:
+            # Show KB for files < 1MB, MB for larger files
+            if obj.file_size < 1024 * 1024:  # Less than 1MB
+                size_kb = obj.file_size / 1024
+                return f"{size_kb:.2f} KB"
+            else:
+                size_mb = obj.file_size / (1024 * 1024)
+                return f"{size_mb:.2f} MB"
+        return "0 KB"
     
     def get_discovered_date(self, obj):
         return obj.discovered_at.strftime("%Y-%m-%d %H:%M:%S") if obj.discovered_at else ""

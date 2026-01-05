@@ -16,7 +16,7 @@ from django.core.cache import cache
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
-from ..utils.model_settings import get_ollama_model, get_model_for_ai_mode, set_ollama_model, get_current_ai_mode, AI_MODE_MODELS, DYNAMIC_SETTINGS_CACHE_KEY, DYNAMIC_SETTINGS_CACHE_TTL
+from ..utils.model_settings import get_ollama_model, get_model_for_ai_mode, set_ollama_model, get_current_ai_mode, AI_MODE_MODELS, DYNAMIC_SETTINGS_CACHE_KEY, DYNAMIC_SETTINGS_CACHE_TTL, get_ocr_enabled, set_ocr_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ def _get_settings_snapshot():
                 '.ppt', '.pptx', '.xls', '.xlsx'
             ],
             'enable_async_processing': getattr(dj_settings, 'ENABLE_ASYNC_FILE_PROCESSING', False),
+            'enable_ocr_for_scanned_files': get_ocr_enabled(),  # Use dynamic setting
         },
         'embeddings': {
             'mode': getattr(dj_settings, 'EMBEDDING_MODE', 'lightweight'),
@@ -58,7 +59,7 @@ def _get_settings_snapshot():
             'cache_ttl': getattr(dj_settings, 'EMBEDDING_CACHE_TTL', 3600),
         },
         'rag': {
-            'ollama_url': getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434'),
+            'ollama_url': getattr(dj_settings, 'OLLAMA_API_URL', 'http://ollama:11434'),
             'model': get_ollama_model(),
             'ai_mode': get_current_ai_mode(),
             'recommended_models': {
@@ -101,7 +102,7 @@ def get_settings(request):
 def get_available_models(request):
     """Get list of available Ollama models."""
     try:
-        ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         r = requests.get(f"{ollama_url}/api/tags", timeout=5)
         if r.status_code == 200:
             models_data = r.json().get('models', [])
@@ -135,18 +136,29 @@ def get_available_models(request):
 @api_view(['PUT', 'PATCH'])
 @permission_classes([IsAdminUser])
 def update_settings(request):
-    """Update system settings (currently supports Ollama model only)."""
+    """Update system settings (supports Ollama model and OCR setting)."""
     try:
         dynamic_settings = _get_dynamic_settings()
+        updated = False
         
-            # Update Ollama model if provided
+        # Update OCR setting if provided
+        if 'file_upload' in request.data and 'enable_ocr_for_scanned_files' in request.data['file_upload']:
+            ocr_enabled = request.data['file_upload']['enable_ocr_for_scanned_files']
+            if not isinstance(ocr_enabled, bool):
+                return Response({'error': 'enable_ocr_for_scanned_files must be a boolean'}, status=400)
+            
+            set_ocr_enabled(ocr_enabled)
+            logger.info(f"OCR setting updated to: {ocr_enabled} by user {request.user.username}")
+            updated = True
+        
+        # Update Ollama model if provided
         if 'rag' in request.data and 'model' in request.data['rag']:
             new_model = request.data['rag']['model'].strip()
             if not new_model:
                 return Response({'error': 'Model name cannot be empty'}, status=400)
             
             # Validate model exists in Ollama (optional check)
-            ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+            ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://ollama:11434')
             try:
                 r = requests.get(f"{ollama_url}/api/tags", timeout=5)
                 if r.status_code == 200:
@@ -179,14 +191,16 @@ def update_settings(request):
             set_ollama_model(new_model, ai_mode=current_mode if current_mode else None)
             
             logger.info(f"Ollama model updated to: {new_model} by user {request.user.username}")
-            
-            return Response({
-                'success': True,
-                'message': f'Ollama model updated to {new_model}',
-                'settings': _get_settings_snapshot()
-            })
+            updated = True
         
-        return Response({'error': 'No valid settings to update'}, status=400)
+        if not updated:
+            return Response({'error': 'No valid settings to update'}, status=400)
+        
+        return Response({
+            'success': True,
+            'message': 'Settings updated successfully',
+            'settings': _get_settings_snapshot()
+        })
     except Exception as e:
         logger.error(f"Error updating settings: {e}")
         return Response({'error': str(e)}, status=500)
@@ -258,7 +272,7 @@ def test_connection(request):
     config = payload.get('config', {})
 
     if conn_type == 'ollama':
-        url = config.get('url') or getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        url = config.get('url') or getattr(dj_settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         try:
             r = requests.get(f"{url}/api/tags", timeout=10)
             ok = r.status_code == 200
@@ -301,7 +315,7 @@ def switch_ai_mode(request):
         recommended_model = get_model_for_ai_mode(mode)
         
         # Validate the recommended model exists in Ollama
-        ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        ollama_url = getattr(dj_settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         try:
             r = requests.get(f"{ollama_url}/api/tags", timeout=5)
             if r.status_code == 200:

@@ -9,20 +9,33 @@ from django.conf import settings
 from django.core.cache import cache
 from .models import DocumentFile, UploadedFile, DocumentChunk, QueryHistory
 from .utils.model_settings import get_ollama_model
+from .hybrid_search import QueryProcessor
 import logging
 import json
+import re
+import time
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
+
+# Initialize query processor for adaptive expansion
+query_processor = QueryProcessor()
 
 class EnhancedRAGService:
     def __init__(self, model_name=None):
         self.model_name = model_name or get_ollama_model()
-        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         self.embedding_model = getattr(settings, 'EMBEDDING_MODEL', 'bge-m3')
         # Standardized cache settings across all RAG services
         self.embedding_cache_ttl = getattr(settings, 'EMBEDDING_CACHE_TTL', 24 * 3600)  # 24 hours (standardized)
         self.search_cache_ttl = getattr(settings, 'SEARCH_CACHE_TTL', 3600)  # 1 hour
         self.response_cache_ttl = getattr(settings, 'RESPONSE_CACHE_TTL', 1800)  # 30 minutes
+        # Adaptive query expansion settings
+        self.use_adaptive_expansion = getattr(settings, 'RAG_USE_ADAPTIVE_EXPANSION', True)
+        self.query_processor = query_processor
+        # Performance monitoring
+        self.enable_performance_monitoring = getattr(settings, 'RAG_ENABLE_PERFORMANCE_MONITORING', True)
+        self._performance_metrics = {}  # Store metrics for current session
         
     def get_embedding_from_ollama(self, text):
         """
@@ -36,6 +49,12 @@ class EnhancedRAGService:
         - No hash-based fallback
         - Will retry but NO compromises on model quality
         """
+        # Clean null bytes from text (Ollama cannot handle NUL characters)
+        if isinstance(text, str):
+            text = text.replace('\x00', '').replace('\0', '')
+            # Also remove any other control characters that might cause issues
+            text = ''.join(char for char in text if ord(char) >= 32 or char in ['\n', '\r', '\t'])
+        
         # Create cache key based on text hash
         text_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
         cache_key = f"embedding_{text_hash}"
@@ -519,11 +538,104 @@ class EnhancedRAGService:
                 'error': str(e)
             }
 
+    def _analyze_query_complexity(self, query: str) -> dict:
+        """
+        Analyze query complexity to determine if expansion is beneficial.
+        
+        Returns:
+            dict with complexity metrics and expansion recommendation
+        """
+        query_lower = query.lower().strip()
+        word_count = len(query_lower.split())
+        char_count = len(query_lower)
+        
+        # Extract key terms (non-stop words)
+        key_terms = self.query_processor.extract_key_terms(query)
+        key_term_count = len(key_terms)
+        
+        # Check for exact phrases (quoted strings)
+        has_exact_phrases = '"' in query
+        
+        # Check for technical/exact terms
+        technical_terms = ['version', 'ip', 'url', 'api', 'id', 'uuid', 'hash', 'code', 'error']
+        has_technical_terms = any(term in query_lower for term in technical_terms)
+        
+        # Check for specific question patterns
+        specific_patterns = [
+            r'^what is (the )?\w+$',
+            r'^where is (the )?\w+$',
+            r'^when did \w+',
+            r'^who is \w+',
+        ]
+        is_specific_query = any(re.match(pattern, query_lower) for pattern in specific_patterns)
+        
+        # Complexity score (higher = more complex)
+        complexity_score = (
+            (word_count * 2) +
+            (key_term_count * 3) +
+            (10 if has_technical_terms else 0) +
+            (5 if is_specific_query else 0) +
+            (-15 if has_exact_phrases else 0)
+        )
+        
+        # Determine if expansion is beneficial
+        # Simple queries (< 3 words) benefit from expansion
+        # Complex queries (> 8 words) don't need expansion
+        # Technical/exact queries should not be expanded
+        should_expand = (
+            self.use_adaptive_expansion and
+            not has_exact_phrases and
+            not has_technical_terms and
+            not is_specific_query and
+            word_count < 8 and
+            (word_count < 3 or complexity_score < 20)
+        )
+        
+        return {
+            'word_count': word_count,
+            'key_term_count': key_term_count,
+            'char_count': char_count,
+            'complexity_score': complexity_score,
+            'has_exact_phrases': has_exact_phrases,
+            'has_technical_terms': has_technical_terms,
+            'is_specific_query': is_specific_query,
+            'should_expand': should_expand,
+            'query_type': self.query_processor.classify_query(query)
+        }
+    
     def search_relevant_documents(self, query, top_k=10):  # Increased from 8 to 10 for maximum comprehensive results
-        """Search for relevant documents using vector similarity with Ollama embeddings and caching"""
+        """Search for relevant documents using vector similarity with Ollama embeddings and adaptive query expansion"""
+        start_time = time.time()
+        metrics = {
+            'query': query[:50],
+            'top_k': top_k,
+            'stages': {}
+        }
+        
         try:
-            # Create cache key for search results
-            query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
+            # Analyze query complexity for adaptive expansion
+            complexity_start = time.time()
+            complexity = self._analyze_query_complexity(query)
+            metrics['stages']['complexity_analysis'] = (time.time() - complexity_start) * 1000  # ms
+            metrics['complexity'] = complexity
+            
+            # Apply adaptive query expansion if beneficial
+            if complexity['should_expand']:
+                expanded_query = self.query_processor.expand_query(query)
+                logger.info(
+                    f"Query expansion applied: '{query[:50]}...' -> '{expanded_query[:50]}...' "
+                    f"(complexity: {complexity['complexity_score']}, type: {complexity['query_type']})"
+                )
+                search_query = expanded_query
+            else:
+                logger.debug(
+                    f"Query expansion skipped: '{query[:50]}...' "
+                    f"(complexity: {complexity['complexity_score']}, type: {complexity['query_type']})"
+                )
+                search_query = query
+            
+            # Create cache key for search results (include expansion status)
+            query_hash = hashlib.md5(search_query.encode('utf-8')).hexdigest()
             cache_key = f"search_{query_hash}_{top_k}"
             
             # Try to get from cache first
@@ -533,10 +645,13 @@ class EnhancedRAGService:
                 return cached_results
             
             # Generate query embedding using Ollama (BGE-M3 only)
-            query_embedding = self.get_embedding_from_ollama(query)
+            embedding_start = time.time()
+            query_embedding = self.get_embedding_from_ollama(search_query)
+            metrics['stages']['embedding_generation'] = (time.time() - embedding_start) * 1000  # ms
             
             # Search using pgvector with file information
             # CRITICAL: Only search files that are fully processed and ready
+            search_start = time.time()
             with connection.cursor() as cursor:
                 cursor.execute("""
                     SELECT dc.id, dc.content, dc.uploaded_file_id, dc.page_number, dc.chunk_index,
@@ -550,7 +665,10 @@ class EnhancedRAGService:
                     LIMIT %s;
                 """, [query_embedding, top_k])
                 results = cursor.fetchall()
+            metrics['stages']['vector_search'] = (time.time() - search_start) * 1000  # ms
+            metrics['results_count'] = len(results)
             
+            formatting_start = time.time()
             formatted_results = []
             for row in results:
                 uploaded_file_id = row[2]
@@ -587,10 +705,49 @@ class EnhancedRAGService:
                     "view_url": view_url,
                     "source_display": f"{filename} (Page {page_number})" if filename != "Unknown Document" else f"Page {page_number}"
                 })
+            metrics['stages']['result_formatting'] = (time.time() - formatting_start) * 1000  # ms
+            
+            # Add query complexity metadata to results
+            for result in formatted_results:
+                result['query_complexity'] = complexity
+                result['expansion_applied'] = complexity['should_expand']
             
             # Cache the results
+            cache_start = time.time()
             cache.set(cache_key, formatted_results, self.response_cache_ttl)
-            logger.info(f"Cached search results for query: {query[:30]}...")
+            metrics['stages']['caching'] = (time.time() - cache_start) * 1000  # ms
+            
+            # Calculate total time
+            total_time = (time.time() - start_time) * 1000  # ms
+            metrics['total_time_ms'] = total_time
+            metrics['stages']['total'] = total_time
+            
+            # Log performance metrics if enabled
+            if self.enable_performance_monitoring:
+                logger.info(
+                    f"Search performance - Query: '{query[:30]}...' | "
+                    f"Total: {total_time:.1f}ms | "
+                    f"Embedding: {metrics['stages'].get('embedding_generation', 0):.1f}ms | "
+                    f"Vector Search: {metrics['stages'].get('vector_search', 0):.1f}ms | "
+                    f"Formatting: {metrics['stages'].get('result_formatting', 0):.1f}ms | "
+                    f"Results: {len(formatted_results)}"
+                )
+                # Store metrics for retrieval
+                self._performance_metrics[query_hash] = metrics
+            
+            logger.info(
+                f"Cached search results for query: {query[:30]}... "
+                f"(expansion: {complexity['should_expand']}, results: {len(formatted_results)})"
+            )
+            
+            # If expanded query returned no results, try original query as fallback
+            if not formatted_results and complexity['should_expand']:
+                logger.warning(f"Expanded query returned no results, trying original query: {query[:50]}...")
+                return self.search_relevant_documents(query, top_k)  # Recursive call with original query (will skip expansion)
+            
+            # Add performance metrics to results metadata
+            for result in formatted_results:
+                result['_performance_metrics'] = metrics
             
             return formatted_results
             
@@ -601,7 +758,8 @@ class EnhancedRAGService:
     def ollama_generate(self, prompt, model=None, language='en-US'):
         """Generate response using Ollama with caching and language support"""
         if model is None:
-            model = self.model_name
+            # Always fetch the current model dynamically instead of using cached self.model_name
+            model = get_ollama_model()
         
         # Validate model is set
         if not model:
@@ -618,15 +776,6 @@ class EnhancedRAGService:
             logger.info(f"Using cached response for prompt hash: {prompt_hash[:8]}...")
             return cached_response
         
-<<<<<<< Updated upstream
-        # Select system prompt based on language
-        if 'zh' in language.lower():
-            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
-                                  '你是一个专业的助手。请仅使用提供的上下文回答问题，保持简洁准确。')
-        else:
-            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
-                                  'You are a helpful assistant. Use only the following context to answer the question. Be concise and accurate.')
-=======
         # Select system prompt based on language with explicit language instruction
         if 'zh' in language.lower():
             system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
@@ -638,7 +787,6 @@ class EnhancedRAGService:
                                   'You are a helpful assistant. You MUST answer all questions in English. '
                                   'Use only the following context to answer the question. Be concise and accurate. '
                                   'Do not respond in Chinese, only in English.')
->>>>>>> Stashed changes
             
         try:
             api_url = f"{self.ollama_url}/api/chat"
@@ -696,26 +844,48 @@ class EnhancedRAGService:
         if not context_documents:
             return "我不知道。" if 'zh' in language.lower() else "I don't know."
         
-        # Build context with reference numbers - use all 10 documents for maximum comprehensive responses
+        # Build context with reference numbers - adaptive context length based on query complexity
+        # Optimize: Use fewer documents and shorter content for better performance
+        complexity = getattr(self, '_last_query_complexity', {})
+        is_simple_query = complexity.get('complexity_score', 50) < 15 or complexity.get('word_count', 5) < 4
+        
+        # Adaptive document count and content length
+        if is_simple_query:
+            max_docs = 5  # Fewer documents for simple queries
+            max_chars_per_doc = 400  # Shorter content per document
+            max_total_chars = 2000  # Total context limit for simple queries
+        else:
+            max_docs = 8  # More documents for complex queries (reduced from 10)
+            max_chars_per_doc = 500  # Moderate content per document (reduced from 600)
+            max_total_chars = 4000  # Total context limit for complex queries (reduced from ~6000)
+        
         context_lines = []
-        for idx, doc in enumerate(context_documents[:10], 1):  # Increased from 6 to 10 documents
-            # Truncate long content to avoid token limits but allow more content
-            content = doc['content'][:600] if len(doc['content']) > 600 else doc['content']  # Keep 600 chars per document
+        total_chars = 0
+        for idx, doc in enumerate(context_documents[:max_docs], 1):
+            if total_chars >= max_total_chars:
+                break
+            # Truncate long content to optimize performance
+            content = doc['content'][:max_chars_per_doc] if len(doc['content']) > max_chars_per_doc else doc['content']
             similarity = doc.get('similarity', 0)
-            context_lines.append(f"[{idx}] (Similarity: {similarity:.3f})\n{content}")
+            doc_text = f"[{idx}] (Similarity: {similarity:.3f})\n{content}"
+            if total_chars + len(doc_text) > max_total_chars:
+                # Trim this document to fit within limit
+                remaining = max_total_chars - total_chars - len(f"[{idx}] (Similarity: {similarity:.3f})\n")
+                if remaining > 50:  # Only include if meaningful content remains
+                    content = content[:remaining]
+                    doc_text = f"[{idx}] (Similarity: {similarity:.3f})\n{content}"
+                else:
+                    break
+            context_lines.append(doc_text)
+            total_chars += len(doc_text)
         
         context = "\n\n".join(context_lines)
         
         # Language-aware RAG prompts
         if 'zh' in language.lower():
-<<<<<<< Updated upstream
-            # Chinese prompt
-            prompt = (
-=======
             # Chinese prompt - with explicit language enforcement
             prompt = (
                 "重要：你必须用中文（简体中文）回答。不要用英语。\n\n"
->>>>>>> Stashed changes
                 "你是一个专业的助手。\n"
                 "请仅使用以下提供的上下文来回答用户的问题。\n"
                 "引用上下文中的信息时使用方括号引用编号（例如：[1]，或多个 [1][3]）。\n"
@@ -726,20 +896,12 @@ class EnhancedRAGService:
                 "尽可能使用更多相关来源来提供详尽的答案。\n\n"
                 f"上下文：\n{context}\n\n"
                 f"问题：{query}\n\n"
-<<<<<<< Updated upstream
-                "回答："
-            )
-        else:
-            # English prompt
-            prompt = (
-=======
                 "回答（必须用中文）："
             )
         else:
             # English prompt - with explicit language enforcement
             prompt = (
                 "IMPORTANT: You MUST answer in English. Do not respond in Chinese.\n\n"
->>>>>>> Stashed changes
                 "You are a helpful assistant.\n"
                 "Answer the user's question ONLY using the provided context below.\n"
                 "Cite all information derived from the context using bracketed reference numbers (e.g., [1], or multiple [1][3]).\n"
@@ -750,17 +912,21 @@ class EnhancedRAGService:
                 "Use as many relevant sources as possible to provide a thorough answer.\n\n"
                 f"Context:\n{context}\n\n"
                 f"Question: {query}\n\n"
-<<<<<<< Updated upstream
-                "Answer:"
-=======
                 "Answer (in English):"
->>>>>>> Stashed changes
             )
         
         return self.ollama_generate(prompt, language=language)
 
     def query_with_rag(self, query, top_k=10, user=None, language='en-US'):  # Increased from 8 to 10
-        """Main RAG pipeline with caching and language support"""
+        """Main RAG pipeline with caching, language support, and performance monitoring"""
+        start_time = time.time()
+        pipeline_metrics = {
+            'query': query[:50],
+            'top_k': top_k,
+            'language': language,
+            'stages': {}
+        }
+        
         try:
             # Create cache key for entire RAG query (include language)
             query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
@@ -772,8 +938,15 @@ class EnhancedRAGService:
                 logger.info(f"Using cached RAG result for query: {query[:30]}...")
                 return cached_result
             
+            # Store query complexity for use in response generation
+            complexity = self._analyze_query_complexity(query)
+            self._last_query_complexity = complexity
+            
             # Search for relevant documents
+            search_start = time.time()
             relevant_docs = self.search_relevant_documents(query, top_k)
+            pipeline_metrics['stages']['document_search'] = (time.time() - search_start) * 1000  # ms
+            pipeline_metrics['documents_found'] = len(relevant_docs)
             
             if not relevant_docs:
                 response = "我不知道。" if 'zh' in language.lower() else "I don't know."
@@ -784,7 +957,11 @@ class EnhancedRAGService:
                 }
             else:
                 # Generate response with language support
+                generation_start = time.time()
                 response = self.generate_response(query, relevant_docs, language=language)
+                pipeline_metrics['stages']['response_generation'] = (time.time() - generation_start) * 1000  # ms
+                pipeline_metrics['response_length'] = len(response)
+                
                 result = {
                     "response": response,
                     "sources": relevant_docs,
@@ -792,7 +969,29 @@ class EnhancedRAGService:
                 }
             
             # Cache the result
+            cache_start = time.time()
             cache.set(cache_key, result, self.response_cache_ttl)
+            pipeline_metrics['stages']['caching'] = (time.time() - cache_start) * 1000  # ms
+            
+            # Calculate total pipeline time
+            total_time = (time.time() - start_time) * 1000  # ms
+            pipeline_metrics['total_time_ms'] = total_time
+            pipeline_metrics['stages']['total'] = total_time
+            
+            # Log performance metrics if enabled
+            if self.enable_performance_monitoring:
+                logger.info(
+                    f"RAG Pipeline Performance - Query: '{query[:30]}...' | "
+                    f"Total: {total_time:.1f}ms | "
+                    f"Search: {pipeline_metrics['stages'].get('document_search', 0):.1f}ms | "
+                    f"Generation: {pipeline_metrics['stages'].get('response_generation', 0):.1f}ms | "
+                    f"Documents: {len(relevant_docs)} | "
+                    f"Response: {len(response)} chars"
+                )
+                # Store metrics
+                query_hash = hashlib.md5(query.encode('utf-8')).hexdigest()
+                self._performance_metrics[f"rag_pipeline_{query_hash}"] = pipeline_metrics
+            
             logger.info(f"Cached RAG result for query: {query[:30]}...")
             
             # Save to history
@@ -805,6 +1004,9 @@ class EnhancedRAGService:
                     user=user
                 )
             
+            # Add performance metrics to result
+            result['_performance_metrics'] = pipeline_metrics
+            
             return result
             
         except Exception as e:
@@ -815,6 +1017,26 @@ class EnhancedRAGService:
                 "query": query
             }
 
+    def get_performance_metrics(self, query_hash: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get performance metrics for queries.
+        
+        Args:
+            query_hash: Optional specific query hash to retrieve metrics for.
+                       If None, returns all stored metrics.
+        
+        Returns:
+            Dictionary with performance metrics
+        """
+        if query_hash:
+            return self._performance_metrics.get(query_hash, {})
+        return self._performance_metrics
+    
+    def clear_performance_metrics(self):
+        """Clear stored performance metrics"""
+        self._performance_metrics.clear()
+        logger.info("Performance metrics cleared")
+    
     def get_index_info(self):
         """Get information about the vector index"""
         try:

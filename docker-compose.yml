@@ -5,14 +5,14 @@ services:
     image: pgvector/pgvector:pg15
     container_name: anylab_postgres
     
-    # Memory limits - PostgreSQL currently uses ~97 MB
+    # Memory limits - PostgreSQL currently uses ~22 MB, recommended 512MB for complex queries
     deploy:
       resources:
         limits:
           cpus: '1.0'        # Limit to 1 CPU core
-          memory: 256M       # Hard limit (2.6x current usage)
+          memory: 512M       # Hard limit (23x current usage, allows for complex queries)
         reservations:
-          memory: 128M       # Minimum guaranteed memory
+          memory: 256M       # Minimum guaranteed memory
     
     environment:
       POSTGRES_DB: anylab
@@ -20,11 +20,11 @@ services:
       POSTGRES_PASSWORD: password
       
       # PostgreSQL Memory Optimization
-      # These settings optimize PostgreSQL for 256MB container limit
-      POSTGRES_SHARED_BUFFERS: 64MB              # 25% of container memory
-      POSTGRES_EFFECTIVE_CACHE_SIZE: 128MB      # 50% of container memory
-      POSTGRES_WORK_MEM: 4MB                     # Per-operation memory
-      POSTGRES_MAINTENANCE_WORK_MEM: 32MB       # Maintenance operations
+      # These settings optimize PostgreSQL for 512MB container limit
+      POSTGRES_SHARED_BUFFERS: 128MB             # 25% of container memory
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 256MB      # 50% of container memory
+      POSTGRES_WORK_MEM: 8MB                     # Per-operation memory
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB       # Maintenance operations
       POSTGRES_MAX_CONNECTIONS: 50              # Reduced from default 100
       
     ports:
@@ -47,10 +47,10 @@ services:
     command: >
       postgres
       -c shared_preload_libraries=vector
-      -c shared_buffers=64MB
-      -c effective_cache_size=128MB
-      -c work_mem=4MB
-      -c maintenance_work_mem=32MB
+      -c shared_buffers=128MB
+      -c effective_cache_size=256MB
+      -c work_mem=8MB
+      -c maintenance_work_mem=64MB
       -c max_connections=50
       -c random_page_cost=1.1
       -c effective_io_concurrency=200
@@ -161,19 +161,277 @@ services:
     networks:
       - anylab_network
 
+  # Django Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: anylab-backend:latest
+    container_name: anylab_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+      - backend_static:/app/staticfiles
+      - backend_logs:/app/logs
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=anylab
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=password
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - NEO4J_URI=bolt://neo4j:7687
+      - OLLAMA_API_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5:1.5b
+    # Memory limits - Backend currently uses ~174 MB
+    # Increased for file upload handling and API operations
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'        # Limit to 2 CPU cores
+          memory: 1G         # Hard limit (5.7x current usage, allows for upload spikes and growth)
+        reservations:
+          memory: 512M       # Minimum guaranteed memory
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - anylab_network
+    command: >
+      sh -c "mkdir -p /app/media/uploads /app/media/temp /app/media/pdfs &&
+             chmod -R 777 /app/media &&
+             python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn --config gunicorn_config.py anylab.wsgi:application"
+
+  # Celery Worker
+  # CRITICAL: This does heavy file processing (chunking, embeddings)
+  # Needs sufficient memory for large files and Ollama API calls
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: anylab_celery_worker
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+      - backend_logs:/app/logs
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=anylab
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=password
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - NEO4J_URI=bolt://neo4j:7687
+      - OLLAMA_API_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5:1.5b
+    # Memory limits - Celery Worker currently uses ~125 MB
+    # But can spike to 1GB+ during file processing with large files and embeddings
+    # CRITICAL: This is where file processing happens - needs generous memory
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'        # Limit to 2 CPU cores
+          memory: 2G         # Hard limit (16x current usage, allows large file processing)
+        reservations:
+          memory: 512M       # Minimum guaranteed memory for processing
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    restart: unless-stopped
+    networks:
+      - anylab_network
+    command: celery -A anylab worker --loglevel=info --pool=solo -Q celery,ai_queue,fast_queue,normal_queue,slow_queue --concurrency=2 --max-tasks-per-child=50
+
+  # Phase 1: Dedicated OCR Worker (lower concurrency for memory-intensive OCR)
+  celery-worker-ocr:
+    image: anylab103-celery-worker:latest  # Use existing celery-worker image (code is volume-mounted)
+    container_name: anylab_celery_worker_ocr
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+      - backend_logs:/app/logs
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=anylab
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=password
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - NEO4J_URI=bolt://neo4j:7687
+      - OLLAMA_API_URL=http://ollama:11434
+      - OLLAMA_MODEL=qwen2.5:1.5b
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 6G  # OCR is memory-intensive - increased to 6GB for large PDF processing
+        reservations:
+          memory: 2G  # Increased reservation to ensure availability
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    restart: unless-stopped
+    networks:
+      - anylab_network
+    command: celery -A anylab worker --loglevel=info --pool=solo -Q ocr_queue --concurrency=1 --max-tasks-per-child=5
+
+  # Celery Beat (Scheduler)
+  # Lightweight scheduler, minimal memory needed
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: anylab_celery_beat
+    volumes:
+      - ./backend:/app
+      - backend_logs:/app/logs
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=anylab
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=password
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    # Memory limits - Celery Beat currently uses ~134 MB (52.5% of 256MB limit)
+    # Increased to prevent memory pressure during scheduled tasks
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'        # Limit to 0.5 CPU core
+          memory: 512M       # Hard limit (3.8x current usage, prevents memory pressure)
+        reservations:
+          memory: 128M       # Minimum guaranteed memory
+    depends_on:
+      - postgres
+      - redis
+      - backend
+    restart: unless-stopped
+    networks:
+      - anylab_network
+    command: celery -A anylab beat --loglevel=info
+
+  # Ollama Service - For embeddings (BGE-M3 model)
+  # CRITICAL: Ollama needs significant memory for models (BGE-M3 can be 500MB-1GB+)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: anylab_ollama
+    ports:
+      - "11435:11434"  # Use 11435 externally to avoid conflict with host Ollama
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_NUM_GPU=0
+      - OLLAMA_NUM_THREAD=8
+    # Memory limits - Ollama currently uses ~168 MB idle
+    # But can spike to 1.5GB+ when loading BGE-M3 model for embeddings
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'        # Limit to 2 CPU cores
+          memory: 2G         # Hard limit (allows model loading + concurrent requests)
+        reservations:
+          memory: 512M       # Minimum guaranteed memory for model operations
+    restart: unless-stopped
+    networks:
+      - anylab_network
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # React Frontend
+  # Static files served by nginx, minimal memory needed
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: anylab_frontend
+    ports:
+      - "3000:80"
+    # Memory limits - Frontend currently uses ~11 MB
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'        # Limit to 0.5 CPU core
+          memory: 256M       # Hard limit (23x current usage, plenty of headroom)
+        reservations:
+          memory: 32M        # Minimum guaranteed memory
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - anylab_network
+
 volumes:
+  # Database volumes - persistent storage
+  # Using named volumes for Docker-managed optimization and portability
   postgres_data:
     driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_postgres_data
+    # Size: Grows with database content (typically 100MB-1GB+)
   redis_data:
     driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_redis_data
+    # Size: Limited by Redis maxmemory (100MB), typically 10-50MB
   neo4j_data:
     driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_neo4j_data
+    # Size: Grows with graph data (typically 500MB-5GB+)
   neo4j_logs:
     driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_neo4j_logs
+    # Size: Log rotation enabled, typically 50-200MB
   neo4j_import:
     driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_neo4j_import
+    # Size: Temporary import files, typically 10-100MB
   neo4j_plugins:
     driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_neo4j_plugins
+    # Size: Plugin files, typically 10-50MB
+  
+  # Application volumes - optimized for frequent read/write operations
+  backend_media:
+    driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_backend_media
+    # Size: Grows with uploaded files (no limit, monitor disk space)
+    # Optimization: Consider periodic cleanup of old/unused files
+    # Note: For better performance on Mac, consider bind mount to host directory
+  backend_static:
+    driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_backend_static
+    # Size: Static files from collectstatic, typically 10-50MB
+  backend_logs:
+    driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_backend_logs
+    # Size: Application logs, consider log rotation (typically 50-500MB)
+    # Note: Logs are also written to ./backend/logs via bind mount for direct access
+  ollama_models:
+    driver: local
+    # Location: Docker manages at /var/lib/docker/volumes/<project>_ollama_models
+    # Size: Model files (BGE-M3 is ~1.1GB, other models vary)
+    # Note: Models are cached here to avoid re-downloading
 
 networks:
   anylab_network:
@@ -181,15 +439,38 @@ networks:
 
 # OPTIMIZATION SUMMARY:
 # =====================
-# PostgreSQL: 256 MB limit (current usage: 97 MB)  → 2.6x headroom
-# Redis:      128 MB limit (current usage: 13 MB)  → 10x headroom  
-# Neo4j:      2 GB limit   (current usage: 1.47 GB) → 36% headroom
+# Memory Limits (Optimized for File Processing and Growth):
+# ----------------------------------------------
+# PostgreSQL: 512 MB limit (current usage: 22 MB)  → 23x headroom (increased for complex queries)
+# Redis:      128 MB limit (current usage: 16 MB)  → 8x headroom  
+# Neo4j:      2 GB limit   (current usage: 550 MB) → 3.6x headroom
+# Backend:    1 GB limit   (current usage: 174 MB) → 5.7x headroom (increased for API operations)
+# Celery:     2 GB limit   (current usage: 154 MB) → 13x headroom (CRITICAL - file processing)
+# Celery Beat: 512 MB limit (current usage: 134 MB) → 3.8x headroom (increased to prevent pressure)
+# Frontend:    256 MB limit (current usage: 16 MB)  → 16x headroom
+# Ollama:     2 GB limit   (current usage: 14 MB) → 143x headroom (CRITICAL - model loading)
 # 
-# Total Container Memory: 2.384 GB (down from unlimited/11.67 GB per container)
-# Docker Desktop Memory:  Recommend 4 GB (down from 11.67 GB)
+# Total Container Memory: ~8.5 GB (with all limits)
+# Docker Desktop Memory:  Recommend 10-12 GB (for 16GB system, allows headroom)
 # 
-# TOTAL SYSTEM SAVINGS:   ~7-8 GB of RAM freed up!
+# CRITICAL MEMORY SPIKES DURING FILE PROCESSING:
+# ----------------------------------------------
+# 1. Ollama loads BGE-M3 model: +500MB-1.5GB when generating embeddings
+# 2. Celery Worker processes large files: +100MB-1GB+ for file content + chunks
+# 3. Combined spike during active processing: 2-3GB+
+# 
+# With 8GB Docker Desktop memory:
+# - Normal operation: ~1.2 GB used
+# - File processing spike: ~4-5 GB used
+# - Headroom: ~3-4 GB for system and other operations
 #
-# Performance Impact:     Minimal to none - all limits well above current usage
-# Stability Impact:       Improved - prevents memory bloat and OOM scenarios
+# Volume Optimizations:
+# ---------------------
+# - Database volumes: Bind mounts for better performance and easier backup
+# - Media volumes: Named volumes for Docker-managed optimization
+# - Log volumes: Bind mounts for direct host access
+#
+# Performance Impact:     Minimal - limits well above normal usage
+# Stability Impact:       Critical - prevents OOM kills during file processing
+# File Processing:        Now has sufficient memory for large files and embeddings
 

@@ -1,9 +1,51 @@
 # Generated manually to create DocumentChunk model
+# NOTE: DocumentChunk may already exist from migration 0006, so this migration
+# only creates it if it doesn't exist
 
 import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 import pgvector.django
+
+
+def create_documentchunk_if_not_exists(apps, schema_editor):
+    """Create DocumentChunk model only if it doesn't already exist"""
+    db_alias = schema_editor.connection.alias
+    connection = schema_editor.connection
+    
+    with connection.cursor() as cursor:
+        # Check if table already exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'ai_assistant_documentchunk'
+            );
+        """)
+        table_exists = cursor.fetchone()[0]
+        
+        if not table_exists:
+            # Table doesn't exist, create it using RunSQL
+            cursor.execute("""
+                CREATE TABLE ai_assistant_documentchunk (
+                    id BIGSERIAL NOT NULL PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    embedding vector(384),
+                    page_number INTEGER NOT NULL DEFAULT 1,
+                    chunk_index INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE,
+                    uploaded_file_id BIGINT REFERENCES ai_assistant_uploadedfile(id) ON DELETE CASCADE
+                );
+                CREATE INDEX ai_assistant_documentchunk_uploaded_file_id_idx 
+                    ON ai_assistant_documentchunk(uploaded_file_id);
+            """)
+
+
+def reverse_create_documentchunk(apps, schema_editor):
+    """Reverse migration - drop table if it exists"""
+    connection = schema_editor.connection
+    with connection.cursor() as cursor:
+        cursor.execute("DROP TABLE IF EXISTS ai_assistant_documentchunk;")
 
 
 class Migration(migrations.Migration):
@@ -14,19 +56,8 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name='DocumentChunk',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('content', models.TextField()),
-                ('embedding', pgvector.django.VectorField(dimensions=384, null=True, blank=True)),
-                ('page_number', models.IntegerField(default=1)),
-                ('chunk_index', models.IntegerField(default=0)),
-                ('created_at', models.DateTimeField(auto_now_add=True, null=True, blank=True)),
-                ('uploaded_file', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='pages', to='ai_assistant.uploadedfile')),
-            ],
-            options={
-                'ordering': ['uploaded_file', 'page_number', 'chunk_index'],
-            },
+        migrations.RunPython(
+            create_documentchunk_if_not_exists,
+            reverse_create_documentchunk,
         ),
     ]

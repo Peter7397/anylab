@@ -4,6 +4,7 @@ Django settings for anylab project.
 
 from pathlib import Path
 import os
+import sys
 # Removed dotenv dependency - all values are hardcoded now
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -39,6 +40,15 @@ ALLOWED_HOSTS = [
     '*',  # Allow all hosts for hybrid setup
 ]
 
+# OCR Settings
+# Enable/disable OCR processing for files without extractable text
+ENABLE_OCR_FOR_SCANNED_FILES = False  # Set to False to disable OCR processing
+# OCR Language support: comma-separated language codes (e.g., 'eng,chi_sim,spa')
+# Common languages: eng (English), chi_sim (Simplified Chinese), chi_tra (Traditional Chinese),
+# spa (Spanish), fra (French), deu (German), jpn (Japanese), kor (Korean)
+# See: https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html
+OCR_LANGUAGES = os.getenv('OCR_LANGUAGES', 'eng').split(',')  # Default: English only
+
 
 # Application definition
 
@@ -70,6 +80,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'ai_assistant.middleware.request_logging.RequestLoggingMiddleware',  # Request logging for debugging
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'anylab.middleware.LoginRequiredMiddleware',
@@ -99,26 +110,54 @@ WSGI_APPLICATION = 'anylab.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Database Configuration - HYBRID SETUP (Docker PostgreSQL + Local Django)
+# Database Configuration - Docker-aware
 # ============================================================================
-# HARDCODED for Hybrid Architecture:
-# - Docker Services: PostgreSQL (port 5433), Redis (port 6379), Neo4j (ports 7474, 7687)
-# - Local Services: Django Backend (port 8000), React Frontend (port 3000), Celery Worker
-# - All connections use localhost/127.0.0.1 to connect from local to Docker via exposed ports
+# Detects if running in Docker container and uses appropriate connection settings
+# - Docker: Uses service names (postgres, redis, neo4j)
+# - Local: Uses localhost with port mappings
 # ============================================================================
+import os
+IS_DOCKER = os.path.exists('/.dockerenv')  # Check if running in Docker
+
+if IS_DOCKER:
+    # Running in Docker - use service names
+    DB_HOST = os.getenv('DATABASE_HOST', 'postgres')
+    DB_PORT = os.getenv('DATABASE_PORT', '5432')
+    REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
+    NEO4J_HOST = os.getenv('NEO4J_HOST', 'neo4j')
+else:
+    # Running on host - use localhost with port mappings
+    DB_HOST = os.getenv('DATABASE_HOST', '127.0.0.1')
+    DB_PORT = os.getenv('DATABASE_PORT', '5433')
+    REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+    NEO4J_HOST = os.getenv('NEO4J_HOST', '127.0.0.1')
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'anylab',  # HARDCODED: Database name
-        'USER': 'postgres',  # HARDCODED: Database user
-        'PASSWORD': 'password',  # HARDCODED: Database password
-        'HOST': '127.0.0.1',  # HARDCODED: localhost for hybrid (Docker on 5433)
-        'PORT': '5433',  # HARDCODED: Docker port mapping
+        'NAME': os.getenv('DATABASE_NAME', 'anylab'),
+        'USER': os.getenv('DATABASE_USER', 'postgres'),
+        'PASSWORD': os.getenv('DATABASE_PASSWORD', 'password'),
+        'HOST': DB_HOST,
+        'PORT': DB_PORT,
         'OPTIONS': {
             'connect_timeout': 10,
         },
+        # Connection pooling settings for better performance
+        # CONN_MAX_AGE: Time (in seconds) to keep database connections alive
+        # 0 = Close connection after each request (default, no pooling)
+        # 600 = Keep connection alive for 10 minutes (recommended for production)
+        # None = Keep connection alive for the lifetime of the process (best performance, use with caution)
+        'CONN_MAX_AGE': int(os.getenv('DATABASE_CONN_MAX_AGE', 600)),  # 10 minutes default
+        'TEST': {
+            'NAME': os.getenv('TEST_DATABASE_NAME', 'test_anylab'),
+            'CREATE_DB': True,
+        },
     }
 }
+
+# Custom test database creation for pgvector extension
+# This will be handled by the test_db_setup module
 
 
 # Password validation
@@ -171,6 +210,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# File Upload Configuration - Docker-aware
+# Increased limits for Docker environment to support large document uploads
+FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB - files larger than this use temp file
+DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB - max size for request body
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 10000  # Increased for complex forms
+FILE_UPLOAD_TEMP_DIR = os.path.join(MEDIA_ROOT, 'temp')
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -186,6 +232,7 @@ X_FRAME_OPTIONS = 'SAMEORIGIN'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',  # Enable session auth for browser access
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -253,12 +300,17 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# Celery Configuration - HYBRID SETUP - HARDCODED
+# Celery Configuration - Docker-aware
 # =====================================
-# HARDCODED: Use localhost to connect to Docker Redis container
+# Detects Docker environment and uses appropriate Redis connection
 # =====================================
-CELERY_BROKER_URL = 'redis://localhost:6379/0'  # HARDCODED: localhost for hybrid
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # HARDCODED: localhost for hybrid
+if IS_DOCKER:
+    REDIS_URL = os.getenv('REDIS_URL', f'redis://{REDIS_HOST}:6379/0')
+else:
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0')
+
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', REDIS_URL)
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', REDIS_URL)
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -268,11 +320,8 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 CELERY_WORKER_CONCURRENCY = 4
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 1000
 
-# Redis Configuration - HYBRID SETUP - HARDCODED
-# ====================================
-# HARDCODED: Use localhost to connect to Docker Redis container
-# ====================================
-REDIS_URL = 'redis://localhost:6379/0'  # HARDCODED: localhost for hybrid
+# Redis Configuration - Docker-aware (already set above)
+# REDIS_URL is set in Celery Configuration section
 
 # Cache Configuration
 CACHES = {
@@ -291,11 +340,19 @@ CACHES = {
 SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
 SESSION_CACHE_ALIAS = 'default'
 
-# AI Model Settings - HARDCODED
-AI_MODEL_PATH = '/path/to/qwen-model'  # HARDCODED: AI model path
-EMBEDDING_MODEL_PATH = '/path/to/bge-model'  # HARDCODED: Embedding model path
-OLLAMA_API_URL = 'http://localhost:11434'  # HARDCODED: Ollama API URL
-OLLAMA_MODEL = 'llama3:8b'  # HARDCODED: Ollama model name
+# AI Model Settings - Docker-aware
+AI_MODEL_PATH = '/path/to/qwen-model'  # Not used with Ollama
+EMBEDDING_MODEL_PATH = '/path/to/bge-model'  # Not used with Ollama
+
+# Ollama Configuration - Detects Docker and uses appropriate URL
+if IS_DOCKER:
+    # In Docker: Ollama is a service in the same network
+    OLLAMA_API_URL = os.getenv('OLLAMA_API_URL', 'http://ollama:11434')
+else:
+    # On host: Ollama may be on host or in Docker
+    OLLAMA_API_URL = os.getenv('OLLAMA_API_URL', 'http://localhost:11434')
+
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'llama3:8b')  # Can be overridden by env
 OLLAMA_REQUEST_TIMEOUT = 120  # HARDCODED: Request timeout in seconds
 OLLAMA_NUM_CTX = 1024  # HARDCODED: Context size for faster processing
 OLLAMA_DEFAULT_MAX_TOKENS = 256  # HARDCODED: Max tokens for faster response
@@ -313,6 +370,17 @@ EMBEDDING_CACHE_TTL = 3600  # HARDCODED: 1 hour
 RESPONSE_CACHE_TTL = 1800  # HARDCODED: 30 minutes
 SEARCH_CACHE_TTL = 3600  # HARDCODED: 1 hour
 
+# Webpage Crawler Configuration
+WEBPAGE_CRAWLER_CONFIG = {
+    'default_max_depth': 2,  # Default crawl depth (max: 5)
+    'default_max_pages': 50,  # Maximum pages to crawl
+    'default_max_files': 200,  # Maximum files to discover
+    'default_delay_seconds': 1.0,  # Delay between requests
+    'default_concurrent_requests': 3,  # Concurrent page requests
+    'default_timeout_seconds': 30,  # Timeout per page
+    'respect_robots_txt': True,  # Respect robots.txt
+}
+
 # File Processing Settings - HARDCODED
 # Set to False for synchronous processing (faster for development)
 ENABLE_ASYNC_FILE_PROCESSING = False  # HARDCODED: Use synchronous processing
@@ -322,11 +390,14 @@ EMBEDDING_MODEL_NAME = 'bge-m3:latest'  # HARDCODED: Primary embedding model
 EMBEDDING_MODEL_FALLBACK = 'nomic-embed-text:latest'  # HARDCODED: Fallback embedding model
 EMBEDDING_DEVICE = 'cpu'  # HARDCODED: Device for embeddings
 
-# Neo4j Graph Database Settings - HARDCODED
-NEO4J_URI = 'bolt://localhost:7687'  # HARDCODED: Neo4j URI
-NEO4J_USER = 'neo4j'  # HARDCODED: Neo4j username
-NEO4J_PASSWORD = 'anylab_neo4j_password'  # HARDCODED: Neo4j password (matches docker-compose.yml)
-NEO4J_DATABASE = 'neo4j'  # HARDCODED: Neo4j database name
+# Neo4j Graph Database Settings - Docker-aware
+if IS_DOCKER:
+    NEO4J_URI = os.getenv('NEO4J_URI', f'bolt://{NEO4J_HOST}:7687')
+else:
+    NEO4J_URI = os.getenv('NEO4J_URI', 'bolt://127.0.0.1:7687')
+NEO4J_USER = os.getenv('NEO4J_USER', 'neo4j')
+NEO4J_PASSWORD = os.getenv('NEO4J_PASSWORD', 'anylab_neo4j_password')
+NEO4J_DATABASE = os.getenv('NEO4J_DATABASE', 'neo4j')
 
 # Dual Mode Settings - HARDCODED
 EMBEDDING_MODE = 'lightweight'  # HARDCODED: 'auto', 'performance', 'lightweight'
@@ -337,6 +408,9 @@ EMBEDDING_LIGHTWEIGHT_MODEL = 'sentence-transformers/all-MiniLM-L6-v2'  # HARDCO
 EMBEDDING_CONCURRENCY = 3  # Limit concurrent embedding requests to Ollama for stability
 
 # Logging Configuration
+# Enable structured JSON logging via environment variable (default: False for backward compatibility)
+ENABLE_JSON_LOGGING = os.getenv('ENABLE_JSON_LOGGING', 'False').lower() == 'true'
+
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -349,27 +423,62 @@ LOGGING = {
             'format': '{levelname} {message}',
             'style': '{',
         },
+        'json': {
+            '()': 'ai_assistant.utils.json_log_formatter.JSONFormatter',
+            'include_correlation_id': True,
+        },
     },
     'handlers': {
         'file': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'filename': os.path.join(BASE_DIR, 'logs', 'anylab.log'),
-            'formatter': 'verbose',
+            'formatter': 'json' if ENABLE_JSON_LOGGING else 'verbose',
+        },
+        'json_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'anylab.json.log'),
+            'formatter': 'json',
         },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
-            'formatter': 'simple',
+            'formatter': 'json' if ENABLE_JSON_LOGGING else 'simple',
         },
     },
     'root': {
-        'handlers': ['console', 'file'],
+        'handlers': ['console', 'file'] + (['json_file'] if ENABLE_JSON_LOGGING else []),
         'level': 'INFO',
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console', 'file'] + (['json_file'] if ENABLE_JSON_LOGGING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'ai_assistant': {
+            'handlers': ['console', 'file'] + (['json_file'] if ENABLE_JSON_LOGGING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'ai_assistant.service_classes.rag_service': {
+            'handlers': ['console', 'file'] + (['json_file'] if ENABLE_JSON_LOGGING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'ai_assistant.views.rag_views': {
+            'handlers': ['console', 'file'] + (['json_file'] if ENABLE_JSON_LOGGING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'ai_assistant.middleware.request_logging': {
+            'handlers': ['console', 'file'] + (['json_file'] if ENABLE_JSON_LOGGING else []),
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'ai_assistant.views.debug_views': {
+            'handlers': ['console', 'file'] + (['json_file'] if ENABLE_JSON_LOGGING else []),
             'level': 'INFO',
             'propagate': False,
         },

@@ -81,7 +81,7 @@ class GraphEntityExtractor:
     def __init__(self):
         """Initialize entity extractor"""
         self.compiled_patterns = self._compile_patterns()
-        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         from ai_assistant.utils.model_settings import get_ollama_model
         self.model_name = get_ollama_model()
         self.use_llm_extraction = True  # Enable LLM-based extraction for concepts

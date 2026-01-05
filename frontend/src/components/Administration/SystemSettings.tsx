@@ -12,7 +12,9 @@ import {
   CheckCircle,
   XCircle,
   Loader,
-  RefreshCw
+  RefreshCw,
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 import { apiClient } from '../../services/api';
 
@@ -29,11 +31,31 @@ const SystemSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [ocrEnabled, setOcrEnabled] = useState<boolean>(true);
+  const [healthStatus, setHealthStatus] = useState<any>(null);
+  const [loadingHealth, setLoadingHealth] = useState(false);
 
   useEffect(() => {
     loadSettings();
     loadAvailableModels();
+    loadHealthStatus();
   }, []);
+
+  const loadHealthStatus = async () => {
+    setLoadingHealth(true);
+    try {
+      const [detailed, processors] = await Promise.all([
+        apiClient.getDetailedHealthCheck(),
+        apiClient.getProcessorHealth()
+      ]);
+      setHealthStatus({ detailed, processors });
+    } catch (error) {
+      console.error('Failed to load health status:', error);
+      setHealthStatus(null);
+    } finally {
+      setLoadingHealth(false);
+    }
+  };
 
   const loadAvailableModels = async () => {
     setLoadingModels(true);
@@ -54,6 +76,9 @@ const SystemSettings: React.FC = () => {
       setSettings(data);
       if (data?.rag?.model) {
         setModelValue(data.rag.model);
+      }
+      if (data?.file_upload?.enable_ocr_for_scanned_files !== undefined) {
+        setOcrEnabled(data.file_upload.enable_ocr_for_scanned_files);
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -80,6 +105,26 @@ const SystemSettings: React.FC = () => {
       await loadSettings();
     } catch (error: any) {
       setMessage({ type: 'error', text: error?.message || 'Failed to update model' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleOcr = async (enabled: boolean) => {
+    setSaving(true);
+    try {
+      await apiClient.updateSystemSettings({
+        file_upload: { enable_ocr_for_scanned_files: enabled }
+      });
+      setOcrEnabled(enabled);
+      setMessage({ 
+        type: 'success', 
+        text: `OCR for scanned files ${enabled ? 'enabled' : 'disabled'}` 
+      });
+      // Reload settings to get updated values
+      await loadSettings();
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error?.message || 'Failed to update OCR setting' });
     } finally {
       setSaving(false);
     }
@@ -225,6 +270,35 @@ const SystemSettings: React.FC = () => {
             {renderSetting(t('maxFileSize'), `${settings.file_upload.max_file_size / (1024 * 1024)} MB`)}
             {renderSetting(t('allowedExtensions'), settings.file_upload.allowed_extensions)}
             {renderSetting(t('asyncProcessing'), settings.file_upload.enable_async_processing)}
+            
+            {/* OCR Setting with Toggle */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                OCR for Scanned Files
+              </label>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => handleToggleOcr(!ocrEnabled)}
+                  disabled={saving}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                    ocrEnabled ? 'bg-primary-600' : 'bg-gray-300'
+                  } ${saving ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      ocrEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span className="text-sm text-gray-600">
+                  {ocrEnabled ? t('enabled') : t('disabled')}
+                </span>
+                {saving && <Loader className="animate-spin text-primary-600" size={16} />}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Enable OCR processing for PDFs and images without extractable text
+              </p>
+            </div>
           </div>
         )}
 
@@ -255,13 +329,8 @@ const SystemSettings: React.FC = () => {
                     </p>
                     <p className="text-xs text-blue-700 mt-1">
                       Switch AI mode from the top bar to automatically change the model. 
-<<<<<<< Updated upstream
-                      Performance mode uses {settings.rag.recommended_models?.performance || 'qwen2.5:7b'}, 
-                      Lightweight mode uses {settings.rag.recommended_models?.lightweight || 'qwen2:2b'}.
-=======
-                      Performance mode uses a more capable model, 
+Performance mode uses a more capable model, 
                       Lightweight mode uses a faster, smaller model.
->>>>>>> Stashed changes
                     </p>
                   </div>
                 </div>
@@ -430,6 +499,122 @@ const SystemSettings: React.FC = () => {
             {renderSetting(t('corsAllowedOrigins'), settings.security.cors_allowed_origins)}
             {renderSetting(t('corsAllowCredentials'), settings.security.cors_allow_credentials)}
             {renderSetting(t('xFrameOptions'), settings.security.x_frame_options)}
+          </div>
+        )}
+
+        {activeTab === 'health' && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">System Health Status</h2>
+              <button
+                onClick={loadHealthStatus}
+                disabled={loadingHealth}
+                className="btn-secondary flex items-center"
+              >
+                <RefreshCw size={16} className={`mr-2 ${loadingHealth ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+            
+            {loadingHealth && !healthStatus ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader className="animate-spin text-primary-600" size={32} />
+              </div>
+            ) : healthStatus ? (
+              <div className="space-y-6">
+                {/* Overall Status */}
+                {healthStatus.detailed && (
+                  <div className="card">
+                    <h3 className="text-md font-semibold mb-4">Overall System Health</h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Status</span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          healthStatus.detailed.status === 'healthy' 
+                            ? 'bg-green-100 text-green-800'
+                            : healthStatus.detailed.status === 'degraded'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {healthStatus.detailed.status?.toUpperCase() || 'UNKNOWN'}
+                        </span>
+                      </div>
+                      {healthStatus.detailed.timestamp && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Last Check</span>
+                          <span className="text-sm text-gray-900">
+                            {new Date(healthStatus.detailed.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Dependencies */}
+                {healthStatus.detailed?.dependencies && (
+                  <div className="card">
+                    <h3 className="text-md font-semibold mb-4">Dependencies</h3>
+                    <div className="space-y-3">
+                      {Object.entries(healthStatus.detailed.dependencies).map(([name, status]: [string, any]) => (
+                        <div key={name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm font-medium text-gray-900 capitalize">{name}</span>
+                          <div className="flex items-center space-x-2">
+                            {status.status === 'healthy' ? (
+                              <CheckCircle className="text-green-600" size={20} />
+                            ) : (
+                              <XCircle className="text-red-600" size={20} />
+                            )}
+                            <span className={`text-sm font-medium ${
+                              status.status === 'healthy' ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {status.status?.toUpperCase() || 'UNKNOWN'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Processors */}
+                {healthStatus.processors && (
+                  <div className="card">
+                    <h3 className="text-md font-semibold mb-4">Processor Health</h3>
+                    <div className="space-y-3">
+                      {Object.entries(healthStatus.processors).map(([name, status]: [string, any]) => (
+                        <div key={name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <span className="text-sm font-medium text-gray-900 capitalize">{name.replace('_', ' ')}</span>
+                          <div className="flex items-center space-x-2">
+                            {status.available ? (
+                              <CheckCircle className="text-green-600" size={20} />
+                            ) : (
+                              <XCircle className="text-red-600" size={20} />
+                            )}
+                            <span className={`text-sm font-medium ${
+                              status.available ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {status.available ? 'AVAILABLE' : 'UNAVAILABLE'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <AlertTriangle className="mx-auto text-yellow-600 mb-2" size={48} />
+                <p className="text-gray-600">Unable to load health status</p>
+                <button
+                  onClick={loadHealthStatus}
+                  className="mt-4 btn-secondary"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

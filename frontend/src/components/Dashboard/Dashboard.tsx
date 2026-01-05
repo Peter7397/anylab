@@ -15,17 +15,20 @@ import {
   Network,
   Sparkles,
   Tag,
-  GitBranch
+  GitBranch,
+  BarChart3
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { System } from '../../types';
 import { apiClient } from '../../services/api';
+import MetricsDashboard from './MetricsDashboard';
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation(['dashboard', 'common']);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [activeView, setActiveView] = useState<'overview' | 'metrics'>('overview');
   const loadingRef = useRef(false);
 
   const loadDashboardData = useCallback(async () => {
@@ -110,6 +113,40 @@ const Dashboard: React.FC = () => {
           </span>
         </div>
       </div>
+
+      {/* View Toggle */}
+      <div className="border-b border-gray-200">
+        <nav className="flex space-x-8">
+          <button
+            onClick={() => setActiveView('overview')}
+            className={`py-4 px-1 border-b-2 font-medium text-sm ${
+              activeView === 'overview'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveView('metrics')}
+            className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
+              activeView === 'metrics'
+                ? 'border-primary-500 text-primary-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            <BarChart3 size={18} />
+            <span>Metrics</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Metrics View */}
+      {activeView === 'metrics' && <MetricsDashboard />}
+
+      {/* Overview View */}
+      {activeView === 'overview' && (
+        <>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -324,6 +361,8 @@ const Dashboard: React.FC = () => {
           </button>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

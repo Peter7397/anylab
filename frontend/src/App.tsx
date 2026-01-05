@@ -12,6 +12,7 @@ import ChatAssistant from './components/AI/ChatAssistant';
 import KnowledgeLibrary from './components/AI/KnowledgeLibrary';
 import DocumentViewerPage from './components/AI/DocumentViewerPage';
 import DocumentManagerPage from './components/AI/DocumentManagerPage';
+import UnifiedUploadQueue from './components/AI/UnifiedUploadQueue';
 import UsefulLinksPage from './components/AI/UsefulLinksPage';
 import SharingCollaborationPage from './components/AI/SharingCollaborationPage';
 import RagSearch from './components/AI/RagSearch';
@@ -21,11 +22,9 @@ import BasicRagSearch from './components/AI/BasicRagSearch';
 import TroubleshootingAI from './components/AI/TroubleshootingAI';
 import DocumentProcessing from './components/AI/DocumentProcessing';
 import ScraperManagement from './components/Scrapers/ScraperManagement';
-import SSBDatabase from './components/AI/SSBDatabase';
 import SystemOverview from './components/Troubleshooting/SystemOverview';
 import LogCollection from './components/Troubleshooting/LogCollection';
 import ProductDocumentGrid from './components/Products/ProductDocumentGrid';
-import HelpPortal from './components/AI/HelpPortal';
 import Forum from './components/Forum/Forum';
 import ForumPost from './components/Forum/ForumPost';
 import PostEditor from './components/Forum/PostEditor';
@@ -43,11 +42,11 @@ function App() {
                                 {/* Public Routes */}
                                 <Route path="/login" element={<Login />} />
                                 
-                                {/* Public Homepage */}
-                                <Route path="/" element={<HomePage />} />
-                                
-                                {/* App Shell - Layout with Sidebar (some routes require auth, forum is public) */}
+                                {/* App Shell - Layout with Sidebar (some routes require auth, forum and homepage are public) */}
                                 <Route element={<Layout />}>
+                                        {/* Public Homepage (in Layout so it has sidebar) */}
+                                        <Route path="/" element={<HomePage />} />
+                                        
                                         {/* Public Forum Routes (in Layout so they have sidebar) */}
                                         <Route path="/forum" element={<Forum />} />
                                         <Route path="/forum/post/:id" element={<ForumPost />} />
@@ -72,8 +71,7 @@ function App() {
                         <Route path="/ai/knowledge/viewer" element={<RequireFeature feature="knowledge.view"><DocumentViewerPage /></RequireFeature>} />
                         <Route path="/ai/viewer" element={<RequireFeature feature="knowledge.view"><DocumentViewerPage /></RequireFeature>} />
                         <Route path="/ai/knowledge/manager" element={<RequireFeature feature="knowledge.view"><DocumentManagerPage /></RequireFeature>} />
-                        <Route path="/ai/knowledge/ssb" element={<RequireFeature feature="knowledge.view"><SSBDatabase /></RequireFeature>} />
-                        <Route path="/ai/knowledge/help-portal" element={<RequireFeature feature="knowledge.view"><HelpPortal /></RequireFeature>} />
+                        <Route path="/ai/knowledge/upload" element={<RequireFeature feature="knowledge.view"><UnifiedUploadQueue /></RequireFeature>} />
                         <Route path="/ai/knowledge/links" element={<RequireFeature feature="knowledge.view"><UsefulLinksPage /></RequireFeature>} />
                         <Route path="/ai/knowledge/sharing" element={<RequireFeature feature="knowledge.view"><SharingCollaborationPage /></RequireFeature>} />
 

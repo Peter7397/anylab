@@ -54,11 +54,7 @@ i18n
         validation: validationEn,
       },
     },
-<<<<<<< Updated upstream
-    fallbackLng: 'en-US',
-=======
-    fallbackLng: 'zh-CN',  // Default to Chinese if no language is set
->>>>>>> Stashed changes
+fallbackLng: 'zh-CN',  // Default to Chinese if no language is set
     defaultNS: 'common',
     ns: [
       'common',

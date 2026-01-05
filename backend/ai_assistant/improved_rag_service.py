@@ -22,7 +22,7 @@ class ImprovedRAGService:
     
     def __init__(self, model_name=None):
         self.model_name = model_name or get_ollama_model()
-        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://localhost:11434')
+        self.ollama_url = getattr(settings, 'OLLAMA_API_URL', 'http://ollama:11434')
         self.embedding_model = getattr(settings, 'EMBEDDING_MODEL', 'bge-m3')
         
         # Enhanced cache settings
@@ -351,14 +351,9 @@ class ImprovedRAGService:
         
         # Language-aware prompts
         if 'zh' in language.lower():
-<<<<<<< Updated upstream
-            # Chinese prompt
-            prompt = (
-=======
             # Chinese prompt - with explicit language enforcement
             prompt = (
                 "重要：你必须用中文（简体中文）回答。不要用英语。\n\n"
->>>>>>> Stashed changes
                 "你是一个专业的助手。请仅使用提供的上下文回答用户的问题。\n"
                 "重要规则：\n"
                 "1. 仅使用以下上下文中的信息 - 不要使用外部知识\n"
@@ -368,20 +363,12 @@ class ImprovedRAGService:
                 "5. 当信息质量差异较大时，提及相似度分数\n\n"
                 f"上下文：\n{context}\n\n"
                 f"问题：{query}\n\n"
-<<<<<<< Updated upstream
-                "回答："
-            )
-        else:
-            # English prompt
-            prompt = (
-=======
                 "回答（必须用中文）："
             )
         else:
             # English prompt - with explicit language enforcement
             prompt = (
                 "IMPORTANT: You MUST answer in English. Do not respond in Chinese.\n\n"
->>>>>>> Stashed changes
                 "You are an expert assistant. Answer the user's question using ONLY the provided context.\n"
                 "IMPORTANT RULES:\n"
                 "1. Use ONLY information from the context below - do not use external knowledge\n"
@@ -391,11 +378,7 @@ class ImprovedRAGService:
                 "5. Mention similarity scores when information quality varies\n\n"
                 f"Context:\n{context}\n\n"
                 f"Question: {query}\n\n"
-<<<<<<< Updated upstream
-                "Answer:"
-=======
                 "Answer (in English):"
->>>>>>> Stashed changes
             )
         
         return self.ollama_generate(prompt, language=language)
@@ -403,7 +386,8 @@ class ImprovedRAGService:
     def ollama_generate(self, prompt, model=None, language='en-US'):
         """Generate response using Ollama with enhanced caching and language support"""
         if model is None:
-            model = self.model_name
+            # Always fetch the current model dynamically instead of using cached self.model_name
+            model = get_ollama_model()
         
         # Validate model is set
         if not model:
@@ -420,15 +404,6 @@ class ImprovedRAGService:
             logger.debug(f"Using cached response for prompt hash: {prompt_hash[:8]}...")
             return cached_response
         
-<<<<<<< Updated upstream
-        # Select system prompt based on language
-        if 'zh' in language.lower():
-            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
-                                  '你是一个专业的助手。请仅使用提供的上下文回答问题，保持简洁准确。')
-        else:
-            system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_EN',
-                                  'You are a helpful assistant. Use only the following context to answer the question. Be concise and accurate.')
-=======
         # Select system prompt based on language with explicit language instruction
         if 'zh' in language.lower():
             system_prompt = getattr(settings, 'OLLAMA_SYSTEM_PROMPT_ZH',
@@ -440,7 +415,6 @@ class ImprovedRAGService:
                                   'You are a helpful assistant. You MUST answer all questions in English. '
                                   'Use only the following context to answer the question. Be concise and accurate. '
                                   'Do not respond in Chinese, only in English.')
->>>>>>> Stashed changes
             
         try:
             api_url = f"{self.ollama_url}/api/chat"

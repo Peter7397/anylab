@@ -5,7 +5,8 @@ import multiprocessing
 import os
 
 # Server socket
-bind = "0.0.0.0:8001"
+# Use port 8000 in Docker, 8001 on host
+bind = os.getenv('GUNICORN_BIND', "0.0.0.0:8000")
 backlog = 64  # Reduced from default 2048
 
 # Worker processes - MINIMAL for memory efficiency
@@ -24,9 +25,12 @@ max_requests = 500  # Restart worker after 500 requests (prevent memory leaks)
 max_requests_jitter = 50  # Add randomness: 450-550 requests
 
 # Logging
-accesslog = "/Users/pinggenchen/Projects/Anylab103/logs/gunicorn-access.log"
-errorlog = "/Users/pinggenchen/Projects/Anylab103/logs/gunicorn-error.log"
-loglevel = "warning"  # Only log warnings/errors (reduce I/O)
+# Use container paths when running in Docker, fallback to host paths
+import os
+LOG_DIR = os.getenv('LOG_DIR', '/app/logs')
+accesslog = os.path.join(LOG_DIR, 'gunicorn-access.log')
+errorlog = os.path.join(LOG_DIR, 'gunicorn-error.log')
+loglevel = "info"  # Log info level for debugging upload issues
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 
 # Process naming

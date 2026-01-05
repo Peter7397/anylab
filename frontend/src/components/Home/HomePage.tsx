@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
   LogIn, 
@@ -24,55 +24,16 @@ import {
   Globe,
   Webhook
 } from 'lucide-react';
-import LanguageSwitcher from '../Layout/LanguageSwitcher';
 
 const HomePage: React.FC = () => {
-  const navigate = useNavigate();
   const { t } = useTranslation('common');
   // Check if user is authenticated
   const token = localStorage.getItem('anylab_token'); // Use hardcoded key for consistency
   const isAuthenticated = !!token;
 
-  // Public landing page for unauthenticated users
+  // Public landing page - now within Layout so it has sidebar navigation
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-teal-600 rounded-lg flex items-center justify-center">
-                <Brain className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">AnyLab</h1>
-                <span className="text-sm text-gray-500">{t('homepage.tagline')}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <LanguageSwitcher />
-              {isAuthenticated ? (
-                <Link
-                  to="/dashboard"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-                >
-                  <ArrowRight className="w-4 h-4 rotate-180" />
-                  {t('dashboard')}
-                </Link>
-              ) : (
-                <Link
-                  to="/login"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-                >
-                  <LogIn className="w-4 h-4" />
-                  {t('homepage.signIn')}
-                </Link>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
+    <div className="min-h-full bg-gradient-to-br from-emerald-50 via-white to-gray-50 -m-6">
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center mb-8">

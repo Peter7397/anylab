@@ -15,8 +15,9 @@ from django.core.cache import cache
 from django.core.files.storage import FileSystemStorage
 from django.utils import timezone
 from django.db.models import Q
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.response import Response
 from rest_framework import status
 from django.http import HttpResponse, Http404
@@ -260,14 +261,73 @@ def upload_pdf_enhanced(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, HasFeaturePermission.require('documents.upload')])
 def upload_document_enhanced(request):
-    """Enhanced document upload with automatic processing and metadata"""
+    """Enhanced document upload with automatic processing and metadata
+    
+    Optionally routes through unified upload queue if 'use_queue' parameter is True.
+    Default behavior (use_queue=False) maintains backward compatibility.
+    """
     try:
         BaseViewMixin.log_request(request, 'upload_document_enhanced')
+        logger.info(f"Upload request received: method={request.method}, FILES keys={list(request.FILES.keys())}")
         
         if 'file' not in request.FILES:
+            logger.warning("Upload request missing 'file' in request.FILES")
             return bad_request_response('No file provided')
         
         file = request.FILES['file']
+        logger.info(f"File received: name={file.name}, size={file.size}, content_type={file.content_type}")
+        
+        # Optional: Route through unified upload queue
+        use_queue = request.POST.get('use_queue', 'false').lower() == 'true'
+        if use_queue:
+            from ..service_classes.upload_queue_manager import upload_queue_manager
+            from ..tasks import process_upload_job
+            
+            # Extract metadata
+            product_category = request.POST.get('product_category', '')
+            content_type = request.POST.get('content_type', '')
+            version = request.POST.get('version', '')
+            title = request.POST.get('title', file.name)
+            description = request.POST.get('description', '')
+            document_type = request.POST.get('document_type', 'pdf')
+            priority = int(request.POST.get('priority', 5))
+            
+            metadata = {
+                'product_category': product_category,
+                'content_type': content_type,
+                'version': version,
+                'document_type': document_type,
+                'title': title,
+                'description': description
+            }
+            
+            # Create job
+            job = upload_queue_manager.add_job(
+                job_type='file',
+                source_path=file.name,
+                source_files=[{
+                    'name': file.name,
+                    'size': file.size,
+                    'type': file.content_type,
+                    'file_object': file
+                }],
+                priority=priority,
+                metadata=metadata,
+                user=request.user
+            )
+            
+            # Queue processing
+            process_upload_job.delay(str(job.job_id))
+            
+            logger.info(f"File upload routed through queue: job_id={job.job_id}")
+            return success_response(
+                "File upload queued successfully",
+                {
+                    'job_id': str(job.job_id),
+                    'status': job.status,
+                    'message': 'File will be processed in the background'
+                }
+            )
         
         # Extract metadata from request
         product_category = request.POST.get('product_category', '')
@@ -306,8 +366,13 @@ def upload_document_enhanced(request):
         if not is_valid and metadata['product_category']:  # Only validate if product is set
             logger.warning(f"Metadata validation errors: {errors}")
         
-        # Use service layer to process document
+        # Use standard rag_service (now has simplified upload method)
+        logger.info(f"[VIEW] Calling rag_service.upload_document_enhanced for file: {file.name}")
+        print(f"[VIEW] Starting upload for: {file.name}", flush=True)
         result = rag_service.upload_document_enhanced(file, request.user)
+        print(f"[VIEW] Upload result: success={result.get('success')}", flush=True)
+        logger.info(f"Upload result: success={result.get('success')}, message={result.get('message', 'N/A')}")
+        print(f"[VIEW] Upload result: success={result.get('success')}")
         
         if result['success']:
             # Create DocumentFile record with metadata
@@ -349,9 +414,11 @@ def upload_document_enhanced(request):
             return success_response(result['message'], result['data'])
         
         else:
+            logger.error(f"Upload failed: {result.get('message', 'Unknown error')}")
             return error_response(result['message'])
         
     except Exception as e:
+        logger.error(f"Exception in upload_document_enhanced: {e}", exc_info=True)
         return BaseViewMixin.handle_error(e, 'upload_document_enhanced')
 
 
@@ -386,6 +453,67 @@ def retry_file_processing(request, file_id):
         return bad_request_response('Uploaded file not found')
     except Exception as e:
         return BaseViewMixin.handle_error(e, 'retry_file_processing')
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def delete_uploaded_file(request, file_id):
+    """Delete an UploadedFile and all associated data"""
+    try:
+        BaseViewMixin.log_request(request, 'delete_uploaded_file')
+        from ai_assistant.models import DocumentChunk, DocumentFile, UploadedFile
+        from django.core.files.storage import default_storage
+        import os
+        from django.conf import settings
+        
+        uploaded_file = UploadedFile.objects.get(id=file_id)
+        filename = uploaded_file.filename
+        
+        # Check permission - user can only delete their own files unless admin
+        if not request.user.is_staff and uploaded_file.uploaded_by != request.user:
+            return error_response("Permission denied", status_code=status.HTTP_403_FORBIDDEN)
+        
+        # Delete associated chunks
+        chunks_count = DocumentChunk.objects.filter(uploaded_file=uploaded_file).count()
+        DocumentChunk.objects.filter(uploaded_file=uploaded_file).delete()
+        
+        # Delete associated DocumentFiles
+        doc_files_count = DocumentFile.objects.filter(uploaded_file=uploaded_file).count()
+        DocumentFile.objects.filter(uploaded_file=uploaded_file).delete()
+        
+        # Delete physical file if it exists (but always delete DB record regardless)
+        file_deleted = False
+        file_missing = False
+        try:
+            if default_storage.exists(filename):
+                default_storage.delete(filename)
+                file_deleted = True
+                logger.info(f"Deleted physical file: {filename}")
+            else:
+                file_missing = True
+                logger.warning(f"Physical file missing during deletion (ID: {uploaded_file.id}, filename: {filename}). Database record will still be deleted.")
+        except Exception as e:
+            file_missing = True
+            logger.warning(f"Could not delete physical file {filename} (ID: {uploaded_file.id}): {e}. Database record will still be deleted.")
+        
+        # ALWAYS delete the UploadedFile record, even if physical file is missing
+        # This prevents orphaned records that cause upload errors
+        file_id = uploaded_file.id
+        uploaded_file.delete()
+        logger.info(f"Deleted UploadedFile record (ID: {file_id}) and all related data")
+        
+        return success_response("File deleted successfully", {
+            'deleted_chunks': chunks_count,
+            'deleted_document_files': doc_files_count,
+            'file_deleted': file_deleted,
+            'file_missing': file_missing
+        })
+        
+    except UploadedFile.DoesNotExist:
+        return error_response("Uploaded file not found", status_code=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error deleting uploaded file {file_id}: {e}", exc_info=True)
+        return BaseViewMixin.handle_error(e, 'delete_uploaded_file')
 
 
 @api_view(['POST'])
@@ -547,9 +675,17 @@ def document_delete(request, doc_id):
         
         doc = DocumentFile.objects.get(id=doc_id)
         
+        from ai_assistant.models import UploadedFile, DocumentChunk
+        from django.core.files.storage import default_storage
+        from django.conf import settings
+        
+        # Get the linked UploadedFile before deletion (if exists)
+        linked_uploaded_file = doc.uploaded_file if hasattr(doc, 'uploaded_file') else None
+        
         # Delete associated chunks - find via document_file or uploaded_file
         # First try via document_file (new way)
         chunks_via_doc = DocumentChunk.objects.filter(document_file=doc)
+        chunks_count = chunks_via_doc.count()
         if chunks_via_doc.exists():
             chunks_via_doc.delete()
         
@@ -561,26 +697,65 @@ def document_delete(request, doc_id):
             if chunks_via_uf.exists():
                 chunks_via_uf.delete()
         
-        # Delete file if exists
+        # Delete physical file if exists (but always delete DB records regardless)
         file_deleted = False
+        file_missing = False
         
         # Try DocumentFile.file field first (legacy documents)
         if doc.file and hasattr(doc.file, 'path'):
-            if os.path.exists(doc.file.path):
-                os.remove(doc.file.path)
-                file_deleted = True
+            try:
+                if os.path.exists(doc.file.path):
+                    os.remove(doc.file.path)
+                    file_deleted = True
+                    logger.info(f"Deleted physical file via DocumentFile.file: {doc.file.path}")
+            except Exception as e:
+                logger.warning(f"Could not delete physical file {doc.file.path}: {e}")
         
         # For uploaded documents, file is stored via UploadedFile in media/uploads/
-        if not file_deleted and hasattr(doc, 'uploaded_file') and doc.uploaded_file:
-            from django.conf import settings
-            file_path = os.path.join(settings.MEDIA_ROOT, doc.uploaded_file.filename)
-            if os.path.exists(file_path):
-                os.remove(file_path)
-                file_deleted = True
+        if not file_deleted and linked_uploaded_file:
+            try:
+                filename = linked_uploaded_file.filename
+                if default_storage.exists(filename):
+                    default_storage.delete(filename)
+                    file_deleted = True
+                    logger.info(f"Deleted physical file via UploadedFile: {filename}")
+                else:
+                    file_missing = True
+                    logger.warning(f"Physical file missing during document deletion (UploadedFile ID: {linked_uploaded_file.id}, filename: {filename})")
+            except Exception as e:
+                file_missing = True
+                logger.warning(f"Could not delete physical file for UploadedFile {linked_uploaded_file.id}: {e}")
         
+        # Delete the DocumentFile record
         doc.delete()
+        logger.info(f"Deleted DocumentFile record (ID: {doc_id})")
         
-        return success_response("Document deleted successfully", {})
+        # Clean up orphaned UploadedFile if it exists and has no other DocumentFiles
+        # This prevents orphaned records that cause upload errors
+        orphaned_cleaned = False
+        if linked_uploaded_file:
+            # Check if this UploadedFile has any other DocumentFiles
+            remaining_doc_files = DocumentFile.objects.filter(uploaded_file=linked_uploaded_file).count()
+            if remaining_doc_files == 0:
+                # No other DocumentFiles reference this UploadedFile, safe to delete
+                uploaded_file_id = linked_uploaded_file.id
+                uploaded_filename = linked_uploaded_file.filename
+                
+                # Delete any remaining chunks
+                remaining_chunks = DocumentChunk.objects.filter(uploaded_file=linked_uploaded_file).count()
+                DocumentChunk.objects.filter(uploaded_file=linked_uploaded_file).delete()
+                
+                # Delete the orphaned UploadedFile
+                linked_uploaded_file.delete()
+                orphaned_cleaned = True
+                logger.info(f"Cleaned up orphaned UploadedFile record (ID: {uploaded_file_id}, filename: {uploaded_filename}, chunks: {remaining_chunks})")
+        
+        return success_response("Document deleted successfully", {
+            'deleted_chunks': chunks_count,
+            'file_deleted': file_deleted,
+            'file_missing': file_missing,
+            'orphaned_uploaded_file_cleaned': orphaned_cleaned
+        })
         
     except DocumentFile.DoesNotExist:
         return error_response("Document not found")
@@ -631,45 +806,116 @@ def document_search(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # Allow access, we'll check auth manually
 def pdf_view(request, file_id):
-    """View PDF document - serves the actual PDF file"""
+    """
+    View PDF document - serves the actual PDF file
+    Supports both JWT token authentication (API) and session authentication (browser)
+    """
     try:
         BaseViewMixin.log_request(request, 'pdf_view')
         
+        # Manual authentication check - support both JWT and session
+        authenticated = False
+        
+        # Method 1: Check JWT token (for API calls)
+        from rest_framework_simplejwt.authentication import JWTAuthentication
+        jwt_auth = JWTAuthentication()
+        try:
+            user, token = jwt_auth.authenticate(request)
+            if user and user.is_authenticated:
+                request.user = user
+                authenticated = True
+                logger.info(f"PDF view - JWT authentication successful for user {user.username}")
+        except Exception as e:
+            logger.debug(f"PDF view - JWT authentication failed: {e}")
+        
+        # Method 2: Check session authentication (for browser access)
+        if not authenticated and hasattr(request, 'session'):
+            try:
+                # Django stores user ID in session with key '_auth_user_id'
+                user_id = request.session.get('_auth_user_id')
+                if user_id:
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    try:
+                        user = User.objects.get(pk=user_id)
+                        request.user = user
+                        authenticated = True
+                        logger.info(f"PDF view - Session authentication successful for user {user.username}")
+                    except User.DoesNotExist:
+                        logger.warning(f"PDF view - User {user_id} from session does not exist")
+                    except Exception as e:
+                        logger.error(f"PDF view - Error loading user from session: {e}")
+                else:
+                    logger.debug(f"PDF view - No _auth_user_id in session. Session keys: {list(request.session.keys())}")
+            except Exception as e:
+                logger.error(f"PDF view - Error checking session: {e}")
+        
+        # Method 3: Check if AuthenticationMiddleware already set request.user
+        if not authenticated and hasattr(request, 'user') and request.user.is_authenticated:
+            authenticated = True
+            logger.info(f"PDF view - User already authenticated via middleware: {request.user.username}")
+        
+        # Final check - require authentication
+        if not authenticated or not request.user.is_authenticated:
+            # Log detailed debug info
+            debug_info = {
+                'has_session': hasattr(request, 'session'),
+                'session_keys': list(request.session.keys()) if hasattr(request, 'session') else [],
+                'has_user': hasattr(request, 'user'),
+                'user_authenticated': getattr(request.user, 'is_authenticated', False) if hasattr(request, 'user') else False,
+                'auth_header': request.META.get('HTTP_AUTHORIZATION', 'Not present'),
+                'cookies': list(request.COOKIES.keys()) if hasattr(request, 'COOKIES') else [],
+                'referer': request.META.get('HTTP_REFERER', 'Not present'),
+            }
+            logger.warning(f"PDF view - Authentication failed. Debug info: {debug_info}")
+            return Response(
+                {"detail": "Authentication credentials were not provided.", "debug": debug_info},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
         uploaded_file = UploadedFile.objects.get(id=file_id)
         
-        # Find the associated DocumentFile that has the actual file
-        from ai_assistant.models import DocumentFile
-        document_file = DocumentFile.objects.filter(uploaded_file=uploaded_file).first()
+        # Use the same file path resolution logic as processing
+        from ai_assistant.utils.file_utils import get_file_path
+        from django.http import FileResponse, HttpResponse
+        import os
         
-        if document_file and document_file.file:
-            # Serve the PDF file
-            from django.http import FileResponse
-            import os
-            file_path = document_file.file.path
-            if os.path.exists(file_path):
-                response = FileResponse(open(file_path, 'rb'), content_type='application/pdf')
-                response['Content-Disposition'] = f'inline; filename="{uploaded_file.filename.split("/")[-1]}"'
-                return response
-            else:
-                return error_response("File not found on disk")
-        else:
-            # Fallback: try to construct path from uploaded_file.filename
-            import os
-            from django.conf import settings
-            file_path = os.path.join(settings.MEDIA_ROOT, uploaded_file.filename)
-            if os.path.exists(file_path):
-                from django.http import FileResponse
-                response = FileResponse(open(file_path, 'rb'), content_type='application/pdf')
-                response['Content-Disposition'] = f'inline; filename="{uploaded_file.filename.split("/")[-1]}"'
-                return response
-            else:
-                return error_response(f"File not found: {uploaded_file.filename}")
+        file_path = get_file_path(uploaded_file)
+        
+        if not os.path.exists(file_path):
+            return error_response(f"File not found: {uploaded_file.filename}")
+        
+        # Read the entire file into memory to ensure complete delivery
+        # This prevents streaming issues that can cause blank pages
+        with open(file_path, 'rb') as f:
+            pdf_content = f.read()
+        
+        # Verify it's a valid PDF
+        if not pdf_content.startswith(b'%PDF'):
+            logger.error(f"File {file_id} does not appear to be a valid PDF")
+            return error_response("Invalid PDF file")
+        
+        # Create HttpResponse with PDF content
+        # Use HttpResponse instead of FileResponse to ensure complete delivery
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        
+        # Set proper headers for PDF viewing
+        filename = uploaded_file.filename.split("/")[-1] if "/" in uploaded_file.filename else uploaded_file.filename
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['Content-Length'] = str(len(pdf_content))
+        
+        # Add headers to prevent caching issues
+        response['Cache-Control'] = 'public, max-age=3600'  # Cache for 1 hour
+        response['Accept-Ranges'] = 'bytes'
+        
+        return response
         
     except UploadedFile.DoesNotExist:
         return error_response("File not found")
     except Exception as e:
+        logger.error(f"Error serving PDF file {file_id}: {e}", exc_info=True)
         return BaseViewMixin.handle_error(e, 'pdf_view')
 
 
@@ -838,6 +1084,15 @@ def get_file_processing_status(request, file_id):
         # if uploaded_file.uploaded_by != request.user:
         #     return unauthorized_response('You do not have permission to view this file')
         
+        # Calculate processing duration if started
+        processing_duration = None
+        if uploaded_file.processing_started_at:
+            if uploaded_file.processing_completed_at:
+                duration = uploaded_file.processing_completed_at - uploaded_file.processing_started_at
+            else:
+                duration = timezone.now() - uploaded_file.processing_started_at
+            processing_duration = duration.total_seconds()
+        
         status_data = {
             'id': uploaded_file.id,
             'filename': uploaded_file.filename,
@@ -853,6 +1108,9 @@ def get_file_processing_status(request, file_id):
             'uploaded_at': uploaded_file.uploaded_at.isoformat() if uploaded_file.uploaded_at else None,
             'processing_started_at': uploaded_file.processing_started_at.isoformat() if uploaded_file.processing_started_at else None,
             'processing_completed_at': uploaded_file.processing_completed_at.isoformat() if uploaded_file.processing_completed_at else None,
+            'processing_duration_seconds': processing_duration,
+            'is_truncated': uploaded_file.is_truncated,
+            'processing_coverage': uploaded_file.processing_coverage,
         }
         
         # Calculate progress percentage if processing
@@ -873,7 +1131,7 @@ def get_file_processing_status(request, file_id):
         return success_response("File status retrieved", status_data)
         
     except UploadedFile.DoesNotExist:
-        return error_response('File not found')
+        return error_response('File not found', status_code=404)
     except Exception as e:
         logger.error(f"Error getting file status: {e}")
         return BaseViewMixin.handle_error(e, 'get_file_processing_status')

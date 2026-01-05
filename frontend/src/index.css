@@ -35,6 +35,14 @@
   
   .sidebar-item {
     @apply flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors duration-200;
+    /* Mobile-friendly touch targets */
+    min-height: 44px;
+  }
+  
+  @media (min-width: 768px) {
+    .sidebar-item {
+      min-height: auto;
+    }
   }
   
   .sidebar-item-active {
@@ -43,6 +51,8 @@
   
   .sidebar-item-inactive {
     @apply text-gray-600 hover:bg-gray-100 hover:text-gray-900;
+    /* Better touch feedback on mobile */
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
   }
   
   .status-badge {

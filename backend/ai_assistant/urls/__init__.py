@@ -16,6 +16,9 @@ urlpatterns = [
     # Document Management endpoints
     path('documents/', include('ai_assistant.urls.document_urls')),
     
+    # Upload Queue endpoints
+    path('upload/', include('ai_assistant.urls.upload_queue_urls')),
+    
     # Content Management endpoints
     path('content/', include('ai_assistant.urls.content_urls')),
     
@@ -47,6 +50,9 @@ urlpatterns = [
 
     # Admin settings endpoints
     path('admin/', include('ai_assistant.urls.admin_settings_urls')),
+    
+    # Debug endpoints (for troubleshooting)
+    path('debug/', include('ai_assistant.urls.debug_urls')),
 ]
 
 # Optional endpoints (may fail if dependencies not installed)

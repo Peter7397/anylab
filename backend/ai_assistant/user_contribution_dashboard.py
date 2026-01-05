@@ -7,199 +7,35 @@ their contributions including uploads, submissions, reviews, and analytics.
 
 import logging
 from typing import Dict, Any, List, Optional, Tuple, Union
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from enum import Enum
 from django.utils import timezone as django_timezone
 from django.core.cache import cache
 from django.db.models import Count, Sum, Avg, Q
 from django.contrib.auth.models import User
 
+# Import from refactored modules
+from .user_contributions import (
+    ContributionType,
+    ContributionStatus,
+    UserRole,
+    AchievementType,
+    UserContribution,
+    UserProfile,
+    ContributionAnalytics,
+    DashboardWidget,
+    UserAchievement,
+)
+# Import component builders
+from .user_contributions.components import (
+    create_default_widgets,
+    create_dashboard_layouts,
+    calculate_reputation_score,
+    generate_contribution_trend,
+    generate_quality_trend,
+    generate_engagement_trend,
+)
+
 logger = logging.getLogger(__name__)
-
-
-class ContributionType(Enum):
-    """Contribution type enumeration"""
-    FILE_UPLOAD = "file_upload"
-    URL_SUBMISSION = "url_submission"
-    CONTENT_REVIEW = "content_review"
-    METADATA_EDIT = "metadata_edit"
-    CATEGORIZATION = "categorization"
-    TRANSLATION = "translation"
-    ANNOTATION = "annotation"
-    COMMENT = "comment"
-    RATING = "rating"
-    SHARE = "share"
-    DOWNLOAD = "download"
-    VIEW = "view"
-    SEARCH = "search"
-    FEEDBACK = "feedback"
-    BUG_REPORT = "bug_report"
-    FEATURE_REQUEST = "feature_request"
-    COMMUNITY_POST = "community_post"
-    EXPERT_ANSWER = "expert_answer"
-    TUTORIAL_CREATION = "tutorial_creation"
-    DOCUMENTATION_UPDATE = "documentation_update"
-
-
-class ContributionStatus(Enum):
-    """Contribution status enumeration"""
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    UNDER_REVIEW = "under_review"
-    PUBLISHED = "published"
-    ARCHIVED = "archived"
-    DELETED = "deleted"
-    DRAFT = "draft"
-    SUBMITTED = "submitted"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class UserRole(Enum):
-    """User role enumeration"""
-    VIEWER = "viewer"
-    CONTRIBUTOR = "contributor"
-    REVIEWER = "reviewer"
-    MODERATOR = "moderator"
-    ADMIN = "admin"
-    EXPERT = "expert"
-    TRANSLATOR = "translator"
-    CURATOR = "curator"
-
-
-class AchievementType(Enum):
-    """Achievement type enumeration"""
-    FIRST_CONTRIBUTION = "first_contribution"
-    CONTRIBUTION_MILESTONE = "contribution_milestone"
-    QUALITY_CONTRIBUTOR = "quality_contributor"
-    EXPERT_REVIEWER = "expert_reviewer"
-    COMMUNITY_HELPER = "community_helper"
-    TRANSLATION_EXPERT = "translation_expert"
-    DOCUMENTATION_MASTER = "documentation_master"
-    TUTORIAL_CREATOR = "tutorial_creator"
-    BUG_HUNTER = "bug_hunter"
-    FEATURE_ADVOCATE = "feature_advocate"
-
-
-@dataclass
-class UserContribution:
-    """User contribution structure"""
-    id: str
-    user_id: str
-    contribution_type: ContributionType
-    title: str
-    description: Optional[str] = None
-    content_id: Optional[str] = None
-    file_path: Optional[str] = None
-    url: Optional[str] = None
-    status: ContributionStatus = ContributionStatus.PENDING
-    points_earned: int = 0
-    quality_score: float = 0.0
-    review_count: int = 0
-    approval_count: int = 0
-    rejection_count: int = 0
-    view_count: int = 0
-    download_count: int = 0
-    share_count: int = 0
-    comment_count: int = 0
-    rating_average: float = 0.0
-    rating_count: int = 0
-    tags: List[str] = field(default_factory=list)
-    category: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    created_at: datetime = field(default_factory=lambda: django_timezone.now())
-    updated_at: datetime = field(default_factory=lambda: django_timezone.now())
-    reviewed_at: Optional[datetime] = None
-    published_at: Optional[datetime] = None
-    archived_at: Optional[datetime] = None
-
-
-@dataclass
-class UserProfile:
-    """User profile structure"""
-    user_id: str
-    username: str
-    email: str
-    first_name: str
-    last_name: str
-    role: UserRole = UserRole.CONTRIBUTOR
-    total_points: int = 0
-    contribution_count: int = 0
-    approved_contributions: int = 0
-    rejected_contributions: int = 0
-    pending_contributions: int = 0
-    review_count: int = 0
-    quality_score: float = 0.0
-    reputation_score: float = 0.0
-    expertise_areas: List[str] = field(default_factory=list)
-    languages: List[str] = field(default_factory=list)
-    timezone: str = "UTC"
-    preferences: Dict[str, Any] = field(default_factory=dict)
-    achievements: List[str] = field(default_factory=list)
-    badges: List[str] = field(default_factory=list)
-    joined_at: datetime = field(default_factory=lambda: django_timezone.now())
-    last_active_at: datetime = field(default_factory=lambda: django_timezone.now())
-    profile_updated_at: datetime = field(default_factory=lambda: django_timezone.now())
-
-
-@dataclass
-class ContributionAnalytics:
-    """Contribution analytics structure"""
-    user_id: str
-    period: str  # daily, weekly, monthly, yearly
-    start_date: datetime
-    end_date: datetime
-    total_contributions: int = 0
-    contributions_by_type: Dict[str, int] = field(default_factory=dict)
-    contributions_by_status: Dict[str, int] = field(default_factory=dict)
-    total_points_earned: int = 0
-    average_quality_score: float = 0.0
-    total_views: int = 0
-    total_downloads: int = 0
-    total_shares: int = 0
-    total_comments: int = 0
-    average_rating: float = 0.0
-    top_categories: List[str] = field(default_factory=list)
-    top_tags: List[str] = field(default_factory=list)
-    contribution_trend: List[Dict[str, Any]] = field(default_factory=list)
-    quality_trend: List[Dict[str, Any]] = field(default_factory=list)
-    engagement_trend: List[Dict[str, Any]] = field(default_factory=list)
-
-
-@dataclass
-class DashboardWidget:
-    """Dashboard widget structure"""
-    id: str
-    name: str
-    type: str  # chart, table, metric, list, progress
-    title: str
-    description: str
-    data_source: str
-    config: Dict[str, Any]
-    position: Tuple[int, int]  # row, column
-    size: Tuple[int, int]  # width, height
-    refresh_interval: int = 300  # seconds
-    enabled: bool = True
-    user_specific: bool = True
-    created_at: datetime = field(default_factory=lambda: django_timezone.now())
-    updated_at: datetime = field(default_factory=lambda: django_timezone.now())
-
-
-@dataclass
-class UserAchievement:
-    """User achievement structure"""
-    id: str
-    user_id: str
-    achievement_type: AchievementType
-    title: str
-    description: str
-    points_awarded: int
-    badge_icon: str
-    unlocked_at: datetime = field(default_factory=lambda: django_timezone.now())
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class UserContributionDashboardManager:
@@ -249,137 +85,7 @@ class UserContributionDashboardManager:
     def _create_default_widgets(self):
         """Create default dashboard widgets"""
         try:
-            widgets = [
-                DashboardWidget(
-                    id="contribution_summary",
-                    name="Contribution Summary",
-                    type="metric",
-                    title="My Contributions",
-                    description="Overview of your contributions",
-                    data_source="user_contributions",
-                    config={
-                        "metrics": ["total_contributions", "approved_contributions", "pending_contributions", "total_points"]
-                    },
-                    position=(0, 0),
-                    size=(2, 1)
-                ),
-                DashboardWidget(
-                    id="contribution_trend",
-                    name="Contribution Trend",
-                    type="chart",
-                    title="Contribution Trend",
-                    description="Your contribution activity over time",
-                    data_source="contribution_analytics",
-                    config={
-                        "chart_type": "line",
-                        "x_axis": "date",
-                        "y_axis": "count",
-                        "period": "30_days"
-                    },
-                    position=(0, 2),
-                    size=(3, 2)
-                ),
-                DashboardWidget(
-                    id="quality_score",
-                    name="Quality Score",
-                    type="progress",
-                    title="Quality Score",
-                    description="Your content quality rating",
-                    data_source="user_quality",
-                    config={
-                        "max_value": 100,
-                        "color": "green"
-                    },
-                    position=(0, 5),
-                    size=(1, 1)
-                ),
-                DashboardWidget(
-                    id="recent_contributions",
-                    name="Recent Contributions",
-                    type="list",
-                    title="Recent Contributions",
-                    description="Your latest contributions",
-                    data_source="recent_contributions",
-                    config={
-                        "limit": 10,
-                        "show_status": True
-                    },
-                    position=(1, 0),
-                    size=(2, 2)
-                ),
-                DashboardWidget(
-                    id="contribution_types",
-                    name="Contribution Types",
-                    type="chart",
-                    title="Contribution Types",
-                    description="Breakdown by contribution type",
-                    data_source="contribution_types",
-                    config={
-                        "chart_type": "pie",
-                        "show_percentages": True
-                    },
-                    position=(1, 2),
-                    size=(2, 2)
-                ),
-                DashboardWidget(
-                    id="achievements",
-                    name="Achievements",
-                    type="list",
-                    title="Achievements",
-                    description="Your unlocked achievements",
-                    data_source="user_achievements",
-                    config={
-                        "show_badges": True,
-                        "limit": 5
-                    },
-                    position=(1, 4),
-                    size=(2, 2)
-                ),
-                DashboardWidget(
-                    id="engagement_metrics",
-                    name="Engagement Metrics",
-                    type="metric",
-                    title="Engagement",
-                    description="How your content is performing",
-                    data_source="engagement_metrics",
-                    config={
-                        "metrics": ["total_views", "total_downloads", "total_shares", "average_rating"]
-                    },
-                    position=(2, 0),
-                    size=(2, 1)
-                ),
-                DashboardWidget(
-                    id="top_categories",
-                    name="Top Categories",
-                    type="list",
-                    title="Top Categories",
-                    description="Your most active categories",
-                    data_source="top_categories",
-                    config={
-                        "limit": 5,
-                        "show_counts": True
-                    },
-                    position=(2, 2),
-                    size=(2, 1)
-                ),
-                DashboardWidget(
-                    id="reputation_score",
-                    name="Reputation Score",
-                    type="metric",
-                    title="Reputation",
-                    description="Your community reputation",
-                    data_source="reputation_score",
-                    config={
-                        "show_trend": True
-                    },
-                    position=(2, 4),
-                    size=(2, 1)
-                )
-            ]
-            
-            for widget in widgets:
-                self.widgets[widget.id] = widget
-            
+            self.widgets = create_default_widgets()
             logger.info("Default widgets created")
             
         except Exception as e:
@@ -388,54 +94,7 @@ class UserContributionDashboardManager:
     def _create_dashboard_layouts(self):
         """Create dashboard layouts"""
         try:
-            self.dashboard_layouts = {
-                "default": {
-                    "name": "Default Layout",
-                    "description": "Standard dashboard layout",
-                    "widgets": [
-                        "contribution_summary",
-                        "contribution_trend",
-                        "quality_score",
-                        "recent_contributions",
-                        "contribution_types",
-                        "achievements",
-                        "engagement_metrics",
-                        "top_categories",
-                        "reputation_score"
-                    ],
-                    "grid_size": (3, 6),
-                    "responsive": True
-                },
-                "minimal": {
-                    "name": "Minimal Layout",
-                    "description": "Minimal dashboard layout",
-                    "widgets": [
-                        "contribution_summary",
-                        "recent_contributions",
-                        "quality_score"
-                    ],
-                    "grid_size": (2, 3),
-                    "responsive": True
-                },
-                "detailed": {
-                    "name": "Detailed Layout",
-                    "description": "Detailed dashboard layout",
-                    "widgets": [
-                        "contribution_summary",
-                        "contribution_trend",
-                        "quality_score",
-                        "recent_contributions",
-                        "contribution_types",
-                        "achievements",
-                        "engagement_metrics",
-                        "top_categories",
-                        "reputation_score"
-                    ],
-                    "grid_size": (4, 6),
-                    "responsive": True
-                }
-            }
-            
+            self.dashboard_layouts = create_dashboard_layouts()
             logger.info("Dashboard layouts created")
             
         except Exception as e:
@@ -920,9 +579,9 @@ class UserContributionDashboardManager:
             analytics.top_tags = [tag[0] for tag in analytics.top_tags]
             
             # Generate trends
-            analytics.contribution_trend = self._generate_contribution_trend(user_contributions, start_date, end_date)
-            analytics.quality_trend = self._generate_quality_trend(user_contributions, start_date, end_date)
-            analytics.engagement_trend = self._generate_engagement_trend(user_contributions, start_date, end_date)
+            analytics.contribution_trend = generate_contribution_trend(user_contributions, start_date, end_date)
+            analytics.quality_trend = generate_quality_trend(user_contributions, start_date, end_date)
+            analytics.engagement_trend = generate_engagement_trend(user_contributions, start_date, end_date)
             
             return analytics
             

@@ -23,7 +23,8 @@ try:
     from ..views.bulk_import_views import (
         scan_folder,
         bulk_import_files,
-        bulk_import_status
+        bulk_import_status,
+        list_folders
     )
     BULK_IMPORT_AVAILABLE = True
 except ImportError as e:
@@ -46,6 +47,7 @@ if PROCESSING_AVAILABLE:
 if BULK_IMPORT_AVAILABLE:
     urlpatterns.extend([
         # Bulk import endpoints
+        path('bulk/list-folders/', list_folders, name='list_folders'),
         path('bulk/scan-folder/', scan_folder, name='scan_folder'),
         path('bulk/import-files/', bulk_import_files, name='bulk_import_files'),
         path('bulk/status/', bulk_import_status, name='bulk_import_status'),

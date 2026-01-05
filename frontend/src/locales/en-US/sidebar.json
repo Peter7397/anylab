@@ -3,16 +3,13 @@
   "dashboard": "Dashboard",
   "knowledgeLibrary": "Knowledge Library",
   "libraryManager": "Library Manager",
+  "uploadQueue": "Upload Queue",
   "productManuals": "Product Manuals",
   "technicalSpecs": "Technical Specs",
   "communitySolutions": "Community Solutions",
   "documentViewer": "Document Viewer",
   "aiAssistant": "AI Assistant",
-<<<<<<< Updated upstream
-  "freeAiChat": "Free AI Chat",
-=======
-  "freeAiChat": "AI Chat",
->>>>>>> Stashed changes
+"freeAiChat": "AI Chat",
   "basicRag": "Basic RAG",
   "advancedRag": "Advanced RAG",
   "comprehensiveRag": "Comprehensive RAG",

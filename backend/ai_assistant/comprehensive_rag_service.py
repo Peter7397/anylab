@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class ComprehensiveContextOptimizer:
     """Optimizer for maximum information extraction and comprehensive context"""
     
-    def __init__(self, max_context_length: int = 20000):  # Allow larger combined context
+    def __init__(self, max_context_length: int = 8000):  # Reduced from 20000 to 8000 for better performance
         self.max_context_length = max_context_length
         self.min_sources_for_comprehensive = 3
         
@@ -201,8 +201,8 @@ class ComprehensiveRAGService(AdvancedRAGService):
         self.comprehensive_candidates = 120  # wide candidate net for recall
         self.similarity_threshold = 0.25  # more inclusive
         
-        # Use comprehensive context optimizer
-        self.comprehensive_optimizer = ComprehensiveContextOptimizer(max_context_length=12000)
+        # Use comprehensive context optimizer (reduced from 12000 to 8000 for better performance)
+        self.comprehensive_optimizer = ComprehensiveContextOptimizer(max_context_length=8000)
         
         # Enhanced cache settings for comprehensive responses
         self.comprehensive_cache_ttl = 21600  # 6 hours for comprehensive results
@@ -401,18 +401,16 @@ class ComprehensiveRAGService(AdvancedRAGService):
     def ollama_generate_comprehensive(self, prompt: str, query_type: str = 'general', model: str = None, language='en-US') -> str:
         """Generate comprehensive response with parameters optimized for detailed answers and language support"""
         if model is None:
-            model = self.model_name
+            # Always fetch the current model dynamically instead of using cached self.model_name
+            from .utils.model_settings import get_ollama_model
+            model = get_ollama_model()
         
         # Validate model is set
         if not model:
             logger.error("Ollama model is not set! Please configure OLLAMA_MODEL in settings or via System Settings.")
             raise ValueError("Ollama model is not configured. Please set a model in System Settings.")
         
-<<<<<<< Updated upstream
-        # Create cache key
-=======
         # Create cache key (include language)
->>>>>>> Stashed changes
         prompt_hash = hashlib.md5(prompt.encode('utf-8')).hexdigest()
         cache_key = f"comprehensive_response_{model}_{query_type}_{prompt_hash}_{language}"
         
@@ -482,11 +480,7 @@ class ComprehensiveRAGService(AdvancedRAGService):
         
         try:
             api_url = f"{self.ollama_url}/api/chat"
-<<<<<<< Updated upstream
-            logger.debug(f"Calling Ollama API: {api_url} with model: {model}")
-=======
             logger.debug(f"Calling Ollama API: {api_url} with model: {model}, language: {language}")
->>>>>>> Stashed changes
             response = requests.post(
                 api_url,
                 json={
